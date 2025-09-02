@@ -1,0 +1,432 @@
+@import "tailwindcss";
+
+@theme inline {
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --font-sans: var(--font-geist-sans);
+  --font-mono: var(--font-geist-mono);
+  --font-dancing-script: var(--font-dancing-script);
+}
+
+:root {
+  --background: #ffffff;
+  --foreground: #171717;
+  
+  /* Custom Wedding Color Palette */
+  --sage-green: #8e9180;
+  --slate-blue: #667c93;
+  --soft-blue: #84a2be;
+  --dusty-rose: #cba397;
+  --warm-beige: #cba397;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --background: #0a0a0a;
+    --foreground: #ededed;
+  }
+}
+
+body {
+  background: var(--background);
+  color: var(--foreground);
+  font-family: Arial, Helvetica, sans-serif;
+}
+
+/* Ensure text is always visible */
+* {
+  color-scheme: light;
+}
+
+/* Override dark mode for better visibility */
+@media (prefers-color-scheme: dark) {
+  :root {
+    --background: #ffffff;
+    --foreground: #171717;
+  }
+}
+
+/* Ensure images are always visible */
+img {
+  opacity: 1 !important;
+  visibility: visible !important;
+  filter: none !important;
+  display: block !important;
+}
+
+/* Specific override for album images */
+.album-image {
+  opacity: 1 !important;
+  visibility: visible !important;
+  filter: none !important;
+  background-color: transparent !important;
+}
+
+/* Force all images in album grid to be visible */
+.albums-page img {
+  opacity: 1 !important;
+  visibility: visible !important;
+  filter: none !important;
+  display: block !important;
+  background-color: transparent !important;
+  transform: none !important;
+  position: relative !important;
+  z-index: 1 !important;
+}
+
+/* Additional aggressive overrides for any hidden images */
+.albums-page img[style*="opacity: 0"],
+.albums-page img[style*="visibility: hidden"],
+.albums-page img[style*="display: none"] {
+  opacity: 1 !important;
+  visibility: visible !important;
+  display: block !important;
+}
+
+/* Override any Tailwind or other CSS that might hide images */
+.albums-page .aspect-square img,
+.albums-page .bg-gray-200 img {
+  opacity: 1 !important;
+  visibility: visible !important;
+  display: block !important;
+  filter: none !important;
+}
+
+/* Force rounded corners and proper clipping for album images */
+.albums-page .aspect-square.rounded-lg {
+  border-radius: 8px !important;
+  overflow: hidden !important;
+}
+
+.albums-page .aspect-square.rounded-lg img {
+  border-radius: 8px !important;
+  overflow: hidden !important;
+}
+
+/* Ensure no black corners show through */
+.albums-page .aspect-square.rounded-lg::before,
+.albums-page .aspect-square.rounded-lg::after {
+  display: none !important;
+}
+
+/* Force container to properly clip rounded content */
+.albums-page .aspect-square.rounded-lg.overflow-hidden {
+  overflow: hidden !important;
+  border-radius: 8px !important;
+}
+
+/* Additional aggressive clipping rules */
+.albums-page .aspect-square.rounded-lg.overflow-hidden {
+  background: transparent !important;
+  box-shadow: none !important;
+}
+
+/* Force all child elements to respect rounded corners */
+.albums-page .aspect-square.rounded-lg.overflow-hidden * {
+  border-radius: 8px !important;
+  overflow: hidden !important;
+}
+
+/* Ensure no background colors show through */
+.albums-page .aspect-square.rounded-lg.overflow-hidden {
+  background-color: transparent !important;
+  background-image: none !important;
+}
+
+/* ===== VIDEO DISPLAY RULES ===== */
+
+/* Ensure videos are always visible and properly displayed */
+video {
+  opacity: 1 !important;
+  visibility: visible !important;
+  filter: none !important;
+  display: block !important;
+  background-color: transparent !important;
+  transform: none !important;
+  position: relative !important;
+  z-index: 1 !important;
+}
+
+/* Force video elements to be visible in album grids */
+.albums-page video {
+  opacity: 1 !important;
+  visibility: visible !important;
+  filter: none !important;
+  display: block !important;
+  background-color: transparent !important;
+  transform: none !important;
+  position: relative !important;
+  z-index: 1 !important;
+  border-radius: 8px !important;
+  overflow: hidden !important;
+}
+
+/* Ensure video containers are properly styled */
+.albums-page .aspect-square video {
+  width: 100% !important;
+  height: 100% !important;
+  object-fit: cover !important;
+  border-radius: 8px !important;
+  overflow: hidden !important;
+}
+
+/* Override any hidden video styles */
+.albums-page video[style*="opacity: 0"],
+.albums-page video[style*="visibility: hidden"],
+.albums-page video[style*="display: none"] {
+  opacity: 1 !important;
+  visibility: visible !important;
+  display: block !important;
+}
+
+/* Ensure video play buttons are visible */
+.albums-page .video-play-button {
+  opacity: 1 !important;
+  visibility: visible !important;
+  display: flex !important;
+  z-index: 10 !important;
+}
+
+/* Force video elements to respect container dimensions */
+.albums-page .aspect-square.rounded-lg video {
+  width: 100% !important;
+  height: 100% !important;
+  object-fit: cover !important;
+  border-radius: 8px !important;
+  overflow: hidden !important;
+  background-color: transparent !important;
+}
+
+/* ===== INVITATION ANIMATION STYLES ===== */
+
+/* Custom perspective utilities for 3D effects */
+.perspective-1000 {
+  perspective: 1000px;
+}
+
+.perspective-800 {
+  perspective: 800px;
+}
+
+.transform-3d {
+  transform-style: preserve-3d;
+}
+
+/* Paper plane specific styles */
+.paper-plane-shadow {
+  filter: drop-shadow(0 8px 16px rgba(0, 0, 0, 0.15));
+}
+
+/* Envelope specific styles */
+.envelope-texture {
+  background-image: 
+    linear-gradient(145deg, rgba(255,255,255,0.6) 0%, transparent 40%),
+    radial-gradient(circle at 20% 50%, rgba(255,255,255,0.3) 0%, transparent 50%);
+}
+
+.wax-seal {
+  background-image: 
+    radial-gradient(circle at 30% 30%, rgba(255,255,255,0.3) 0%, transparent 60%),
+    radial-gradient(circle at 70% 70%, rgba(0,0,0,0.2) 0%, transparent 40%);
+}
+
+/* Sparkle animation keyframes */
+@keyframes sparkle {
+  0%, 100% { 
+    transform: scale(0) rotate(0deg);
+    opacity: 0;
+  }
+  50% { 
+    transform: scale(1) rotate(180deg);
+    opacity: 1;
+  }
+}
+
+.sparkle {
+  animation: sparkle 2s ease-in-out infinite;
+}
+
+/* Floating animation for particles */
+@keyframes float {
+  0%, 100% { 
+    transform: translateY(0px);
+    opacity: 0.3;
+  }
+  50% { 
+    transform: translateY(-20px);
+    opacity: 0.8;
+  }
+}
+
+.float {
+  animation: float 3s ease-in-out infinite;
+}
+
+/* Paper fold effect */
+.paper-fold {
+  background-image: 
+    linear-gradient(45deg, rgba(0,0,0,0.05) 0%, transparent 50%),
+    linear-gradient(-45deg, rgba(255,255,255,0.1) 0%, transparent 50%);
+}
+
+/* Vintage postmark effect */
+.postmark {
+  background-image: 
+    radial-gradient(circle at center, rgba(0,0,0,0.1) 1px, transparent 1px);
+  background-size: 4px 4px;
+}
+
+/* ===== ELEGANT WEDDING STYLES ===== */
+
+/* Enhanced font families using web-safe alternatives */
+.font-playfair {
+  font-family: 'Times New Roman', 'Times', serif;
+  font-weight: 600;
+  letter-spacing: 0.025em;
+}
+
+.font-cormorant {
+  font-family: 'Georgia', 'Times New Roman', serif;
+  font-weight: 400;
+  letter-spacing: 0.015em;
+}
+
+.font-dancing {
+  font-family: 'Brush Script MT', 'Lucida Handwriting', cursive;
+  font-style: italic;
+  font-weight: 500;
+}
+
+/* Elegant text effects */
+.text-elegant-shadow {
+  text-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+}
+
+.text-elegant-glow {
+  text-shadow: 0 0 20px rgba(255, 255, 255, 0.5);
+}
+
+/* Backdrop blur utilities */
+.backdrop-blur-elegant {
+  backdrop-filter: blur(10px) saturate(180%);
+}
+
+/* Elegant borders */
+.border-elegant {
+  border-image: linear-gradient(45deg, var(--dusty-rose), var(--sage-green), var(--slate-blue)) 1;
+}
+
+/* Custom scrollbar for elegance */
+::-webkit-scrollbar {
+  width: 8px;
+}
+
+::-webkit-scrollbar-track {
+  background: rgba(203, 163, 151, 0.1);
+}
+
+::-webkit-scrollbar-thumb {
+  background: linear-gradient(to bottom, var(--dusty-rose), var(--sage-green));
+  border-radius: 4px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: linear-gradient(to bottom, var(--sage-green), var(--slate-blue));
+}
+
+/* Elegant selection colors */
+::selection {
+  background-color: var(--dusty-rose);
+  color: white;
+}
+
+::-moz-selection {
+  background-color: var(--dusty-rose);
+  color: white;
+}
+
+/* ===== WEDDING COLOR PALETTE UTILITIES ===== */
+
+/* Text colors */
+.text-sage-green {
+  color: var(--sage-green);
+}
+
+.text-slate-blue {
+  color: var(--slate-blue);
+}
+
+.text-soft-blue {
+  color: var(--soft-blue);
+}
+
+.text-dusty-rose {
+  color: var(--dusty-rose);
+}
+
+.text-warm-beige {
+  color: var(--warm-beige);
+}
+
+/* Background colors */
+.bg-sage-green {
+  background-color: var(--sage-green);
+}
+
+.bg-slate-blue {
+  background-color: var(--slate-blue);
+}
+
+.bg-soft-blue {
+  background-color: var(--soft-blue);
+}
+
+.bg-dusty-rose {
+  background-color: var(--dusty-rose);
+}
+
+.bg-warm-beige {
+  background-color: var(--warm-beige);
+}
+
+/* Border colors */
+.border-sage-green {
+  border-color: var(--sage-green);
+}
+
+.border-slate-blue {
+  border-color: var(--slate-blue);
+}
+
+.border-soft-blue {
+  border-color: var(--soft-blue);
+}
+
+.border-dusty-rose {
+  border-color: var(--dusty-rose);
+}
+
+.border-warm-beige {
+  border-color: var(--warm-beige);
+}
+
+/* Gradient utilities */
+.from-warm-beige {
+  --tw-gradient-from: var(--warm-beige);
+  --tw-gradient-to: rgba(203, 163, 151, 0);
+  --tw-gradient-stops: var(--tw-gradient-from), var(--tw-gradient-to);
+}
+
+.to-dusty-rose {
+  --tw-gradient-to: var(--dusty-rose);
+}
+
+.from-sage-green {
+  --tw-gradient-from: var(--sage-green);
+  --tw-gradient-to: rgba(142, 145, 128, 0);
+  --tw-gradient-stops: var(--tw-gradient-from), var(--tw-gradient-to);
+}
+
+.to-slate-blue {
+  --tw-gradient-to: var(--slate-blue);
+}

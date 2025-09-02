@@ -1,0 +1,141 @@
+{
+  "imgs": [
+    {
+      "name": "reception.jpg",
+      "path": "/imgs/reception.jpg",
+      "fullPath": "/public/imgs/reception.jpg",
+      "size": "115KB",
+      "category": "venue"
+    },
+    {
+      "name": "church.jpg",
+      "path": "/imgs/church.jpg",
+      "fullPath": "/public/imgs/church.jpg",
+      "size": "192KB",
+      "category": "venue"
+    }
+  ],
+  "weddingimgs": [
+    {
+      "name": "img1.jpg",
+      "path": "/weddingimgs/img1.jpg",
+      "fullPath": "/public/weddingimgs/img1.jpg",
+      "size": "557KB",
+      "category": "wedding"
+    },
+    {
+      "name": "img2.jpg",
+      "path": "/weddingimgs/img2.jpg",
+      "fullPath": "/public/weddingimgs/img2.jpg",
+      "size": "626KB",
+      "category": "wedding"
+    },
+    {
+      "name": "img3.jpg",
+      "path": "/weddingimgs/img3.jpg",
+      "fullPath": "/public/weddingimgs/img3.jpg",
+      "size": "944KB",
+      "category": "wedding"
+    },
+    {
+      "name": "img4.jpg",
+      "path": "/weddingimgs/img4.jpg",
+      "fullPath": "/public/weddingimgs/img4.jpg",
+      "size": "622KB",
+      "category": "wedding"
+    },
+    {
+      "name": "img5.jpg",
+      "path": "/weddingimgs/img5.jpg",
+      "fullPath": "/public/weddingimgs/img5.jpg",
+      "size": "782KB",
+      "category": "wedding"
+    },
+    {
+      "name": "img6.jpg",
+      "path": "/weddingimgs/img6.jpg",
+      "fullPath": "/public/weddingimgs/img6.jpg",
+      "size": "782KB",
+      "category": "wedding"
+    },
+    {
+      "name": "img7.jpg",
+      "path": "/weddingimgs/img7.jpg",
+      "fullPath": "/public/weddingimgs/img7.jpg",
+      "size": "1.8MB",
+      "category": "wedding"
+    },
+    {
+      "name": "img8.jpg",
+      "path": "/weddingimgs/img8.jpg",
+      "fullPath": "/public/weddingimgs/img8.jpg",
+      "size": "1.2MB",
+      "category": "wedding"
+    },
+    {
+      "name": "img9.jpg",
+      "path": "/weddingimgs/img9.jpg",
+      "fullPath": "/public/weddingimgs/img9.jpg",
+      "size": "799KB",
+      "category": "wedding"
+    },
+    {
+      "name": "img10.jpg",
+      "path": "/weddingimgs/img10.jpg",
+      "fullPath": "/public/weddingimgs/img10.jpg",
+      "size": "778KB",
+      "category": "wedding"
+    },
+    {
+      "name": "img11.jpg",
+      "path": "/weddingimgs/img11.jpg",
+      "fullPath": "/public/weddingimgs/img11.jpg",
+      "size": "811KB",
+      "category": "wedding"
+    },
+    {
+      "name": "img12.jpg",
+      "path": "/weddingimgs/img12.jpg",
+      "fullPath": "/public/weddingimgs/img12.jpg",
+      "size": "589KB",
+      "category": "wedding"
+    },
+    {
+      "name": "img13.jpg",
+      "path": "/weddingimgs/img13.jpg",
+      "fullPath": "/public/weddingimgs/img13.jpg",
+      "size": "553KB",
+      "category": "wedding"
+    },
+    {
+      "name": "img14.jpg",
+      "path": "/weddingimgs/img14.jpg",
+      "fullPath": "/public/weddingimgs/img14.jpg",
+      "size": "581KB",
+      "category": "wedding"
+    },
+    {
+      "name": "img15.jpg",
+      "path": "/weddingimgs/img15.jpg",
+      "fullPath": "/public/weddingimgs/img15.jpg",
+      "size": "1.2MB",
+      "category": "wedding"
+    },
+    {
+      "name": "img16.jpg",
+      "path": "/weddingimgs/img16.jpg",
+      "fullPath": "/public/weddingimgs/img16.jpg",
+      "size": "660KB",
+      "category": "wedding"
+    }
+  ],
+  "summary": {
+    "totalImages": 18,
+    "imgsCount": 2,
+    "weddingimgsCount": 16,
+    "categories": {
+      "venue": 2,
+      "wedding": 16
+    }
+  }
+}

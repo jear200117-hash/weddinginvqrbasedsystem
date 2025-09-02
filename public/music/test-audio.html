@@ -1,0 +1,45 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Audio Test</title>
+</head>
+<body>
+    <h1>Audio File Test</h1>
+    
+    <h2>Direct HTML5 Audio Player</h2>
+    <audio controls>
+        <source src="that-part-instrumental.mp3" type="audio/mpeg">
+        Your browser does not support the audio element.
+    </audio>
+    
+    <h2>JavaScript Test</h2>
+    <button onclick="testAudio()">Test Play</button>
+    <button onclick="pauseAudio()">Test Pause</button>
+    <div id="status"></div>
+    
+    <script>
+        let audio = new Audio('that-part-instrumental.mp3');
+        
+        function testAudio() {
+            document.getElementById('status').innerHTML = 'Testing...';
+            
+            audio.play().then(() => {
+                document.getElementById('status').innerHTML = 'Playing successfully!';
+            }).catch(error => {
+                document.getElementById('status').innerHTML = 'Error: ' + error.message;
+                console.error('Audio error:', error);
+            });
+        }
+        
+        function pauseAudio() {
+            audio.pause();
+            document.getElementById('status').innerHTML = 'Paused';
+        }
+        
+        audio.addEventListener('error', (e) => {
+            console.error('Audio element error:', e);
+            document.getElementById('status').innerHTML = 'Audio element error';
+        });
+    </script>
+</body>
+</html>
