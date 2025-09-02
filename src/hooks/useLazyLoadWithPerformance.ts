@@ -34,7 +34,7 @@ export const useLazyLoadWithPerformance = ({
     loadTime: 0,
   });
 
-  const elementRef = useRef<HTMLElement>(null);
+  const elementRef = useRef<HTMLDivElement>(null);
   const loadStartTime = useRef<number>(0);
   const observerRef = useRef<IntersectionObserver | null>(null);
 
