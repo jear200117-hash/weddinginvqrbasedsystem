@@ -35,8 +35,18 @@ interface Media {
   createdAt: string;
 }
 
-export default function HomePage() {
+function TabInitializer({ onInit }: { onInit: (tab: string) => void }) {
   const searchParams = useSearchParams();
+  useEffect(() => {
+    const tab = searchParams.get('tab');
+    if (tab && ['home', 'story', 'photos', 'timeline'].includes(tab)) {
+      onInit(tab);
+    }
+  }, [searchParams, onInit]);
+  return null;
+}
+
+export default function HomePage() {
   const [activeTab, setActiveTab] = useState('home');
   const [showCreateAlbumModal, setShowCreateAlbumModal] = useState(false);
   
@@ -61,13 +71,7 @@ export default function HomePage() {
   });
   const [showMobileMenu, setShowMobileMenu] = useState(false);
 
-  // Check for tab parameter in URL
-  useEffect(() => {
-    const tab = searchParams.get('tab');
-    if (tab && ['home', 'story', 'photos', 'timeline'].includes(tab)) {
-      setActiveTab(tab);
-    }
-  }, [searchParams]);
+  // Tab is initialized by TabInitializer inside Suspense
 
   // Countdown functionality
   useEffect(() => {
@@ -929,6 +933,11 @@ export default function HomePage() {
           </motion.div>
         )}
       </AnimatePresence>
+
+      {/* Initialize tab from URL on client */}
+      <Suspense fallback={null}>
+        <TabInitializer onInit={setActiveTab} />
+      </Suspense>
 
       {/* Main Content */}
       <main>
