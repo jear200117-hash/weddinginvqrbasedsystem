@@ -3,7 +3,7 @@
 import { motion, AnimatePresence } from 'framer-motion';
 import { Heart, Mail, Image, Users, ArrowRight, Calendar, MapPin, Clock, Camera, BookOpen, Gift, Music, Utensils, Home, User, Camera as CameraIcon, Users as UsersIcon, MapPin as MapPinIcon, Clock as ClockIcon, X, Plus, Upload, Eye, Play, Download } from 'lucide-react';
 import Link from 'next/link';
-import { useState, useEffect } from 'react';
+import { useState, useEffect, Suspense } from 'react';
 import { useSearchParams } from 'next/navigation';
 import { albumsAPI, mediaAPI } from '@/lib/api';
 import toast, { Toaster } from 'react-hot-toast';
@@ -844,6 +844,7 @@ export default function HomePage() {
   };
 
   return (
+    <Suspense fallback={null}>
     <div className="min-h-screen bg-white">
       <Toaster position="top-center" />
       {/* Global Navbar - always visible */}
@@ -1213,5 +1214,6 @@ export default function HomePage() {
       {/* Performance Monitor */}
       <PerformanceMonitor />
     </div>
+    </Suspense>
   );
 }
