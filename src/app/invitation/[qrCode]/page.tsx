@@ -20,6 +20,8 @@ import { VIDEO_CONFIG, ACTIVE_VIDEO_SOURCE } from '@/config/videoConfig';
 import PrenupVideo from '@/components/PrenupVideo';
 import { MUSIC_CONFIG, ACTIVE_MUSIC_CONFIG } from '@/config/musicConfig';
 import BackgroundMusic from '@/components/BackgroundMusic';
+import OtherDetailsSection from '@/components/OtherDetailsSection';
+import FAQSection from '@/components/FAQSection';
 
 interface Invitation {
   _id: string;
@@ -499,85 +501,6 @@ export default function InvitationPage() {
                 </div>
               </div>
             </section>
-
-                {/* ===== SECTION 7.5: OTHER DETAILS & FAQS ===== */}
-                <section className="min-h-screen flex items-center justify-center bg-white relative py-16">
-                  <div className="max-w-6xl mx-auto px-6 w-full">
-                    <motion.div
-                      className="text-center mb-12"
-                      initial={{ opacity: 0, y: 20 }}
-                      animate={{ opacity: 1, y: 0 }}
-                      transition={{ delay: 0.3, duration: 0.6 }}
-                    >
-                      <h2 className="text-4xl md:text-5xl font-playfair text-slate-blue mb-4">Other Details & FAQs</h2>
-                      <p className="text-lg text-sage-green/80 max-w-2xl mx-auto">Everything you need to know before the day — travel, parking, timings, and answers to common questions.</p>
-                    </motion.div>
-
-                    <div className="grid md:grid-cols-2 gap-10">
-                      {/* Left: quick details */}
-                      <motion.div
-                        className="space-y-6"
-                        initial={{ opacity: 0, x: -20 }}
-                        animate={{ opacity: 1, x: 0 }}
-                        transition={{ delay: 0.4, duration: 0.6 }}
-                      >
-                        <div className="p-6 border rounded-lg shadow-sm bg-rose-50">
-                          <h3 className="font-semibold text-slate-blue text-xl mb-2">Arrival & Timing</h3>
-                          <p className="text-slate-blue/80">Ceremony starts at 11:00 AM. Please arrive 20–30 minutes early for seating. Reception follows immediately after.</p>
-                        </div>
-
-                        <div className="p-6 border rounded-lg shadow-sm bg-rose-50">
-                          <h3 className="font-semibold text-slate-blue text-xl mb-2">Parking & Transport</h3>
-                          <p className="text-slate-blue/80">Complimentary parking will be available at the venue. Rideshare drop-off is recommended for guests who prefer not to drive.</p>
-                        </div>
-
-                        <div className="p-6 border rounded-lg shadow-sm bg-rose-50">
-                          <h3 className="font-semibold text-slate-blue text-xl mb-2">Children</h3>
-                          <p className="text-slate-blue/80">Children are warmly welcome. If you'd like to let us know how many little guests to expect, please include that in your RSVP.</p>
-                        </div>
-
-                        <div className="p-6 border rounded-lg shadow-sm bg-rose-50">
-                          <h3 className="font-semibold text-slate-blue text-xl mb-2">Contact</h3>
-                          <p className="text-slate-blue/80">For urgent queries on the day, please contact our event coordinator via the number on your invitation email.</p>
-                        </div>
-                      </motion.div>
-
-                      {/* Right: FAQ accordion */}
-                      <motion.div
-                        className="space-y-4"
-                        initial={{ opacity: 0, x: 20 }}
-                        animate={{ opacity: 1, x: 0 }}
-                        transition={{ delay: 0.5, duration: 0.6 }}
-                      >
-                        {/* FAQ items */}
-                        {(() => {
-                          const faqs = [
-                            { q: 'What should I wear?', a: "Our suggested dress code is smart formal — think elegant and comfortable. See the Dress Code section for more details." },
-                            { q: 'Is there a gift registry?', a: 'Your presence is the greatest gift. If you’d like to give something, details are available on the host page.' },
-                            { q: 'Can I bring a plus one?', a: 'Your invitation indicates whether a guest is included. If unsure, please check the RSVP or contact us.' },
-                            { q: 'Are dietary requirements catered for?', a: 'Yes — please include any dietary requirements when you submit your RSVP so we can accommodate them.' }
-                          ];
-
-                          return faqs.map((item, idx) => (
-                            <div key={idx} className="border rounded-lg overflow-hidden">
-                              <button
-                                className="w-full text-left px-6 py-4 bg-white flex items-center justify-between"
-                                onClick={() => setOpenFAQIndex(openFAQIndex === idx ? null : idx)}
-                                aria-expanded={openFAQIndex === idx}
-                              >
-                                <span className="font-medium text-slate-blue">{item.q}</span>
-                                <span className="text-rose-500 font-bold ml-4">{openFAQIndex === idx ? '–' : '+'}</span>
-                              </button>
-                              <div className={`px-6 pb-4 bg-rose-50 transition-all duration-300 ${openFAQIndex === idx ? 'max-h-96' : 'max-h-0 overflow-hidden'}`}>
-                                <p className="text-slate-blue/80 pt-2">{item.a}</p>
-                              </div>
-                            </div>
-                          ));
-                        })()}
-                      </motion.div>
-                    </div>
-                  </div>
-                </section>
 
             {/* ===== SECTION 4: WEDDING TIMELINE ===== */}
             <section className="min-h-screen flex items-center justify-center bg-gradient-to-br from-white via-warm-beige/5 to-dusty-rose/10 relative py-16">
@@ -1682,6 +1605,12 @@ export default function InvitationPage() {
               </div>
             </section>
 
+            {/* ===== SECTION 9: OTHER DETAILS ===== */}
+            <OtherDetailsSection />
+
+            {/* ===== SECTION 10: FAQ ===== */}
+            <FAQSection openFAQIndex={openFAQIndex} setOpenFAQIndex={setOpenFAQIndex} />
+
             {/* 3 Images below Dress Code */}
             <div className="py-8 bg-white">
               <motion.div
@@ -1714,123 +1643,6 @@ export default function InvitationPage() {
                 </div>
               </motion.div>
             </div>
-
-            {/* ===== SECTION 9: RSVP & CONFIRMATION ===== */}
-            <section className="min-h-screen flex items-center justify-center relative overflow-hidden">
-              {/* Elegant Background */}
-              <div className="absolute inset-0 bg-gradient-to-br from-warm-beige via-dusty-rose to-sage-green"></div>
-              <div className="absolute inset-0 bg-gradient-to-tr from-white/30 via-transparent to-slate-blue/20"></div>
-
-              {/* Floating Hearts */}
-              <div className="absolute inset-0 pointer-events-none overflow-hidden">
-                <div className="absolute top-20 left-10 text-4xl text-white/20 animate-pulse">💕</div>
-                <div className="absolute top-40 right-20 text-3xl text-white/15 animate-pulse" style={{ animationDelay: '1s' }}>💖</div>
-                <div className="absolute bottom-32 left-16 text-2xl text-white/20 animate-pulse" style={{ animationDelay: '2s' }}>💗</div>
-                <div className="absolute bottom-20 right-12 text-3xl text-white/10 animate-pulse" style={{ animationDelay: '0.5s' }}>💝</div>
-                <div className="absolute top-1/2 left-1/4 text-2xl text-white/15 animate-pulse" style={{ animationDelay: '1.5s' }}>💓</div>
-                <div className="absolute top-1/3 right-1/3 text-2xl text-white/10 animate-pulse" style={{ animationDelay: '3s' }}>💞</div>
-              </div>
-
-              <motion.div
-                className="relative z-10 text-center px-6 max-w-5xl mx-auto"
-                initial={{ opacity: 0, y: 50 }}
-                animate={{ opacity: 1, y: 0 }}
-                transition={{ delay: 1.6, duration: 0.8 }}
-              >
-                {/* Elegant Header */}
-                <motion.div
-                  className="mb-16"
-                  initial={{ scale: 0.8, opacity: 0 }}
-                  animate={{ scale: 1, opacity: 1 }}
-                  transition={{ delay: 1.8, duration: 0.6 }}
-                >
-                  <h2 className="text-5xl md:text-6xl font-playfair text-slate-blue mb-6 text-elegant-shadow">
-                    Kompirmasyon
-                  </h2>
-
-                  {/* Decorative Line */}
-                  <div className="flex justify-center items-center mb-8">
-                    <div className="w-24 h-px bg-gradient-to-r from-transparent via-slate-blue to-transparent"></div>
-                    <div className="mx-6 text-3xl text-dusty-rose font-dancing">RSVP</div>
-                    <div className="w-24 h-px bg-gradient-to-r from-slate-blue via-transparent to-transparent"></div>
-                  </div>
-                </motion.div>
-
-                {/* Elegant Message Card */}
-                <motion.div
-                  className="bg-white/90 backdrop-blur-elegant rounded-3xl shadow-2xl p-12 mb-16 border border-white/50"
-                  initial={{ y: 30, opacity: 0 }}
-                  animate={{ y: 0, opacity: 1 }}
-                  transition={{ delay: 2.0, duration: 0.8 }}
-                >
-                  <p className="text-xl md:text-2xl text-slate-blue font-cormorant max-w-4xl mx-auto leading-relaxed mb-8">
-                    Mayroon kaming inilaan na upuan para sa inyo. Kung maari ay magbigay kumpirmasyon sa{' '}
-                    <span className="font-semibold text-dusty-rose">January 8, 2025</span>{' '}
-                    para sa pagdalo sa aming kasal.
-                  </p>
-
-                  <div className="text-lg text-sage-green font-light italic">
-                    Salamat sa inyong pag-unawa at kooperasyon.
-                  </div>
-                </motion.div>
-
-                {/* Elegant RSVP Buttons */}
-                <motion.div
-                  className="flex flex-col sm:flex-row gap-8 justify-center"
-                  initial={{ opacity: 0, y: 20 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  transition={{ delay: 2.2, duration: 0.6 }}
-                >
-                  <motion.button
-                    onClick={handleConfirmAttendance}
-                    className="group relative px-16 py-5 bg-gradient-to-r from-dusty-rose to-sage-green text-white rounded-full overflow-hidden text-xl font-medium shadow-2xl"
-                    whileHover={{ scale: 1.05, boxShadow: "0 15px 40px rgba(0,0,0,0.3)" }}
-                    whileTap={{ scale: 0.98 }}
-                  >
-                    <span className="relative z-10 font-cormorant">
-                      {!invitation?.rsvp?.status || invitation.rsvp.status === 'pending'
-                        ? '✓ Confirm Attendance'
-                        : invitation.rsvp.status === 'attending' 
-                        ? '✓ Already Confirmed' 
-                        : 'Update Response'
-                      }
-                    </span>
-                    <div className="absolute inset-0 bg-gradient-to-r from-sage-green to-slate-blue opacity-0 group-hover:opacity-100 transition-opacity duration-300"></div>
-                  </motion.button>
-
-                  <motion.button
-                    onClick={handleDeclineWithRegrets}
-                    className="group relative px-16 py-5 border-2 border-dusty-rose text-dusty-rose rounded-full overflow-hidden text-xl font-medium shadow-2xl bg-white/80 backdrop-blur-sm"
-                    whileHover={{ scale: 1.05, backgroundColor: "var(--dusty-rose)", color: "white", boxShadow: "0 15px 40px rgba(0,0,0,0.3)" }}
-                    whileTap={{ scale: 0.98 }}
-                  >
-                    <span className="relative z-10 font-cormorant">
-                      {invitation?.rsvp?.status === 'not_attending' 
-                        ? '✗ Already Declined' 
-                        : '✗ Decline with Regrets'
-                      }
-                    </span>
-                  </motion.button>
-                </motion.div>
-
-                {/* Final Thank You Message */}
-                <motion.div
-                  className="mt-16"
-                  initial={{ opacity: 0 }}
-                  animate={{ opacity: 1 }}
-                  transition={{ delay: 2.4, duration: 0.8 }}
-                >
-                  <p className="text-lg text-slate-blue/80 font-dancing italic">
-                    Salamat sa pagbabahagi ng aming espesyal na araw
-                  </p>
-                  <div className="mt-4 flex justify-center items-center">
-                    <div className="w-16 h-px bg-gradient-to-r from-transparent via-dusty-rose to-transparent"></div>
-                    <div className="mx-4 text-2xl text-dusty-rose">💕</div>
-                    <div className="w-16 h-px bg-gradient-to-r from-dusty-rose via-transparent to-transparent"></div>
-                  </div>
-                </motion.div>
-              </motion.div>
-            </section>
           </motion.div>
         )}
       </AnimatePresence>

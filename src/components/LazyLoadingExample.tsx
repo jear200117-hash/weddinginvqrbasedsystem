@@ -218,7 +218,7 @@ const PerformanceTracking: React.FC = () => {
 
 // Batch Loading Example
 const BatchLoading: React.FC = () => {
-  const { visibleImages, hasMore, loadNextBatch, isLoading, totalImages, loadedCount } = useLazyAlbumImages(
+  const { visibleImages, hasMore, loadNextBatch, isLoading, totalImages, loadedCount, markImageLoaded } = useLazyAlbumImages(
     sampleImages,
     { batchSize: 3, preloadFirst: true }
   );
@@ -242,9 +242,10 @@ const BatchLoading: React.FC = () => {
             <LazyAlbumImage
               key={index}
               src={image.src}
-              alt={image.alt}
+              alt={image.alt ?? ''}
               className="aspect-square"
               showLoadingState={true}
+              onLoad={() => markImageLoaded(image.src)}
             />
           ))}
         </div>

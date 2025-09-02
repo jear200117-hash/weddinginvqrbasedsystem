@@ -26,10 +26,10 @@ const defaultOptions: LazyLoadOptions = {
 };
 
 // Hook for lazy loading any element
-export const useLazyLoad = (options: LazyLoadOptions = {}) => {
+export const useLazyLoad = <T extends HTMLElement = HTMLElement>(options: LazyLoadOptions = {}) => {
   const [isVisible, setIsVisible] = useState(false);
   const [isLoaded, setIsLoaded] = useState(false);
-  const elementRef = useRef<HTMLElement>(null);
+  const elementRef = useRef<T | null>(null);
 
   const handleIntersection = useCallback((entries: IntersectionObserverEntry[]) => {
     entries.forEach((entry) => {
@@ -80,7 +80,7 @@ export const useLazyLoadImage = (options: LazyLoadImageOptions) => {
   const [isLoading, setIsLoading] = useState(true);
   const [hasError, setHasError] = useState(false);
   
-  const { elementRef, isVisible, triggerLoad } = useLazyLoad({
+  const { elementRef, isVisible, triggerLoad } = useLazyLoad<HTMLImageElement>({
     root: options.root,
     rootMargin: options.rootMargin,
     threshold: options.threshold,

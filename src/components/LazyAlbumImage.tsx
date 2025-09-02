@@ -157,18 +157,29 @@ export const LazyAlbumImageGrid: React.FC<LazyAlbumImageProps & {
 };
 
 // Hook for managing multiple album images
-export const useLazyAlbumImages = (images: string[], batchSize: number = 6) => {
+type AlbumItem = { src: string; alt?: string };
+
+export const useLazyAlbumImages = (
+  images: AlbumItem[],
+  options?: { batchSize?: number; preloadFirst?: boolean }
+) => {
+  const batchSize = options?.batchSize ?? 6;
+  const preloadFirst = options?.preloadFirst ?? true;
+
   const [loadedImages, setLoadedImages] = useState<Set<string>>(new Set());
-  const [visibleImages, setVisibleImages] = useState<string[]>([]);
+  const [visibleImages, setVisibleImages] = useState<AlbumItem[]>([]);
   const [currentBatch, setCurrentBatch] = useState(1);
+  const [isLoading, setIsLoading] = useState(false);
 
   const loadNextBatch = () => {
+    if (isLoading) return;
+    setIsLoading(true);
     const startIndex = (currentBatch - 1) * batchSize;
     const endIndex = currentBatch * batchSize;
     const newImages = images.slice(startIndex, endIndex);
-    
     setVisibleImages(prev => [...prev, ...newImages]);
     setCurrentBatch(prev => prev + 1);
+    setIsLoading(false);
   };
 
   const markImageLoaded = (src: string) => {
@@ -183,8 +194,13 @@ export const useLazyAlbumImages = (images: string[], batchSize: number = 6) => {
 
   // Initialize with first batch
   React.useEffect(() => {
-    setVisibleImages(images.slice(0, batchSize));
-  }, [images, batchSize]);
+    if (preloadFirst) {
+      setVisibleImages(images.slice(0, batchSize));
+    } else {
+      setVisibleImages([]);
+    }
+    setCurrentBatch(preloadFirst ? 2 : 1);
+  }, [images, batchSize, preloadFirst]);
 
   return {
     loadedImages,
@@ -193,7 +209,10 @@ export const useLazyAlbumImages = (images: string[], batchSize: number = 6) => {
     loadNextBatch,
     markImageLoaded,
     reset,
-    loadingProgress: (loadedImages.size / images.length) * 100,
+    loadingProgress: images.length === 0 ? 0 : (loadedImages.size / images.length) * 100,
+    isLoading,
+    totalImages: images.length,
+    loadedCount: loadedImages.size,
   };
 };
 
