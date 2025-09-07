@@ -1,7 +1,7 @@
 import axios from 'axios';
 import Cookies from 'js-cookie';
 
-const API_BASE_URL = 'https://backendv2-nasy.onrender.com/api';
+const API_BASE_URL = 'http://localhost:5000/api';
 
 // Create axios instance
 const api = axios.create({
@@ -65,6 +65,8 @@ export const invitationsAPI = {
     guestRole: string;
     customMessage: string;
     invitationType: string;
+    qrCenterType?: string;
+    qrCenterOptions?: any;
   }) => {
     const response = await api.post('/invitations', invitation);
     return response.data;
@@ -82,7 +84,7 @@ export const invitationsAPI = {
 
   getByQRCode: async (qrCode: string) => {
     const response = await axios.get(`${API_BASE_URL}/invitations/qr/${qrCode}`);
-    return response.data;
+    return response.data.invitation; // Return the invitation object directly
   },
 
   update: async (id: string, invitation: {
@@ -113,19 +115,25 @@ export const albumsAPI = {
     description?: string;
     isPublic?: boolean;
     coverImage?: string;
+    qrCenterType?: string;
+    qrCenterOptions?: any;
   }) => {
     const response = await api.post('/albums', album);
     return response.data;
   },
 
-  createGuest: async (album: {
-    name: string;
-    description?: string;
-    isPublic?: boolean;
-    guestEmail: string;
-    coverImage?: string;
-  }) => {
-    const response = await axios.post(`${API_BASE_URL}/albums/guest`, album);
+  getHostAlbums: async () => {
+    const response = await api.get('/albums/host');
+    return response.data;
+  },
+
+  getByQRCode: async (qrCode: string) => {
+    const response = await axios.get(`${API_BASE_URL}/albums/qr/${qrCode}`);
+    return response.data;
+  },
+
+  regenerateQR: async (id: string) => {
+    const response = await api.put(`/albums/${id}/regenerate-qr`);
     return response.data;
   },
 
@@ -171,15 +179,6 @@ export const albumsAPI = {
     return response.data;
   },
 
-  getPending: async () => {
-    const response = await api.get('/albums/pending');
-    return response.data;
-  },
-
-  approve: async (id: string, action: 'approve' | 'reject', rejectionReason?: string) => {
-    const response = await api.put(`/albums/${id}/approve`, { action, rejectionReason });
-    return response.data;
-  }
 };
 
 // Media API
@@ -215,6 +214,26 @@ export const mediaAPI = {
 
     const response = await api.post(
       `/media/host/upload/${albumId}`,
+      formData,
+      {
+        headers: {
+          'Content-Type': 'multipart/form-data',
+        },
+        timeout: 60000, // 60 seconds for uploads
+      }
+    );
+    return response.data;
+  },
+
+  uploadByQR: async (qrCode: string, files: FileList, uploadedBy: string) => {
+    const formData = new FormData();
+    Array.from(files).forEach(file => {
+      formData.append('media', file);
+    });
+    formData.append('uploadedBy', uploadedBy);
+
+    const response = await axios.post(
+      `${API_BASE_URL}/media/upload/qr/${qrCode}`,
       formData,
       {
         headers: {
@@ -265,13 +284,13 @@ export const mediaAPI = {
 
 // QR Code API
 export const qrAPI = {
-  generate: async (url: string, size?: number, margin?: number) => {
-    const response = await api.post('/qr/generate', { url, size, margin });
+  generate: async (url: string, size?: number, margin?: number, centerType?: string, centerOptions?: any) => {
+    const response = await api.post('/qr/generate', { url, size, margin, centerType, centerOptions });
     return response.data;
   },
 
-  generateFile: async (url: string, size?: number, margin?: number) => {
-    const response = await api.post('/qr/generate-file', { url, size, margin }, {
+  generateFile: async (url: string, size?: number, margin?: number, centerType?: string, centerOptions?: any) => {
+    const response = await api.post('/qr/generate-file', { url, size, margin, centerType, centerOptions }, {
       responseType: 'blob'
     });
     return response.data;
@@ -279,6 +298,28 @@ export const qrAPI = {
 
   batchGenerate: async (urls: string[], size?: number, margin?: number) => {
     const response = await api.post('/qr/batch-generate', { urls, size, margin });
+    return response.data;
+  },
+
+  uploadLogo: async (logoFile: File) => {
+    const formData = new FormData();
+    formData.append('logo', logoFile);
+    
+    const response = await api.post('/qr/upload-logo', formData, {
+      headers: {
+        'Content-Type': 'multipart/form-data',
+      },
+    });
+    return response.data;
+  },
+
+  getLogos: async () => {
+    const response = await api.get('/qr/logos');
+    return response.data;
+  },
+
+  deleteLogo: async (filename: string) => {
+    const response = await api.delete(`/qr/logos/${filename}`);
     return response.data;
   },
 

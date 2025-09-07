@@ -1,7 +1,7 @@
 'use client';
 
 import { motion, AnimatePresence } from 'framer-motion';
-import { Heart, Mail, Image, Users, ArrowRight, Calendar, MapPin, Clock, Camera, BookOpen, Gift, Music, Utensils, Home, User, Camera as CameraIcon, Users as UsersIcon, MapPin as MapPinIcon, Clock as ClockIcon, X, Plus, Upload, Eye, Play, Download } from 'lucide-react';
+import { Heart, Mail, Image, Users, ArrowRight, Calendar, MapPin, Clock, Camera, BookOpen, Gift, Music, Utensils, Home, User, Camera as CameraIcon, Users as UsersIcon, MapPin as MapPinIcon, Clock as ClockIcon, X, Eye, Play, Download, Martini, Mic, Cake, Car} from 'lucide-react';
 import Link from 'next/link';
 import { useState, useEffect, Suspense } from 'react';
 import { useSearchParams } from 'next/navigation';
@@ -48,33 +48,139 @@ function TabInitializer({ onInit }: { onInit: (tab: string) => void }) {
 
 export default function HomePage() {
   const [activeTab, setActiveTab] = useState('home');
-  const [showCreateAlbumModal, setShowCreateAlbumModal] = useState(false);
-  
-  // Album functionality state
+
+  // Album functionality state (display-only)
   const [albums, setAlbums] = useState<Album[]>([]);
   const [selectedAlbum, setSelectedAlbum] = useState<Album | null>(null);
   const [albumMedia, setAlbumMedia] = useState<Media[]>([]);
   const [loading, setLoading] = useState(false);
-  const [showUploadModal, setShowUploadModal] = useState(false);
   const [showViewer, setShowViewer] = useState(false);
   const [selectedMedia, setSelectedMedia] = useState<Media | null>(null);
-  const [uploading, setUploading] = useState(false);
-  const [uploadForm, setUploadForm] = useState({
-    guestName: '',
-    files: [] as File[]
-  });
-  const [createAlbumForm, setCreateAlbumForm] = useState({
-    name: '',
-    description: '',
-    guestEmail: '',
-    coverImage: undefined as string | undefined
-  });
   const [showMobileMenu, setShowMobileMenu] = useState(false);
+
+  // How We Met carousel state
+  const [howWeMetImages] = useState([
+    'https://res.cloudinary.com/ddjopmdsi/image/upload/w_800,h_600,c_fill,f_auto,q_auto/IMG_7327_afee0e.heic',
+    'https://res.cloudinary.com/ddjopmdsi/image/upload/w_800,h_600,c_fill,f_auto,q_auto/IMG_9938_l7s1bu.heic',
+    'https://res.cloudinary.com/ddjopmdsi/image/upload/w_800,h_600,c_fill,f_auto,q_auto/IMG_8956_gv9zbw.heic',
+    'https://res.cloudinary.com/ddjopmdsi/image/upload/w_800,h_600,c_fill,f_auto,q_auto/IMG_4703_locd2s.jpg',
+    'https://res.cloudinary.com/ddjopmdsi/image/upload/w_800,h_600,c_fill,f_auto,q_auto/IMG_3303_wwwjrr.heic',
+    'https://res.cloudinary.com/ddjopmdsi/image/upload/w_800,h_600,c_fill,f_auto,q_auto/IMG_0035_zqv0pk.heic'
+  ]);
+
+  const [sealedWithYes] = useState([
+    'https://res.cloudinary.com/ddjopmdsi/image/upload/v1757247836/sealed-with-yes_4_s9j77l.jpg',
+    'https://res.cloudinary.com/ddjopmdsi/image/upload/v1757247830/sealed-with-yes_3_rtgb5f.jpg',
+    'https://res.cloudinary.com/ddjopmdsi/image/upload/v1757247827/sealed-with-yes_2_af2k6b.jpg',
+    'https://res.cloudinary.com/ddjopmdsi/image/upload/v1757247832/sealed-with-yes_5_shr7ls.jpg',
+    'https://res.cloudinary.com/ddjopmdsi/image/upload/v1757247829/sealed-with-yes_1_nuz34i.jpg'
+  ]);
+  const [currentSealedWhitYesIndex, setCurrentSealedWhitYesIndex] = useState(0);
+  const [currentHowWeMetIndex, setCurrentHowWeMetIndex] = useState(0);
+  const [loadedImages, setLoadedImages] = useState<Set<number>>(new Set([0])); // Pre-load first image
+  const [imageLoading, setImageLoading] = useState(false);
+
+  // Countdown state
+  const [countdown, setCountdown] = useState({
+    months: '00',
+    days: '00',
+    hours: '00',
+    minutes: '00',
+    seconds: '00'
+  });
+  const [isClient, setIsClient] = useState(false);
 
   // Tab is initialized by TabInitializer inside Suspense
 
+  // Client-side detection
+  useEffect(() => {
+    setIsClient(true);
+  }, []);
+
+  // Preload next image when current changes
+  useEffect(() => {
+    const preloadNextImage = (index: number) => {
+      if (!loadedImages.has(index)) {
+        const img = new window.Image();
+        img.onload = () => {
+          setLoadedImages(prev => new Set([...prev, index]));
+        };
+        img.src = howWeMetImages[index];
+      }
+    };
+
+    // Preload current and next image
+    preloadNextImage(currentHowWeMetIndex);
+    preloadNextImage((currentHowWeMetIndex + 1) % howWeMetImages.length);
+  }, [currentHowWeMetIndex, howWeMetImages, loadedImages]);
+
+  // Preload all images on component mount
+  useEffect(() => {
+    howWeMetImages.forEach((_, index) => {
+      if (!loadedImages.has(index)) {
+        const img = new window.Image();
+        img.onload = () => {
+          setLoadedImages(prev => new Set([...prev, index]));
+        };
+        img.src = howWeMetImages[index];
+      }
+    });
+    sealedWithYes.forEach((_, index) => {
+      if (!loadedImages.has(index)) {
+        const img = new window.Image();
+        img.onload = () => {
+          setLoadedImages(prev => new Set([...prev, index]));
+        };
+        img.src = sealedWithYes[index];
+      }
+    });
+  }, [howWeMetImages, loadedImages, sealedWithYes]);
+
+  // How We Met carousel auto-advance
+  useEffect(() => {
+    const interval = setInterval(() => {
+      setCurrentHowWeMetIndex((prevIndex) => {
+        const nextIndex = (prevIndex + 1) % howWeMetImages.length;
+        // Only advance if next image is loaded
+        if (loadedImages.has(nextIndex)) {
+          return nextIndex;
+        }
+        return prevIndex; // Stay on current if next isn't ready
+      });
+    }, 6000); // Change image every 6 seconds (increased for better UX with smooth transitions)
+
+    return () => clearInterval(interval);
+  }, [howWeMetImages.length, loadedImages]);
+
+  useEffect(() => {
+    const interval = setInterval(() => {
+      setCurrentSealedWhitYesIndex((prevIndex) => {
+        const nextIndex = (prevIndex + 1) % sealedWithYes.length;
+        return nextIndex;
+      });
+    }, 6000);
+    return () => clearInterval(interval);
+  }, [sealedWithYes.length, loadedImages]);
+
+  // Handle image loading
+  const handleImageLoad = () => {
+    setImageLoading(false);
+  };
+
+  const handleImageError = (index: number) => {
+    console.error(`Failed to load image ${index}`);
+    setImageLoading(false);
+    // Try next image
+    const nextIndex = (index + 1) % howWeMetImages.length;
+    if (nextIndex !== index) {
+      setCurrentHowWeMetIndex(nextIndex);
+    }
+  };
+
   // Countdown functionality
   useEffect(() => {
+    if (!isClient) return;
+
     const weddingDate = new Date('January 16, 2026 14:00:00').getTime();
 
     const updateCountdown = () => {
@@ -89,17 +195,13 @@ export default function HomePage() {
         const minutes = Math.floor((distance % (1000 * 60 * 60)) / (1000 * 60));
         const seconds = Math.floor((distance % (1000 * 60)) / 1000);
 
-        const monthsElement = document.getElementById('months');
-        const daysElement = document.getElementById('days');
-        const hoursElement = document.getElementById('hours');
-        const minutesElement = document.getElementById('minutes');
-        const secondsElement = document.getElementById('seconds');
-
-        if (monthsElement) monthsElement.textContent = months.toString().padStart(2, '0');
-        if (daysElement) daysElement.textContent = days.toString().padStart(2, '0');
-        if (hoursElement) hoursElement.textContent = hours.toString().padStart(2, '0');
-        if (minutesElement) minutesElement.textContent = minutes.toString().padStart(2, '0');
-        if (secondsElement) secondsElement.textContent = seconds.toString().padStart(2, '0');
+        setCountdown({
+          months: months.toString().padStart(2, '0'),
+          days: days.toString().padStart(2, '0'),
+          hours: hours.toString().padStart(2, '0'),
+          minutes: minutes.toString().padStart(2, '0'),
+          seconds: seconds.toString().padStart(2, '0')
+        });
       }
     };
 
@@ -107,7 +209,7 @@ export default function HomePage() {
     const interval = setInterval(updateCountdown, 1000);
 
     return () => clearInterval(interval);
-  }, []);
+  }, [isClient]);
 
   // Fetch albums when photos tab becomes active
   useEffect(() => {
@@ -169,113 +271,6 @@ export default function HomePage() {
     fetchAlbumMedia(album._id);
   };
 
-  const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
-    if (e.target.files) {
-      const filesArray = Array.from(e.target.files);
-      setUploadForm({ ...uploadForm, files: filesArray });
-    }
-  };
-
-  const handleUpload = async () => {
-    if (!selectedAlbum || !uploadForm.guestName.trim() || uploadForm.files.length === 0) {
-      toast.error('Please fill in all fields and select files');
-      return;
-    }
-
-    setUploading(true);
-    try {
-      const fileList = Object.assign(uploadForm.files, {
-        length: uploadForm.files.length,
-        item: (index: number) => uploadForm.files[index]
-      }) as FileList;
-      
-      const response = await mediaAPI.upload(selectedAlbum._id, fileList, uploadForm.guestName);
-      
-      if (response.media && Array.isArray(response.media)) {
-        const newMedia = response.media.map((media: any) => ({
-          ...media,
-          _id: media._id || `temp-${Date.now()}-${Math.random()}`,
-          createdAt: new Date().toISOString(),
-          uploadedBy: uploadForm.guestName
-        }));
-        
-        setAlbumMedia(prev => [...newMedia, ...prev]);
-        
-        setAlbums(prev => prev.map(album => 
-          album._id === selectedAlbum._id 
-            ? { ...album, mediaCount: (album.mediaCount || 0) + newMedia.length }
-            : album
-        ));
-      }
-      
-      toast.success('Media uploaded successfully!');
-      setShowUploadModal(false);
-      setUploadForm({ guestName: '', files: [] });
-      
-      setTimeout(() => {
-        fetchAlbumMedia(selectedAlbum._id);
-      }, 1000);
-    } catch (error: any) {
-      toast.error(error.response?.data?.error || 'Failed to upload files');
-    } finally {
-      setUploading(false);
-    }
-  };
-
-  const handleCreateAlbum = async () => {
-    if (!createAlbumForm.name.trim() || !createAlbumForm.guestEmail.trim()) {
-      toast.error('Please fill in all required fields');
-      return;
-    }
-
-    // Basic email validation
-    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-    if (!emailRegex.test(createAlbumForm.guestEmail.trim())) {
-      toast.error('Please enter a valid email address');
-      return;
-    }
-
-    // Check if coverImage is too large (base64 images can be very large)
-    let coverImageToSend = createAlbumForm.coverImage;
-    if (coverImageToSend && coverImageToSend.length > 1000000) { // 1MB limit for base64
-      console.warn('Cover image too large, removing from request');
-      coverImageToSend = undefined;
-      toast.error('Cover image is too large. Please choose a smaller image.');
-      return;
-    }
-
-    const albumData = {
-      name: createAlbumForm.name,
-      description: createAlbumForm.description,
-      isPublic: true,
-      guestEmail: createAlbumForm.guestEmail,
-      ...(coverImageToSend && { coverImage: coverImageToSend })
-    };
-
-
-
-    try {
-      await albumsAPI.createGuest(albumData);
-      
-      toast.success('Album created successfully! It will be reviewed before publishing.');
-      setShowCreateAlbumModal(false);
-      setCreateAlbumForm({ name: '', description: '', guestEmail: '', coverImage: undefined });
-      fetchAlbums();
-    } catch (error: any) {
-      // Show specific validation errors if available
-      let errorMessage = 'Failed to create album';
-      if (error.response?.data?.errors && error.response.data.errors.length > 0) {
-        const firstError = error.response.data.errors[0];
-        errorMessage = firstError.msg || firstError.message || firstError;
-      } else if (error.response?.data?.error) {
-        errorMessage = error.response.data.error;
-      } else if (error.response?.data?.message) {
-        errorMessage = error.response.data.message;
-      }
-      
-      toast.error(errorMessage);
-    }
-  };
 
   const openViewer = (media: Media) => {
     setSelectedMedia(media);
@@ -305,16 +300,8 @@ export default function HomePage() {
                 <img
                   src="hero.jpg"
                   alt="Wedding Hero"
-                  className="w-full h-full object-cover"
-                  style={{
-                    display: 'block',
-                    opacity: '1',
-                    visibility: 'visible',
-                    filter: 'none',
-                    transform: 'none',
-                    position: 'relative',
-                    zIndex: 1
-                  }}
+                  className="w-full h-full object-cover !brightness-50"
+                 
                   onLoad={(e) => {
                     console.log('Hero image loaded successfully');
                     const target = e.currentTarget as HTMLImageElement;
@@ -326,41 +313,39 @@ export default function HomePage() {
                     target.style.backgroundColor = '#f3f4f6';
                   }}
                 />
-                {/* Overlay for text readability */}
-                <div className="absolute inset-0 bg-black bg-opacity-60"></div>
               </div>
-              
+
               {/* Hero Content */}
               <div className="relative z-10 flex-1 flex items-center justify-center text-center px-4">
                 <div className="max-w-4xl mx-auto text-white">
-                  <motion.h1 
+                  <motion.h1
                     initial={{ opacity: 0, y: 20 }}
                     animate={{ opacity: 1, y: 0 }}
                     transition={{ duration: 0.8, delay: 0.3 }}
                     className="text-6xl md:text-8xl font-light mb-4 tracking-wide font-dancing-script"
-                    style={{ 
+                    style={{
                       textShadow: `
                         0px 2px 4px rgba(139, 69, 19, 0.3),
                         0px 4px 8px rgba(101, 67, 33, 0.2),
                         0px 8px 16px rgba(62, 39, 35, 0.1),
                         1px 1px 2px rgba(0, 0, 0, 0.4)
-                      ` 
+                      `
                     }}
                   >
                     MJ + Erica
                   </motion.h1>
-                  
-                  <motion.div 
+
+                  <motion.div
                     initial={{ opacity: 0, y: 20 }}
                     animate={{ opacity: 1, y: 0 }}
                     transition={{ duration: 0.8, delay: 0.5 }}
                     className="space-y-2 mb-6"
-                    style={{ 
+                    style={{
                       textShadow: `
                         0px 1px 2px rgba(101, 67, 33, 0.4),
                         0px 2px 4px rgba(62, 39, 35, 0.3),
                         0px 4px 8px rgba(0, 0, 0, 0.2)
-                      ` 
+                      `
                     }}
                   >
                     <p className="text-xl md:text-2xl font-light">
@@ -370,18 +355,18 @@ export default function HomePage() {
                       Balayan, Batangas
                     </p>
                   </motion.div>
-                  
-                  <motion.div 
+
+                  <motion.div
                     initial={{ opacity: 0, y: 20 }}
                     animate={{ opacity: 1, y: 0 }}
                     transition={{ duration: 0.8, delay: 0.7 }}
                     className="text-lg md:text-xl font-light opacity-80"
-                    style={{ 
+                    style={{
                       textShadow: `
                         0px 1px 2px rgba(139, 69, 19, 0.3),
                         0px 2px 4px rgba(101, 67, 33, 0.2),
                         0px 4px 8px rgba(0, 0, 0, 0.1)
-                      ` 
+                      `
                     }}
                   >
                     Join us as we celebrate our love
@@ -395,23 +380,33 @@ export default function HomePage() {
               <div className="max-w-4xl mx-auto text-center">
                 <div className="grid grid-cols-5 gap-4">
                   <div className="text-center">
-                    <div className="text-4xl font-light text-[#cba397] mb-2" id="months">00</div>
+                    <div className="text-4xl font-light text-[#cba397] mb-2">
+                      {isClient ? countdown.months : '00'}
+                    </div>
                     <div className="text-sm text-gray-600 uppercase tracking-wide">Months</div>
                   </div>
                   <div className="text-center">
-                    <div className="text-4xl font-light text-[#cba397] mb-2" id="days">00</div>
+                    <div className="text-4xl font-light text-[#cba397] mb-2">
+                      {isClient ? countdown.days : '00'}
+                    </div>
                     <div className="text-sm text-gray-600 uppercase tracking-wide">Days</div>
                   </div>
                   <div className="text-center">
-                    <div className="text-4xl font-light text-[#cba397] mb-2" id="hours">00</div>
+                    <div className="text-4xl font-light text-[#cba397] mb-2">
+                      {isClient ? countdown.hours : '00'}
+                    </div>
                     <div className="text-sm text-gray-600 uppercase tracking-wide">Hours</div>
                   </div>
                   <div className="text-center">
-                    <div className="text-4xl font-light text-[#cba397] mb-2" id="minutes">00</div>
+                    <div className="text-4xl font-light text-[#cba397] mb-2">
+                      {isClient ? countdown.minutes : '00'}
+                    </div>
                     <div className="text-sm text-gray-600 uppercase tracking-wide">Minutes</div>
                   </div>
                   <div className="text-center">
-                    <div className="text-4xl font-light text-[#cba397] mb-2" id="seconds">00</div>
+                    <div className="text-4xl font-light text-[#cba397] mb-2">
+                      {isClient ? countdown.seconds : '00'}
+                    </div>
                     <div className="text-sm text-gray-600 uppercase tracking-wide">Seconds</div>
                   </div>
                 </div>
@@ -429,7 +424,7 @@ export default function HomePage() {
             className="max-w-6xl mx-auto px-4 py-8"
           >
             <div className="text-center mb-16">
-              <h2 className="text-5xl font-light text-gray-900 mb-6 tracking-wide">
+              <h2 className="text-7xl font-light text-gray-900 mb-6 font-parisienne text-slate-blue">
                 Our Love Story
               </h2>
               <div className="w-24 h-px bg-[#cba397] mx-auto mb-8"></div>
@@ -442,20 +437,123 @@ export default function HomePage() {
             <div className="space-y-16">
               {/* How We Met */}
               <div className="grid md:grid-cols-2 gap-12 items-center">
-                <motion.div 
+                <motion.div
                   initial={{ opacity: 0, x: -20 }}
                   animate={{ opacity: 1, x: 0 }}
                   transition={{ duration: 0.6, delay: 0.2 }}
-                  className="relative"
+                  className="relative group"
                 >
-                  <div className="aspect-[4/3] bg-gradient-to-br from-[#84a2be] to-[#cba397] rounded-2xl shadow-lg overflow-hidden">
-                    <div className="w-full h-full flex items-center justify-center">
-                      <Heart className="text-white opacity-30" size={80} />
+                  <div className="aspect-[4/3] rounded-2xl shadow-lg overflow-hidden">
+                    <div className="w-full h-full relative">
+                      {/* Loading indicator */}
+                      <AnimatePresence>
+                        {imageLoading && (
+                          <motion.div
+                            initial={{ opacity: 0 }}
+                            animate={{ opacity: 1 }}
+                            exit={{ opacity: 0 }}
+                            transition={{ duration: 0.3, ease: "easeInOut" }}
+                            className="absolute inset-0 bg-gradient-to-br from-[#84a2be] to-[#cba397] flex items-center justify-center z-10"
+                          >
+                            <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-white"></div>
+                          </motion.div>
+                        )}
+                      </AnimatePresence>
+                      
+                      <AnimatePresence mode="wait">
+                        {loadedImages.has(currentHowWeMetIndex) && (
+                          <motion.img
+                            key={currentHowWeMetIndex}
+                            src={howWeMetImages[currentHowWeMetIndex]}
+                            alt={`How We Met - Image ${currentHowWeMetIndex + 1}`}
+                            className="w-full h-full object-cover absolute inset-0"
+                            initial={{ x: "100%", opacity: 0 }}
+                            animate={{ x: 0, opacity: 1 }}
+                            exit={{ x: "-100%", opacity: 0 }}
+                            transition={{ 
+                              duration: 0.8, 
+                              ease: [0.25, 0.46, 0.45, 0.94] // Custom cubic-bezier for smooth ease
+                            }}
+                            onLoad={handleImageLoad}
+                            onError={() => handleImageError(currentHowWeMetIndex)}
+                          />
+                        )}
+                      </AnimatePresence>
+                      
+                      {/* Fallback placeholder */}
+                      {!loadedImages.has(currentHowWeMetIndex) && !imageLoading && (
+                        <div className="absolute inset-0 w-full h-full bg-gradient-to-br from-[#84a2be] to-[#cba397] flex items-center justify-center">
+                          <Heart className="text-white opacity-30" size={80} />
+                        </div>
+                      )}
+                      
+                      <div className="absolute inset-0 bg-gradient-to-t from-black/20 to-transparent"></div>
+                      
+                      {/* Carousel Indicators */}
+                      <div className="absolute bottom-4 left-1/2 transform -translate-x-1/2 flex space-x-2">
+                        {howWeMetImages.map((_, index) => (
+                          <button
+                            key={index}
+                            onClick={() => {
+                              if (!imageLoading && index !== currentHowWeMetIndex && loadedImages.has(index)) {
+                                setImageLoading(true);
+                                setCurrentHowWeMetIndex(index);
+                              }
+                            }}
+                            disabled={imageLoading || !loadedImages.has(index)}
+                            className={`w-2 h-2 rounded-full transition-all duration-500 ease-out ${
+                              index === currentHowWeMetIndex 
+                                ? 'bg-white scale-125' 
+                                : loadedImages.has(index)
+                                ? 'bg-white/50 hover:bg-white/75'
+                                : 'bg-white/20 cursor-not-allowed'
+                            } ${imageLoading ? 'opacity-50 cursor-not-allowed' : ''}`}
+                          />
+                        ))}
+                      </div>
+
+                      {/* Navigation Arrows */}
+                      <button
+                        onClick={() => {
+                          if (!imageLoading) {
+                            const prevIndex = currentHowWeMetIndex === 0 ? howWeMetImages.length - 1 : currentHowWeMetIndex - 1;
+                            if (loadedImages.has(prevIndex)) {
+                              setImageLoading(true);
+                              setCurrentHowWeMetIndex(prevIndex);
+                            }
+                          }
+                        }}
+                        disabled={imageLoading || !loadedImages.has(currentHowWeMetIndex === 0 ? howWeMetImages.length - 1 : currentHowWeMetIndex - 1)}
+                        className="absolute left-4 top-1/2 transform -translate-y-1/2 bg-black/30 hover:bg-black/50 text-white p-3 rounded-full opacity-0 group-hover:opacity-100 transition-all duration-500 ease-out disabled:opacity-50 disabled:cursor-not-allowed hover:scale-110 hover:translate-x-1"
+                        title="Previous image (slides right)"
+                      >
+                        <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
+                        </svg>
+                      </button>
+                      <button
+                        onClick={() => {
+                          if (!imageLoading) {
+                            const nextIndex = (currentHowWeMetIndex + 1) % howWeMetImages.length;
+                            if (loadedImages.has(nextIndex)) {
+                              setImageLoading(true);
+                              setCurrentHowWeMetIndex(nextIndex);
+                            }
+                          }
+                        }}
+                        disabled={imageLoading || !loadedImages.has((currentHowWeMetIndex + 1) % howWeMetImages.length)}
+                        className="absolute right-4 top-1/2 transform -translate-y-1/2 bg-black/30 hover:bg-black/50 text-white p-3 rounded-full opacity-0 group-hover:opacity-100 transition-all duration-500 ease-out disabled:opacity-50 disabled:cursor-not-allowed hover:scale-110 hover:-translate-x-1"
+                        title="Next image (slides left)"
+                      >
+                        <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+                        </svg>
+                      </button>
                     </div>
                   </div>
                 </motion.div>
 
-                <motion.div 
+                <motion.div
                   initial={{ opacity: 0, x: 20 }}
                   animate={{ opacity: 1, x: 0 }}
                   transition={{ duration: 0.6, delay: 0.3 }}
@@ -465,82 +563,152 @@ export default function HomePage() {
                     How We Met
                   </h3>
                   <p className="text-gray-600 leading-relaxed font-light text-lg">
-                    Our paths crossed on a beautiful spring day in 2020. What started as a chance meeting 
-                    at a local coffee shop turned into hours of conversation and endless laughter.
+                    MJ, the adventurous soul, loved exploring and planning hikes, while Erica lived a quieter, more sheltered routine of home and school. From being schoolmates,
+                    they became friends and eventually colleagues, sharing stories about family, friends, and even their love lives
                   </p>
                   <p className="text-gray-600 leading-relaxed font-light text-lg">
-                    From that first moment, we knew there was something special between us. 
-                    The connection was instant, and our friendship blossomed into something beautiful.
+                    They built a bond that felt natural and genuine—two people who truly understood each other. Little did they know, God had already begun writing their love story as early as 2014,
+                    and years later, in 2021, their friendship blossomed into something deeper, turning into the love story they continue to live today.
                   </p>
-                </motion.div>
-              </div>
-
-              {/* Our Journey */}
-              <div className="grid md:grid-cols-2 gap-12 items-center">
-                <motion.div 
-                  initial={{ opacity: 0, x: -20 }}
-                  animate={{ opacity: 1, x: 0 }}
-                  transition={{ duration: 0.6, delay: 0.4 }}
-                  className="space-y-6 md:order-2"
-                >
-                  <h3 className="text-3xl font-light text-gray-900 mb-4">
-                    Our Journey
-                  </h3>
-                  <p className="text-gray-600 leading-relaxed font-light text-lg">
-                    Through adventures around the world, quiet nights at home, and everything in between, 
-                    we've built a love that grows stronger every day.
-                  </p>
-                  <p className="text-gray-600 leading-relaxed font-light text-lg">
-                    We've supported each other through challenges, celebrated each other's successes, 
-                    and created countless memories that we'll treasure forever.
-                  </p>
-                </motion.div>
-
-                <motion.div 
-                  initial={{ opacity: 0, x: 20 }}
-                  animate={{ opacity: 1, x: 0 }}
-                  transition={{ duration: 0.6, delay: 0.5 }}
-                  className="relative md:order-1"
-                >
-                  <div className="aspect-[4/3] bg-gradient-to-br from-[#cba397] to-[#8e9180] rounded-2xl shadow-lg overflow-hidden">
-                    <div className="w-full h-full flex items-center justify-center">
-                      <MapPin className="text-white opacity-30" size={80} />
-                    </div>
-                  </div>
                 </motion.div>
               </div>
 
               {/* The Proposal */}
               <div className="grid md:grid-cols-2 gap-12 items-center">
-                <motion.div 
+                <motion.div
                   initial={{ opacity: 0, x: -20 }}
                   animate={{ opacity: 1, x: 0 }}
-                  transition={{ duration: 0.6, delay: 0.6 }}
-                  className="relative"
+                  transition={{ duration: 0.6, delay: 0.2 }}
+                  className="relative group"
                 >
-                  <div className="aspect-[4/3] bg-gradient-to-br from-[#667c93] to-[#84a2be] rounded-2xl shadow-lg overflow-hidden">
-                    <div className="w-full h-full flex items-center justify-center">
-                      <Gift className="text-white opacity-30" size={80} />
+                  <div className="aspect-[4/3] rounded-2xl shadow-lg overflow-hidden">
+                    <div className="w-full h-full relative">
+                      {/* Loading indicator */}
+                      <AnimatePresence>
+                        {imageLoading && (
+                          <motion.div
+                            initial={{ opacity: 0 }}
+                            animate={{ opacity: 1 }}
+                            exit={{ opacity: 0 }}
+                            transition={{ duration: 0.3, ease: "easeInOut" }}
+                            className="absolute inset-0 bg-gradient-to-br from-[#84a2be] to-[#cba397] flex items-center justify-center z-10"
+                          >
+                            <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-white"></div>
+                          </motion.div>
+                        )}
+                      </AnimatePresence>
+                      
+                      <AnimatePresence mode="wait">
+                        {loadedImages.has(currentSealedWhitYesIndex) && (
+                          <motion.img
+                            key={currentSealedWhitYesIndex}
+                            src={sealedWithYes[currentSealedWhitYesIndex]}
+                            alt={`How We Met - Image ${currentSealedWhitYesIndex + 1}`}
+                            className="w-full h-full object-cover absolute inset-0"
+                            initial={{ x: "100%", opacity: 0 }}
+                            animate={{ x: 0, opacity: 1 }}
+                            exit={{ x: "-100%", opacity: 0 }}
+                            transition={{ 
+                              duration: 0.8, 
+                              ease: [0.25, 0.46, 0.45, 0.94] // Custom cubic-bezier for smooth ease
+                            }}
+                            onLoad={handleImageLoad}
+                            onError={() => handleImageError(currentSealedWhitYesIndex)}
+                          />
+                        )}
+                      </AnimatePresence>
+                      
+                      {/* Fallback placeholder */}
+                      {!loadedImages.has(currentSealedWhitYesIndex) && !imageLoading && (
+                        <div className="absolute inset-0 w-full h-full bg-gradient-to-br from-[#84a2be] to-[#cba397] flex items-center justify-center">
+                          <Heart className="text-white opacity-30" size={80} />
+                        </div>
+                      )}
+                      
+                      <div className="absolute inset-0 bg-gradient-to-t from-black/20 to-transparent"></div>
+                      
+                      {/* Carousel Indicators */}
+                      <div className="absolute bottom-4 left-1/2 transform -translate-x-1/2 flex space-x-2">
+                        {sealedWithYes.map((_, index) => (
+                          <button
+                            key={index}
+                            onClick={() => {
+                              if (!imageLoading && index !== currentSealedWhitYesIndex && loadedImages.has(index)) {
+                                setImageLoading(true);
+                                setCurrentSealedWhitYesIndex(index);
+                              }
+                            }}
+                            disabled={imageLoading || !loadedImages.has(index)}
+                            className={`w-2 h-2 rounded-full transition-all duration-500 ease-out ${
+                              index === currentSealedWhitYesIndex 
+                                ? 'bg-white scale-125' 
+                                : loadedImages.has(index)
+                                ? 'bg-white/50 hover:bg-white/75'
+                                : 'bg-white/20 cursor-not-allowed'
+                            } ${imageLoading ? 'opacity-50 cursor-not-allowed' : ''}`}
+                          />
+                        ))}
+                      </div>
+
+                      {/* Navigation Arrows */}
+                      <button
+                        onClick={() => {
+                          if (!imageLoading) {
+                            const prevIndex = currentSealedWhitYesIndex === 0 ? sealedWithYes.length - 1 : currentSealedWhitYesIndex - 1;
+                            if (loadedImages.has(prevIndex)) {
+                              setImageLoading(true);
+                              setCurrentSealedWhitYesIndex(prevIndex);
+                            }
+                          }
+                        }}
+                        disabled={imageLoading || !loadedImages.has(currentSealedWhitYesIndex === 0 ? sealedWithYes.length - 1 : currentSealedWhitYesIndex - 1)}
+                        className="absolute left-4 top-1/2 transform -translate-y-1/2 bg-black/30 hover:bg-black/50 text-white p-3 rounded-full opacity-0 group-hover:opacity-100 transition-all duration-500 ease-out disabled:opacity-50 disabled:cursor-not-allowed hover:scale-110 hover:translate-x-1"
+                        title="Previous image (slides right)"
+                      >
+                        <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
+                        </svg>
+                      </button>
+                      <button
+                        onClick={() => {
+                          if (!imageLoading) {
+                            const nextIndex = (currentSealedWhitYesIndex + 1) % sealedWithYes.length;
+                            if (loadedImages.has(nextIndex)) {
+                              setImageLoading(true);
+                              setCurrentSealedWhitYesIndex(nextIndex);
+                            }
+                          }
+                        }}
+                        disabled={imageLoading || !loadedImages.has((currentSealedWhitYesIndex + 1) % sealedWithYes.length)}
+                        className="absolute right-4 top-1/2 transform -translate-y-1/2 bg-black/30 hover:bg-black/50 text-white p-3 rounded-full opacity-0 group-hover:opacity-100 transition-all duration-500 ease-out disabled:opacity-50 disabled:cursor-not-allowed hover:scale-110 hover:-translate-x-1"
+                        title="Next image (slides left)"
+                      >
+                        <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+                        </svg>
+                      </button>
                     </div>
                   </div>
                 </motion.div>
 
-                <motion.div 
+                <motion.div
                   initial={{ opacity: 0, x: 20 }}
                   animate={{ opacity: 1, x: 0 }}
                   transition={{ duration: 0.6, delay: 0.7 }}
                   className="space-y-6"
                 >
                   <h3 className="text-3xl font-light text-gray-900 mb-4">
-                    The Proposal
+                    Sealed with a YES
                   </h3>
                   <p className="text-gray-600 leading-relaxed font-light text-lg">
-                    On a perfect evening in December 2024, surrounded by twinkling lights and the magic 
-                    of the season, MJ asked the most important question of our lives.
+                    It was an ordinary evening on November 30, 2023. Erica and MJ sharing dinner—MJ’s special adobo—while watching Ang Batang Quiapo. But little did Erica know, MJ had been quietly building up his courage.
+                    With a nervous smile and a racing heart, MJ turned to Erica and asked the question that would change their lives forever: “Will you marry me?”
+
                   </p>
                   <p className="text-gray-600 leading-relaxed font-light text-lg">
-                    With tears of joy and hearts full of love, we said yes to forever. 
-                    Now we can't wait to celebrate this next chapter with all of you!
+                    Caught off guard, Erica’s first instinct was to ask, “Alam ba ’to ng magulang ko?” before laughter filled the room. Then, with happy tears and a heart full of love, she gave her sweetest answer: “Yes.”
+
+                    From that simple night, their journey toward forever began. Now we can't wait to celebrate this next chapter with all of you!
                   </p>
                 </motion.div>
               </div>
@@ -568,24 +736,12 @@ export default function HomePage() {
               // Albums Grid View
               <>
                 <div className="text-center mb-12">
-                  <h2 className="text-5xl font-light text-gray-900 mb-6 tracking-wide">
+                  <h2 className="text-7xl font-light text-gray-900 mb-6 font-parisienne text-slate-blue">
                     Wedding Albums
                   </h2>
                   <div className="w-24 h-px bg-[#cba397] mx-auto mb-8"></div>
-                  <p className="text-xl text-gray-600 max-w-3xl mx-auto leading-relaxed font-light mb-6">
-                    Share your photos and videos from our special day
-                  </p>
-                  
-                  <button
-                    onClick={() => setShowCreateAlbumModal(true)}
-                    className="inline-flex items-center gap-2 bg-gradient-to-r from-[#667c93] to-[#84a2be] text-white px-6 py-3 rounded-lg font-semibold hover:shadow-lg transition-all duration-300"
-                  >
-                    <Plus size={20} />
-                    Create Your Album
-                  </button>
-                  
-                  <p className="text-sm text-gray-500 mt-3">
-                    Create a new album and it will be reviewed by the host before publishing
+                  <p className="text-xl text-gray-600 max-w-3xl mx-auto leading-relaxed font-light">
+                    Browse photos and videos from our special day
                   </p>
                 </div>
 
@@ -602,8 +758,8 @@ export default function HomePage() {
                       >
                         <div className="h-48 bg-gradient-to-br from-[#84a2be] from-opacity-20 to-[#cba397] to-opacity-20 flex items-center justify-center">
                           {album.coverImage ? (
-                            <img 
-                              src={album.coverImage} 
+                            <img
+                              src={album.coverImage}
                               alt={album.name}
                               className="w-full h-full object-cover"
                             />
@@ -630,37 +786,22 @@ export default function HomePage() {
                   <div className="text-center py-12">
                     <Image className="text-gray-400 mx-auto mb-4" size={64} />
                     <h3 className="text-xl font-semibold text-gray-700 mb-2">No albums yet</h3>
-                    <p className="text-gray-500 mb-6">Be the first to create an album and share your memories!</p>
-                    <button
-                      onClick={() => setShowCreateAlbumModal(true)}
-                      className="bg-gradient-to-r from-[#667c93] to-[#84a2be] text-white px-6 py-3 rounded-lg font-semibold hover:shadow-lg transition-all duration-300"
-                    >
-                      Create First Album
-                    </button>
+                    <p className="text-gray-500">Albums will appear here once they are created by the host.</p>
                   </div>
                 )}
               </>
             ) : (
               // Album Media View
               <>
-                <div className="flex items-center justify-between mb-8">
-                  <div>
-                    <button
-                      onClick={() => setSelectedAlbum(null)}
-                      className="text-[#84a2be] hover:text-[#667c93] mb-2 flex items-center gap-2"
-                    >
-                      ← Back to Albums
-                    </button>
-                    <h2 className="text-3xl font-bold text-gray-900">{selectedAlbum.name}</h2>
-                    <p className="text-gray-600">{selectedAlbum.description}</p>
-                  </div>
+                <div className="mb-8">
                   <button
-                    onClick={() => setShowUploadModal(true)}
-                    className="bg-gradient-to-r from-[#667c93] to-[#84a2be] text-white px-6 py-3 rounded-lg font-semibold hover:shadow-lg transition-all duration-300 flex items-center gap-2"
+                    onClick={() => setSelectedAlbum(null)}
+                    className="text-[#84a2be] hover:text-[#667c93] mb-2 flex items-center gap-2"
                   >
-                    <Upload size={20} />
-                    Upload Photo/Video
+                    ← Back to Albums
                   </button>
+                  <h2 className="text-3xl font-bold text-gray-900">{selectedAlbum.name}</h2>
+                  <p className="text-gray-600">{selectedAlbum.description}</p>
                 </div>
 
                 {albumMedia.length > 0 ? (
@@ -675,9 +816,9 @@ export default function HomePage() {
                         onClick={() => openViewer(media)}
                       >
                         {media.mediaType === 'image' ? (
-                          <div 
+                          <div
                             className="w-full rounded-lg overflow-hidden"
-                            style={{ 
+                            style={{
                               aspectRatio: '1/1',
                               minHeight: '200px',
                               backgroundColor: '#ffffff',
@@ -733,7 +874,7 @@ export default function HomePage() {
                             </div>
                           </div>
                         )}
-                        
+
                         <div className="absolute inset-0 bg-black bg-opacity-0 group-hover:bg-opacity-20 transition-all duration-300 flex items-center justify-center">
                           <div className="opacity-0 group-hover:opacity-100 transition-opacity duration-300">
                             <Eye className="text-white" size={24} />
@@ -746,13 +887,7 @@ export default function HomePage() {
                   <div className="text-center py-12">
                     <Image className="text-gray-400 mx-auto mb-4" size={64} />
                     <h3 className="text-xl font-semibold text-gray-700 mb-2">No photos or videos yet</h3>
-                    <p className="text-gray-500 mb-6">Be the first to share memories from this album!</p>
-                    <button
-                      onClick={() => setShowUploadModal(true)}
-                      className="bg-gradient-to-r from-[#667c93] to-[#84a2be] text-white px-6 py-3 rounded-lg font-semibold hover:shadow-lg transition-all duration-300"
-                    >
-                      Upload First Photo/Video
-                    </button>
+                    <p className="text-gray-500">Photos and videos will appear here once they are uploaded by guests.</p>
                   </div>
                 )}
               </>
@@ -769,7 +904,7 @@ export default function HomePage() {
             className="max-w-4xl mx-auto px-4 py-8"
           >
             <div className="text-center mb-16">
-              <h2 className="text-5xl font-light text-gray-900 mb-6 tracking-wide">
+              <h2 className="text-7xl font-light text-gray-900 mb-6 font-parisienne text-slate-blue">
                 Wedding Timeline
               </h2>
               <div className="w-24 h-px bg-[#cba397] mx-auto mb-8"></div>
@@ -778,67 +913,54 @@ export default function HomePage() {
               </p>
             </div>
 
-            <div className="relative">
-              {/* Timeline Line */}
-              <div className="absolute left-8 top-0 bottom-0 w-px bg-[#cba397]"></div>
-              
-              <div className="space-y-12">
-                {[
-                  { 
-                    time: '2:00 PM', 
-                    event: 'Ceremony Begins', 
-                    description: 'Join us as we say "I do" in our beautiful venue',
-                    icon: Heart
-                  },
-                  { 
-                    time: '3:00 PM', 
-                    event: 'Cocktail Hour', 
-                    description: 'Celebrate with drinks and appetizers while we take photos',
-                    icon: Gift
-                  },
-                  { 
-                    time: '5:00 PM', 
-                    event: 'Reception Dinner', 
-                    description: 'Enjoy a delicious meal with family and friends',
-                    icon: Utensils
-                  },
-                  { 
-                    time: '7:00 PM', 
-                    event: 'First Dance', 
-                    description: 'Watch our first dance as husband and wife',
-                    icon: Music
-                  },
-                  { 
-                    time: '8:00 PM', 
-                    event: 'Dancing & Celebration', 
-                    description: 'Dance the night away and create unforgettable memories',
-                    icon: Camera
-                  }
-                ].map((item, index) => (
-                  <motion.div
-                    key={index}
-                    initial={{ opacity: 0, x: -20 }}
-                    animate={{ opacity: 1, x: 0 }}
-                    transition={{ duration: 0.5, delay: index * 0.1 }}
-                    className="relative flex items-start gap-6"
-                  >
-                    {/* Timeline Dot */}
-                    <div className="w-16 h-16 bg-[#cba397] rounded-full flex items-center justify-center shadow-lg">
-                      <item.icon className="text-white" size={24} />
+            <div className="flex items-center justify-center">
+                    <div className="space-y-2">
+                      {[
+                        { time: "11:00 AM", label: "Ceremony", icon: <Heart className="w-6 h-6 stroke-[1.5]" />, description: "Our Lady of Lourdes Parish" },
+                        { time: "12:30 PM", label: "Cocktails", icon: <Martini className="w-6 h-6 stroke-[1.5]" />, description: "Welcome Reception" },
+                        { time: "1:00 PM", label: "Photos", icon: <Camera className="w-6 h-6 stroke-[1.5]" />, description: "Wedding Portraits" },
+                        { time: "2:00 PM", label: "Reception", icon: <Utensils className="w-6 h-6 stroke-[1.5]" />, description: "AQUILA Crystal Palace" },
+                        { time: "2:30 PM", label: "Speeches", icon: <Mic className="w-6 h-6 stroke-[1.5]" />, description: "Toasts & Well Wishes" },
+                        { time: "3:00 PM", label: "Cake Cutting", icon: <Cake className="w-6 h-6 stroke-[1.5]" />, description: "Sweet Celebration" },
+                        { time: "4:00 PM", label: "First Dance", icon: <Music className="w-6 h-6 stroke-[1.5]" />, description: "Our Special Moment" },
+                        { time: "6:00 PM", label: "Send Off", icon: <Car className="w-6 h-6 stroke-[1.5]" />, description: "Farewell & Thanks" },
+                      ].map((item, idx) => (
+                        <motion.div
+                          key={idx}
+                          className="flex items-center gap-8 p-6 rounded-2xl hover:bg-sage-green/5 transition-colors"
+                          initial={{ opacity: 0, x: -30 }}
+                          whileInView={{ opacity: 1, x: 0 }}
+                          transition={{ duration: 0.6, delay: idx * 0.1 }}
+                          viewport={{ once: true }}
+                        >
+                          {/* Time */}
+                          <div className="w-24 text-right">
+                            <div className="text-lg md:text-xl font-geist-sans text-sage-green font-semibold">
+                              {item.time}
+                            </div>
+                          </div>
+
+                          {/* Icon */}
+                          <div className="w-18 h-18 bg-gradient-to-br from-sage-green/20 to-dusty-rose/20 rounded-full flex items-center justify-center">
+                            <span className="text-sage-green">{item.icon}</span>
+                          </div>
+
+                          {/* Content */}
+                          <div className="flex-1">
+                            <h3 className="text-xl md:text-2xl font-geist-sans text-slate-blue mb-1">
+                              {item.label}
+                            </h3>
+                            <p className="text-slate-blue/70 text-md md:text-xl">
+                              {item.description}
+                            </p>
+                          </div>
+
+                          {/* Decorative Line */}
+                          <div className="hidden md:block w-16 h-px bg-gradient-to-r from-sage-green/30 to-transparent"></div>
+                        </motion.div>
+                      ))}
                     </div>
-                    
-                    {/* Event Content */}
-                    <div className="flex-1 bg-white rounded-lg shadow-md p-6 border border-gray-100">
-                      <div className="flex items-center justify-between mb-3">
-                        <h3 className="text-xl font-semibold text-gray-900">{item.event}</h3>
-                        <span className="text-[#cba397] font-medium text-lg">{item.time}</span>
-                      </div>
-                      <p className="text-gray-600 leading-relaxed">{item.description}</p>
-                    </div>
-                  </motion.div>
-                ))}
-              </div>
-            </div>
+                  </div>
           </motion.div>
         );
 
@@ -849,79 +971,26 @@ export default function HomePage() {
 
   return (
     <Suspense fallback={null}>
-    <div className="min-h-screen bg-white">
-      <Toaster position="top-center" />
-      {/* Global Navbar - always visible */}
-      <header className="bg-white sticky top-0 z-50 shadow-sm">
-        <div className="max-w-6xl mx-auto px-4">
-          <div className="flex items-center justify-between py-3">
-            <div className="flex items-center gap-3">
+      <div className="min-h-screen bg-white">
+        <Toaster position="top-center" />
+        {/* Global Navbar - always visible */}
+        <header className="bg-white sticky top-0 z-50 shadow-sm">
+          <div className="max-w-6xl mx-auto px-4">
+            <div className="flex items-center justify-between py-3">
+              <div className="flex items-center gap-3">
 
-            </div>
+              </div>
 
-            {/* Tab Navigation */}
-            <nav className="hidden md:flex items-center gap-1">
-              {tabs.map((tab) => {
-                const Icon = tab.icon;
-                return (
-                  <button
-                    key={tab.id}
-                    onClick={() => setActiveTab(tab.id)}
-                    className={`flex items-center gap-2 px-4 py-3 rounded-lg font-light transition-all duration-300 ${activeTab === tab.id ? 'bg-[#cba397] text-white' : 'text-gray-700 hover:bg-gray-100'
-                      }`}
-                  >
-                    <Icon size={20} />
-                    <span>{tab.label}</span>
-                  </button>
-                );
-              })}
-            </nav>
-
-            {/* Mobile Menu Button */}
-            <div className="md:hidden">
-              <button
-                onClick={() => setShowMobileMenu(!showMobileMenu)}
-                className="mobile-menu-button text-gray-700 focus:outline-none"
-              >
-                {showMobileMenu ? (
-                  <X className="w-8 h-8" />
-                ) : (
-                  <svg className="w-8 h-8" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M4 6h16M4 12h16m-7 6h7"></path>
-                  </svg>
-                )}
-              </button>
-            </div>
-          </div>
-        </div>
-      </header>
-
-      {/* Mobile Menu */}
-      <AnimatePresence>
-        {showMobileMenu && (
-          <motion.div
-            initial={{ opacity: 0, y: -20 }}
-            animate={{ opacity: 1, y: 0 }}
-            exit={{ opacity: 0, y: -20 }}
-            transition={{ duration: 0.2 }}
-            className="mobile-menu md:hidden bg-white border-b border-gray-200 shadow-lg"
-          >
-            <div className="max-w-6xl mx-auto px-4 py-4">
-              <nav className="space-y-2">
+              {/* Tab Navigation */}
+              <nav className="hidden md:flex items-center gap-1">
                 {tabs.map((tab) => {
                   const Icon = tab.icon;
                   return (
                     <button
                       key={tab.id}
-                      onClick={() => {
-                        setActiveTab(tab.id);
-                        setShowMobileMenu(false);
-                      }}
-                      className={`w-full flex items-center gap-3 px-4 py-3 rounded-lg font-medium transition-all duration-300 text-left ${
-                        activeTab === tab.id 
-                          ? 'bg-[#cba397] text-white' 
-                          : 'text-gray-700 hover:bg-gray-100'
-                      }`}
+                      onClick={() => setActiveTab(tab.id)}
+                      className={`flex items-center gap-2 px-4 py-3 rounded-lg font-light transition-all duration-300 ${activeTab === tab.id ? 'bg-[#cba397] text-white' : 'text-gray-700 hover:bg-gray-100'
+                        }`}
                     >
                       <Icon size={20} />
                       <span>{tab.label}</span>
@@ -929,300 +998,121 @@ export default function HomePage() {
                   );
                 })}
               </nav>
-            </div>
-          </motion.div>
-        )}
-      </AnimatePresence>
 
-      {/* Initialize tab from URL on client */}
-      <Suspense fallback={null}>
-        <TabInitializer onInit={setActiveTab} />
-      </Suspense>
-
-      {/* Main Content */}
-      <main>
-        {renderTabContent()}
-      </main>
-
-      {/* Create Album Modal */}
-      <AnimatePresence>
-        {showCreateAlbumModal && (
-          <motion.div
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
-            className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50"
-          >
-            <motion.div
-              initial={{ scale: 0.9, opacity: 0 }}
-              animate={{ scale: 1, opacity: 1 }}
-              exit={{ scale: 0.9, opacity: 0 }}
-              className="bg-white rounded-xl max-w-md w-full p-6"
-            >
-              <div className="flex items-center justify-between mb-6">
-                <h3 className="text-xl font-bold text-gray-800">Create New Album</h3>
+              {/* Mobile Menu Button */}
+              <div className="md:hidden">
                 <button
-                  onClick={() => setShowCreateAlbumModal(false)}
-                  className="text-gray-400 hover:text-gray-600"
+                  onClick={() => setShowMobileMenu(!showMobileMenu)}
+                  className="mobile-menu-button text-gray-700 focus:outline-none"
                 >
-                  <X size={24} />
+                  {showMobileMenu ? (
+                    <X className="w-8 h-8" />
+                  ) : (
+                    <svg className="w-8 h-8" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M4 6h16M4 12h16m-7 6h7"></path>
+                    </svg>
+                  )}
                 </button>
-              </div>
-              
-              <div className="space-y-4">
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">
-                    Album Name *
-                  </label>
-                  <input
-                    type="text"
-                    value={createAlbumForm.name}
-                    onChange={(e) => setCreateAlbumForm({...createAlbumForm, name: e.target.value})}
-                    placeholder="Enter album name"
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#84a2be] focus:border-transparent"
-                  />
-                </div>
-
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">
-                    Description
-                  </label>
-                  <textarea
-                    value={createAlbumForm.description}
-                    onChange={(e) => setCreateAlbumForm({...createAlbumForm, description: e.target.value})}
-                    placeholder="Describe your album (optional)"
-                    rows={3}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#84a2be] focus:border-transparent"
-                  />
-                </div>
-
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">
-                    Your Email *
-                  </label>
-                  <input
-                    type="email"
-                    value={createAlbumForm.guestEmail}
-                    onChange={(e) => setCreateAlbumForm({...createAlbumForm, guestEmail: e.target.value})}
-                    placeholder="Enter your email address"
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#84a2be] focus:border-transparent"
-                  />
-                </div>
-
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">
-                    Cover Photo (Optional)
-                  </label>
-                  <div className="border-2 border-dashed border-gray-300 rounded-lg p-4 text-center hover:border-[#84a2be] transition-colors">
-                    {createAlbumForm.coverImage ? (
-                      <div className="space-y-2">
-                        <img 
-                          src={createAlbumForm.coverImage} 
-                          alt="Cover preview" 
-                          className="w-24 h-24 object-cover rounded-lg mx-auto"
-                        />
-                        <button
-                          type="button"
-                          onClick={() => setCreateAlbumForm({...createAlbumForm, coverImage: undefined})}
-                          className="text-sm text-red-600 hover:text-red-700"
-                        >
-                          Remove
-                        </button>
-                      </div>
-                    ) : (
-                      <div className="space-y-2">
-                        <Upload className="mx-auto text-gray-400" size={24} />
-                        <div>
-                          <p className="text-sm text-gray-600">
-                            <span className="text-[#84a2be] font-medium">Click to upload</span> cover photo
-                          </p>
-                          <p className="text-xs text-gray-500 mt-1">
-                            PNG, JPG, GIF up to 10MB
-                          </p>
-                        </div>
-                        <input
-                          type="file"
-                          accept="image/*"
-                          onChange={(e) => {
-                            const file = e.target.files?.[0];
-                            if (file) {
-                              const reader = new FileReader();
-                              reader.onload = (e) => {
-                                setCreateAlbumForm({...createAlbumForm, coverImage: e.target?.result as string});
-                              };
-                              reader.readAsDataURL(file);
-                            }
-                          }}
-                          className="hidden"
-                          id="guest-cover-photo-upload"
-                        />
-                        <label 
-                          htmlFor="guest-cover-photo-upload"
-                          className="cursor-pointer inline-block px-4 py-2 bg-[#84a2be] bg-opacity-20 text-[#667c93] rounded-lg hover:bg-[#84a2be] hover:bg-opacity-30 transition-colors text-sm font-medium"
-                        >
-                          Choose File
-                        </label>
-                      </div>
-                    )}
-                  </div>
-                </div>
-              </div>
-
-              <div className="flex gap-3 mt-6">
-                <button
-                  onClick={() => setShowCreateAlbumModal(false)}
-                  className="flex-1 px-4 py-2 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50"
-                >
-                  Cancel
-                </button>
-                <button
-                  onClick={handleCreateAlbum}
-                  className="flex-1 px-4 py-2 bg-gradient-to-r from-[#667c93] to-[#84a2be] text-white rounded-lg hover:shadow-lg"
-                >
-                  Create Album
-                </button>
-              </div>
-            </motion.div>
-          </motion.div>
-        )}
-      </AnimatePresence>
-
-      {/* Upload Modal */}
-      <AnimatePresence>
-        {showUploadModal && (
-          <motion.div
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
-            className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50"
-          >
-            <motion.div
-              initial={{ scale: 0.9, opacity: 0 }}
-              animate={{ scale: 1, opacity: 1 }}
-              exit={{ scale: 0.9, opacity: 0 }}
-              className="bg-white rounded-xl max-w-md w-full p-6"
-            >
-              <div className="flex items-center justify-between mb-6">
-                <h3 className="text-xl font-bold text-gray-800">Upload Photo/Video</h3>
-                <button
-                  onClick={() => setShowUploadModal(false)}
-                  className="text-gray-400 hover:text-gray-600"
-                >
-                  <X size={24} />
-                </button>
-              </div>
-              
-              <div className="space-y-4">
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">
-                    Your Name *
-                  </label>
-                  <input
-                    type="text"
-                    value={uploadForm.guestName}
-                    onChange={(e) => setUploadForm({...uploadForm, guestName: e.target.value})}
-                    placeholder="Enter your name"
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#84a2be] focus:border-transparent"
-                  />
-                </div>
-
-                <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">
-                    Select Files *
-                  </label>
-                  <input
-                    type="file"
-                    multiple
-                    accept="image/*,video/*"
-                    onChange={handleFileSelect}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#84a2be] focus:border-transparent"
-                  />
-                  <p className="text-xs text-gray-500 mt-1">
-                    Supported: JPG, PNG, GIF, MP4, MOV (Max 50MB per file)
-                  </p>
-                </div>
-
-                {uploadForm.files.length > 0 && (
-                  <div>
-                    <p className="text-sm text-gray-700 mb-2">Selected files:</p>
-                    <div className="space-y-1">
-                      {uploadForm.files.map((file, index) => (
-                        <div key={index} className="text-sm text-gray-600">
-                          {file.name} ({(file.size / 1024 / 1024).toFixed(2)} MB)
-                        </div>
-                      ))}
-                    </div>
-                  </div>
-                )}
-              </div>
-
-              <div className="flex gap-3 mt-6">
-                <button
-                  onClick={() => setShowUploadModal(false)}
-                  className="flex-1 px-4 py-2 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50"
-                >
-                  Cancel
-                </button>
-                <button
-                  onClick={handleUpload}
-                  disabled={uploading}
-                  className="flex-1 px-4 py-2 bg-gradient-to-r from-[#667c93] to-[#84a2be] text-white rounded-lg hover:shadow-lg disabled:opacity-50"
-                >
-                  {uploading ? 'Uploading...' : 'Upload'}
-                </button>
-              </div>
-            </motion.div>
-          </motion.div>
-        )}
-      </AnimatePresence>
-
-      {/* Media Viewer */}
-      <AnimatePresence>
-        {showViewer && selectedMedia && (
-          <motion.div
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
-            className="fixed inset-0 bg-black bg-opacity-90 flex items-center justify-center p-4 z-50"
-            onClick={() => setShowViewer(false)}
-          >
-            <div className="relative max-w-4xl max-h-full">
-              <button
-                onClick={() => setShowViewer(false)}
-                className="absolute top-4 right-4 text-white hover:text-gray-300 z-10"
-              >
-                <X size={32} />
-              </button>
-              
-              {selectedMedia.mediaType === 'image' ? (
-                <img
-                  src={selectedMedia.url}
-                  alt={selectedMedia.originalName}
-                  className="max-w-full max-h-full object-contain"
-                />
-              ) : (
-                <video
-                  src={selectedMedia.url}
-                  controls
-                  className="max-w-full max-h-full"
-                  autoPlay
-                />
-              )}
-              
-              <div className="absolute bottom-4 left-4 text-white">
-                <p className="text-sm">{selectedMedia.originalName}</p>
-                {selectedMedia.uploadedBy && (
-                  <p className="text-xs text-gray-300">By {selectedMedia.uploadedBy}</p>
-                )}
               </div>
             </div>
-          </motion.div>
-        )}
-      </AnimatePresence>
+          </div>
+        </header>
 
-      {/* Performance Monitor */}
-      <PerformanceMonitor />
-    </div>
+        {/* Mobile Menu */}
+        <AnimatePresence>
+          {showMobileMenu && (
+            <motion.div
+              initial={{ opacity: 0, y: -20 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: -20 }}
+              transition={{ duration: 0.2 }}
+              className="mobile-menu md:hidden bg-white border-b border-gray-200 shadow-lg"
+            >
+              <div className="max-w-6xl mx-auto px-4 py-4">
+                <nav className="space-y-2">
+                  {tabs.map((tab) => {
+                    const Icon = tab.icon;
+                    return (
+                      <button
+                        key={tab.id}
+                        onClick={() => {
+                          setActiveTab(tab.id);
+                          setShowMobileMenu(false);
+                        }}
+                        className={`w-full flex items-center gap-3 px-4 py-3 rounded-lg font-medium transition-all duration-300 text-left ${activeTab === tab.id
+                          ? 'bg-[#cba397] text-white'
+                          : 'text-gray-700 hover:bg-gray-100'
+                          }`}
+                      >
+                        <Icon size={20} />
+                        <span>{tab.label}</span>
+                      </button>
+                    );
+                  })}
+                </nav>
+              </div>
+            </motion.div>
+          )}
+        </AnimatePresence>
+
+        {/* Initialize tab from URL on client */}
+        <Suspense fallback={null}>
+          <TabInitializer onInit={setActiveTab} />
+        </Suspense>
+
+        {/* Main Content */}
+        <main>
+          {renderTabContent()}
+        </main>
+
+
+        {/* Media Viewer */}
+        <AnimatePresence>
+          {showViewer && selectedMedia && (
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              className="fixed inset-0 bg-black bg-opacity-90 flex items-center justify-center p-4 z-50"
+              onClick={() => setShowViewer(false)}
+            >
+              <div className="relative max-w-4xl max-h-full">
+                <button
+                  onClick={() => setShowViewer(false)}
+                  className="absolute top-4 right-4 text-white hover:text-gray-300 z-10"
+                >
+                  <X size={32} />
+                </button>
+
+                {selectedMedia.mediaType === 'image' ? (
+                  <img
+                    src={selectedMedia.url}
+                    alt={selectedMedia.originalName}
+                    className="max-w-full max-h-full object-contain"
+                  />
+                ) : (
+                  <video
+                    src={selectedMedia.url}
+                    controls
+                    className="max-w-full max-h-full"
+                    autoPlay
+                  />
+                )}
+
+                <div className="absolute bottom-4 left-4 text-white">
+                  <p className="text-sm">{selectedMedia.originalName}</p>
+                  {selectedMedia.uploadedBy && (
+                    <p className="text-xs text-gray-300">By {selectedMedia.uploadedBy}</p>
+                  )}
+                </div>
+              </div>
+            </motion.div>
+          )}
+        </AnimatePresence>
+
+        {/* Performance Monitor */}
+        <PerformanceMonitor />
+      </div>
     </Suspense>
   );
 }

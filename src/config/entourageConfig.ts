@@ -4,7 +4,7 @@
 export const ENTOURAGE_CONFIG = {
   // Best Man
   bestMan: {
-    title: "BEST MAN",
+    title: "Best Man",
     members: [
       { name: "Marvin Jeff De La Rea", role: "Best Man" }
     ]
@@ -12,16 +12,16 @@ export const ENTOURAGE_CONFIG = {
 
   // Parents
   parents: {
-    title: "PARENTS",
+    title: "Parents",
     groomParents: {
-      title: "PARENTS OF THE GROOM",
+      title: "Parents of the Groom",
       members: [
         { name: "Adriano De La Rea", role: "Father of the Groom" },
         { name: "Eliza De La Rea", role: "Mother of the Groom" }
       ]
     },
     brideParents: {
-      title: "PARENTS OF THE BRIDE", 
+      title: "Parents of the Bride", 
       members: [
         { name: "Gilberth Pineda", role: "Father of the Bride" },
         { name: "Ma. Luisa Pineda", role: "Mother of the Bride" }
@@ -31,9 +31,9 @@ export const ENTOURAGE_CONFIG = {
 
   // Principal Sponsors (Ninong & Ninang)
   principalSponsors: {
-    title: "PRINCIPAL SPONSORS",
+    title: "Principal Sponsors",
     ninong: {
-      title: "NINONG",
+      title: "Ninong",
       members: [
         { name: "Lito Punongbayan", number: 1 },
         { name: "Lito Palas", number: 2 },
@@ -50,7 +50,7 @@ export const ENTOURAGE_CONFIG = {
       ]
     },
     ninang: {
-      title: "NINANG",
+      title: "Ninang",
       members: [
         { name: "Remedios Punongbayan", number: 1 },
         { name: "Marilyn Palas", number: 2 },
@@ -70,44 +70,44 @@ export const ENTOURAGE_CONFIG = {
 
   // Secondary Sponsors
   secondarySponsors: {
-    title: "SECONDARY SPONSORS",
+    title: "Secondary Sponsors",
     candleIn: {
-      title: "CANDLE (in)",
+      title: "Candle (in)",
       members: [
         { name: "John Erick Pineda", role: "Male" },
         { name: "Jyn Abellar", role: "Female" }
       ]
     },
     veil: {
-      title: "VEIL",
+      title: "Veil",
       members: [
         { name: "Aries De La Rea", role: "Male" },
         { name: "Paoline Creag", role: "Female" }
       ]
     },
     cord: {
-      title: "CORD",
+      title: "Cord",
       members: [
         { name: "Jason Quinag", role: "Male" },
         { name: "Ruth Vera", role: "Female" }
       ]
     },
     candleOut: {
-      title: "CANDLE (out)",
+      title: "Candle (out)",
       members: [
         { name: "Chris De La Rea", role: "Male" },
         { name: "Shaira Marquez", role: "Female" }
       ]
     },
     veil2: {
-      title: "VEIL",
+      title: "Veil",
       members: [
         { name: "Aljon Catitir", role: "Male" },
         { name: "Eries Veroya", role: "Female" }
       ]
     },
     cord2: {
-      title: "CORD",
+      title: "Cord",
       members: [
         { name: "Morice Buisan", role: "Male" },
         { name: "Rica Cayanan", role: "Female" }
@@ -117,9 +117,9 @@ export const ENTOURAGE_CONFIG = {
 
   // Wedding Party
   weddingParty: {
-    title: "GROOMSMEN / BRIDESMAID",
+    title: "Groomsmen / Bridesmaid",
     groomsmen: {
-      title: "GROOMSMEN",
+      title: "Groomsmen",
       members: [
         { name: "Paul Aguda", number: 1 },
         { name: "Lukcy De La Rea", number: 2 },
@@ -127,7 +127,7 @@ export const ENTOURAGE_CONFIG = {
       ]
     },
     bridesmaids: {
-      title: "BRIDESMAIDS",
+      title: "Bridesmaids",
       members: [
         { name: "Danica De La Rea", number: 1 },
         { name: "Eva Rose Marco", number: 2 },
@@ -138,21 +138,21 @@ export const ENTOURAGE_CONFIG = {
 
   // Bearers
   bearers: {
-    title: "BEARERS",
+    title: "Bearers",
     ring: {
-      title: "RING",
+      title: "Ring",
       members: [
         { name: "Liam Ramos", role: "Ring Bearer" }
       ]
     },
     arras: {
-      title: "ARRAS AND COINS",
+      title: "Arras and Coins",
       members: [
         { name: "Amiel Pineda", role: "Arras Bearer" }
       ]
     },
     bible: {
-      title: "BIBLE",
+      title: "Bible",
       members: [
         { name: "Chase Arkmel Fariñas", role: "Bible Bearer" }
       ]
@@ -161,7 +161,7 @@ export const ENTOURAGE_CONFIG = {
 
   // Flower Girls
   flowerGirls: {
-    title: "FLOWER GIRLS",
+    title: "Flower Girls",
     members: [
       { name: "Amaris Christelle Marquez", number: 1 },
       { name: "Ginn Elizsh Wyn Cebeda", number: 2 },
@@ -172,7 +172,7 @@ export const ENTOURAGE_CONFIG = {
 
   // Maid of Honor
   maidOfHonor: {
-    title: "MAID OF HONOR",
+    title: "Maid of Honor",
     members: [
       { name: "Angelica Alday", role: "Maid of Honor" }
     ]
@@ -182,11 +182,11 @@ export const ENTOURAGE_CONFIG = {
   couple: {
     groom: {
       name: "Mark Jayson De La Rea",
-      role: "GROOM"
+      role: "Groom"
     },
     bride: {
       name: "Erica Mae Pineda", 
-      role: "BRIDE"
+      role: "Bride"
     }
   }
 };

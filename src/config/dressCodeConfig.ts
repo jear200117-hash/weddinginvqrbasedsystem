@@ -3,7 +3,7 @@
 
 export const DRESS_CODE_CONFIG = {
   // Main dress code title
-  title: "DRESS CODE",
+  title: "Dress Code",
   subtitle: "Formal / Semi-Formal",
   
   // Color palette
@@ -19,17 +19,17 @@ export const DRESS_CODE_CONFIG = {
   requirements: {
     ninong: {
       title: "NINONG",
-      description: "Black suit with dark sage green neck tie",
+      description: "Black suit with Dark Sage Green neck tie",
       color: "#5C5A47"
     },
     ninang: {
       title: "NINANG", 
-      description: "Shades of dark sage green",
+      description: "Shades of Dark Sage Green",
       color: "#5C5A47"
     },
     guests: {
       title: "GUESTS",
-      description: "Dusty blue and dusty pink",
+      description: "Dark Dusty Rose and Light Dusty Rose",
       colors: ["#7C8E9E", "#D1ABA1"]
     }
   },

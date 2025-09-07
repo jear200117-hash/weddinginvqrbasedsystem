@@ -13,6 +13,27 @@
       "fullPath": "/public/imgs/church.jpg",
       "size": "192KB",
       "category": "venue"
+    },
+    {
+      "name": "guest.png",
+      "path": "/imgs/guest.png",
+      "fullPath": "/public/imgs/guest.png",
+      "size": "10KB",
+      "category": "guest"
+    },
+    {
+      "name": "ninang.png",
+      "path": "/imgs/ninang.png",
+      "fullPath": "/public/imgs/ninang.png",
+      "size": "10KB",
+      "category": "guest"
+    },
+    {
+      "name": "ninong.png",
+      "path": "/imgs/ninong.png",
+      "fullPath": "/public/imgs/ninong.png",
+      "size": "10KB",
+      "category": "guest"
     }
   ],
   "weddingimgs": [

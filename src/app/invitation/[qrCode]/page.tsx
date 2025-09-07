@@ -8,9 +8,7 @@ import { useParams } from 'next/navigation';
 import Link from 'next/link';
 import RotatingBackground from '@/components/RotatingBackground';
 import StoryCarousel from '@/components/StoryCarousel';
-import RSVPModal from '@/components/RSVPModal';
-import RSVPSuccessModal from '@/components/RSVPSuccessModal';
-import RSVPStatusModal from '@/components/RSVPStatusModal';
+import RSVPSection from '@/components/RSVPSection';
 import { BACKGROUND_IMAGE_CONFIG, ACTIVE_BACKGROUND_CONFIG } from '@/config/backgroundImages';
 import { STORY_CAROUSEL_CONFIG, ACTIVE_STORY_CONFIG } from '@/config/storyCarousel';
 import { ENTOURAGE_IMAGES_CONFIG, ACTIVE_ENTOURAGE_CONFIG } from '@/config/entourageImages';
@@ -22,6 +20,7 @@ import { MUSIC_CONFIG, ACTIVE_MUSIC_CONFIG } from '@/config/musicConfig';
 import BackgroundMusic from '@/components/BackgroundMusic';
 import OtherDetailsSection from '@/components/OtherDetailsSection';
 import FAQSection from '@/components/FAQSection';
+import { Martini, Camera, Utensils, Mic, Cake, Music, Car } from "lucide-react";
 
 interface Invitation {
   _id: string;
@@ -58,14 +57,61 @@ export default function InvitationPage() {
     seconds: 0
   });
 
-  // RSVP Modal States
-  const [showRSVPModal, setShowRSVPModal] = useState(false);
-  const [showSuccessModal, setShowSuccessModal] = useState(false);
-  const [showStatusModal, setShowStatusModal] = useState(false);
+  // RSVP States
   const [rsvpStatus, setRsvpStatus] = useState<'attending' | 'not_attending' | null>(null);
   const [rsvpAttendeeCount, setRsvpAttendeeCount] = useState<number>(0);
   // FAQ accordion state
   const [openFAQIndex, setOpenFAQIndex] = useState<number | null>(null);
+  // RSVP Reminder Modal
+  const [showRSVPReminder, setShowRSVPReminder] = useState(false);
+
+  // Add beforeunload reminder for RSVP
+  useEffect(() => {
+    const handleBeforeUnload = (e: BeforeUnloadEvent) => {
+      // Only show reminder if RSVP is not submitted
+      if (!invitation?.rsvp?.status || invitation.rsvp.status === 'pending') {
+        e.preventDefault();
+        setShowRSVPReminder(true);
+        return '';
+      }
+    };
+
+    window.addEventListener('beforeunload', handleBeforeUnload);
+    return () => window.removeEventListener('beforeunload', handleBeforeUnload);
+  }, [invitation?.rsvp?.status]);
+
+  // Show RSVP reminder when user scrolls to middle section
+  useEffect(() => {
+    if (!invitation?.rsvp?.status || invitation.rsvp.status === 'pending') {
+      const handleScroll = () => {
+        const scrollPosition = window.scrollY;
+        const windowHeight = window.innerHeight;
+        const documentHeight = document.documentElement.scrollHeight;
+
+        // Show reminder when user has scrolled past 40% of the page
+        if (scrollPosition > documentHeight * 0.4) {
+          setShowRSVPReminder(true);
+          window.removeEventListener('scroll', handleScroll);
+        }
+      };
+
+      window.addEventListener('scroll', handleScroll);
+      return () => window.removeEventListener('scroll', handleScroll);
+    }
+  }, [invitation?.rsvp?.status]);
+
+  // Prevent closing with Escape key when RSVP not submitted
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape' && (!invitation?.rsvp?.status || invitation.rsvp.status === 'pending')) {
+        e.preventDefault();
+        setShowRSVPReminder(true);
+      }
+    };
+
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [invitation?.rsvp?.status]);
 
   useEffect(() => {
     if (qrCode) {
@@ -99,7 +145,8 @@ export default function InvitationPage() {
   const fetchInvitation = async () => {
     try {
       const response = await invitationsAPI.getByQRCode(qrCode);
-      setInvitation(response.invitation);
+      setInvitation(response);
+      console.log('Fetched invitation:', response);
 
       // Start animation sequence
       setTimeout(() => setAnimationStage('envelope'), 2000);
@@ -113,42 +160,21 @@ export default function InvitationPage() {
 
   const handleRSVPClick = () => {
     if (invitation?.rsvp?.status && invitation.rsvp.status !== 'pending') {
-      // RSVP already submitted, show status modal
-      setShowStatusModal(true);
+      // RSVP already submitted, navigate to home
+      window.location.href = '/';
       return;
     }
-    setShowRSVPModal(true);
-  };
-
-  const handleUpdateRSVP = () => {
-    setShowStatusModal(false);
-    setShowRSVPModal(true);
-  };
-
-  const handleConfirmAttendance = () => {
-    // Check if RSVP is pending or undefined (no RSVP yet)
-    if (invitation?.rsvp?.status && invitation.rsvp.status !== 'pending') {
-      setShowStatusModal(true);
-      return;
+    // Scroll to RSVP section
+    const rsvpSection = document.getElementById('rsvp-section');
+    if (rsvpSection) {
+      rsvpSection.scrollIntoView({ behavior: 'smooth' });
     }
-    setShowRSVPModal(true);
-  };
-
-  const handleDeclineWithRegrets = () => {
-    // Check if RSVP is pending or undefined (no RSVP yet)
-    if (invitation?.rsvp?.status && invitation.rsvp.status !== 'pending') {
-      setShowStatusModal(true);
-      return;
-    }
-    setShowRSVPModal(true);
   };
 
   const handleRSVPSuccess = (status: 'attending' | 'not_attending', attendeeCount: number = 0) => {
-    setShowRSVPModal(false);
     setRsvpStatus(status);
     setRsvpAttendeeCount(attendeeCount);
-    setShowSuccessModal(true);
-    
+
     // Update the invitation state to reflect RSVP submission
     if (invitation) {
       setInvitation({
@@ -159,6 +185,18 @@ export default function InvitationPage() {
           respondedAt: new Date().toISOString()
         }
       });
+    }
+  };
+
+  const handleRSVPReminderClose = () => {
+    setShowRSVPReminder(false);
+  };
+
+  const handleGoToRSVP = () => {
+    setShowRSVPReminder(false);
+    const rsvpSection = document.getElementById('rsvp-section');
+    if (rsvpSection) {
+      rsvpSection.scrollIntoView({ behavior: 'smooth' });
     }
   };
 
@@ -187,6 +225,30 @@ export default function InvitationPage() {
   return (
     <div className="min-h-screen bg-gradient-to-br from-rose-50 to-pink-100">
       <BackgroundMusic />
+
+      {/* RSVP Reminder Banner */}
+      {(!invitation?.rsvp?.status || invitation.rsvp.status === 'pending') && (
+        <motion.div
+          initial={{ y: -100 }}
+          animate={{ y: 0 }}
+          className="fixed top-0 left-0 right-0 bg-[#5976DA] text-white z-40 shadow-lg"
+        >
+          <div className="px-4 py-3 text-center">
+            <div className="flex items-center justify-center gap-2">
+              <Heart className="w-4 h-4" />
+              <span className="text-sm font-medium">
+                Please don't forget to RSVP! Your response is important to us.
+              </span>
+              <button
+                onClick={() => setShowRSVPReminder(true)}
+                className="ml-2 px-3 py-1 bg-white/20 hover:bg-white/30 rounded-full text-xs font-medium transition-colors"
+              >
+                RSVP Now
+              </button>
+            </div>
+          </div>
+        </motion.div>
+      )}
       <AnimatePresence mode="wait">
         {/* Paper Plane Stage */}
         {animationStage === 'plane' && (
@@ -195,7 +257,7 @@ export default function InvitationPage() {
             initial={{ opacity: 0, scale: 0.5 }}
             animate={{ opacity: 1, scale: 1 }}
             exit={{ opacity: 0, scale: 0.5 }}
-            className="min-h-screen flex items-center justify-center"
+            className={`min-h-screen flex items-center justify-center ${(!invitation?.rsvp?.status || invitation.rsvp.status === 'pending') ? 'pt-10' : ''}`}
           >
             <motion.div
               animate={{
@@ -222,7 +284,7 @@ export default function InvitationPage() {
             initial={{ opacity: 0, scale: 0.5 }}
             animate={{ opacity: 1, scale: 1 }}
             exit={{ opacity: 0, scale: 0.5 }}
-            className="min-h-screen flex items-center justify-center"
+            className={`min-h-screen flex items-center justify-center ${(!invitation?.rsvp?.status || invitation.rsvp.status === 'pending') ? 'pt-16' : ''}`}
           >
             <motion.div
               whileHover={{ scale: 1.1 }}
@@ -247,7 +309,7 @@ export default function InvitationPage() {
             key="invitation"
             initial={{ opacity: 0, y: 50 }}
             animate={{ opacity: 1, y: 0 }}
-            className="relative"
+            className={`relative ${(!invitation?.rsvp?.status || invitation.rsvp.status === 'pending') ? 'pt-10' : ''}`}
           >
             {/* ===== SECTION 1: HERO & MAIN INVITATION ===== */}
             <section className="min-h-screen flex items-center justify-center relative overflow-hidden">
@@ -324,7 +386,7 @@ export default function InvitationPage() {
                   animate={{ opacity: 1, scale: 1 }}
                   transition={{ delay: 0.8, duration: 0.8 }}
                 >
-                  <h1 className="text-5xl md:text-6xl lg:text-7xl font-playfair font-bold text-white tracking-tight leading-tight drop-shadow-lg">
+                  <h1 className="text-6xl md:text-6xl lg:text-7xl font-playfair font-bold text-white tracking-tight leading-tight drop-shadow-lg">
                     MJ & Erica
                   </h1>
                 </motion.div>
@@ -349,31 +411,63 @@ export default function InvitationPage() {
                 >
                   <motion.button
                     onClick={handleRSVPClick}
-                    className="group relative px-10 py-3 bg-sage-green/90 backdrop-blur-sm text-white rounded-full overflow-hidden text-lg font-medium shadow-xl border border-white/50"
-                    whileHover={{ scale: 1.05, backgroundColor: "rgba(142, 145, 128, 1)" }}
+                    className={`group relative px-10 py-3 backdrop-blur-sm text-white rounded-full overflow-hidden text-lg font-medium shadow-xl border border-white/50 ${invitation?.rsvp?.status === 'pending' || !invitation?.rsvp
+                        ? 'bg-sage-green/90 hover:bg-sage-green'
+                        : 'bg-emerald-600/90 hover:bg-emerald-600'
+                      }`}
+                    whileHover={{ scale: 1.05 }}
                     whileTap={{ scale: 0.98 }}
                   >
                     <span className="relative z-10 flex items-center gap-2 drop-shadow-sm">
-                      {invitation?.rsvp?.status === 'pending' || !invitation?.rsvp 
+                      {invitation?.rsvp?.status === 'pending' || !invitation?.rsvp
                         ? 'RSVP'
-                        : invitation.rsvp.status === 'attending' 
-                        ? '✓ Attending' 
-                        : '✗ Not Attending'
+                        : 'Proceed to Home'
                       }
                       <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" />
                       </svg>
                     </span>
                   </motion.button>
+
+                  {/* RSVP Status Indicator */}
+                  {invitation?.rsvp?.status && invitation.rsvp.status !== 'pending' && (
+                    <motion.div
+                      initial={{ opacity: 0, y: 10 }}
+                      animate={{ opacity: 1, y: 0 }}
+                      transition={{ delay: 1.7, duration: 0.6 }}
+                      className="mt-4 text-center"
+                    >
+                      <div className="inline-flex items-center gap-2 px-4 py-2 bg-white/20 backdrop-blur-sm rounded-full text-white text-sm">
+                        {invitation.rsvp.status === 'attending' ? (
+                          <>
+                            <div className="w-2 h-2 bg-green-400 rounded-full"></div>
+                            <span>✓ RSVP Confirmed</span>
+                          </>
+                        ) : (
+                          <>
+                            <div className="w-2 h-2 bg-gray-400 rounded-full"></div>
+                            <span>✗ RSVP Declined</span>
+                          </>
+                        )}
+                      </div>
+                    </motion.div>
+                  )}
                 </motion.div>
               </motion.div>
             </section>
 
             {/* ===== SECTION 2: COUNTDOWN & VIDEO ===== */}
             <section className="min-h-screen flex items-center justify-center relative overflow-hidden py-16">
-              {/* Elegant Background */}
-              <div className="absolute inset-0 bg-gradient-to-br from-white via-warm-beige/10 to-dusty-rose/20"></div>
-              <div className="absolute inset-0 bg-gradient-to-tr from-sage-green/5 via-transparent to-slate-blue/10"></div>
+              {/* Subtle Background Image */}
+              <div
+                className="absolute inset-0 bg-cover bg-center bg-no-repeat pointer-events-none"
+                style={{
+                  backgroundImage: 'url(/weddingimgs/img1.jpg)',
+                  opacity: 0.08,
+                  transform: 'scale(1.1)'
+                }}
+              />
+
 
               <div className="relative z-10 text-center px-6 max-w-6xl mx-auto w-full">
 
@@ -384,12 +478,35 @@ export default function InvitationPage() {
                   animate={{ opacity: 1, y: 0 }}
                   transition={{ delay: 0.4, duration: 0.8 }}
                 >
-                  <h2 className="text-4xl md:text-5xl font-playfair text-slate-blue mb-4">
+                  <div className="text-xl md:text-2xl font-parisienne text-slate-blue/70 mb-4">
+                    MJ & Erica
+                  </div>
+                  <h2 className="text-6xl md:text-6xl font-parisienne text-slate-blue mb-4">
                     We are getting married
                   </h2>
-                  <div className="text-2xl md:text-3xl text-dusty-rose font-light">
+                  <p className="text-2xl font-parisienne text-black mb-8">
                     January 16, 2026
-                  </div>
+                  </p>
+
+                  <motion.div
+                    className="flex justify-center items-center mb-8"
+                    initial={{ scaleX: 0 }}
+                    animate={{ scaleX: 1 }}
+                    transition={{ delay: 0.8, duration: 0.8 }}
+                  >
+                    <svg className="w-48 h-4 text-sage-green" viewBox="0 0 200 20" fill="currentColor">
+                      <path d="M10,10 Q50,2 100,10 Q150,18 190,10" stroke="currentColor" strokeWidth="1" fill="none" strokeLinecap="round" />
+                      <circle cx="20" cy="10" r="1.5" />
+                      <circle cx="40" cy="8" r="1" />
+                      <circle cx="60" cy="12" r="1" />
+                      <circle cx="80" cy="8" r="1.5" />
+                      <circle cx="100" cy="10" r="2" />
+                      <circle cx="120" cy="12" r="1.5" />
+                      <circle cx="140" cy="8" r="1" />
+                      <circle cx="160" cy="12" r="1" />
+                      <circle cx="180" cy="8" r="1.5" />
+                    </svg>
+                  </motion.div>
                 </motion.div>
 
                 {/* Countdown Section */}
@@ -399,7 +516,7 @@ export default function InvitationPage() {
                   animate={{ opacity: 1, scale: 1 }}
                   transition={{ delay: 0.6, duration: 0.8 }}
                 >
-                  <h3 className="text-2xl md:text-3xl text-sage-green font-light mb-8">
+                  <h3 className="text-3xl md:text-4xl font-parisienne text-sage-green mb-8">
                     Countdown Begins
                   </h3>
 
@@ -452,8 +569,16 @@ export default function InvitationPage() {
             </section>
 
             {/* ===== SECTION 3: OUR STORY WITH CAROUSEL ===== */}
-            <section className="min-h-screen flex items-center justify-center bg-white relative py-16">
-              <div className="max-w-7xl mx-auto px-6 w-full">
+            <section className="min-h-screen flex items-center justify-center bg-white relative py-16 overflow-hidden">
+              <div
+                className="absolute inset-0 bg-cover bg-center bg-no-repeat pointer-events-none"
+                style={{
+                  backgroundImage: 'url(/weddingimgs/img4.jpg)',
+                  opacity: 0.08,
+                  transform: 'scale(1.1)'
+                }}
+              />
+              <div className="relative z-10 max-w-7xl mx-auto px-6 w-full">
                 <div className="grid lg:grid-cols-2 gap-12 lg:gap-16 items-center">
 
                   {/* Left Side - Text Content */}
@@ -471,12 +596,12 @@ export default function InvitationPage() {
                     </div>
 
                     {/* Main Heading */}
-                    <h2 className="text-4xl md:text-5xl font-playfair text-slate-blue leading-tight">
-                      Part of our story.
+                    <h2 className="text-6xl md:text-6xl font-parisienne text-slate-blue leading-tight">
+                      Part of our story
                     </h2>
 
                     {/* Subheading */}
-                    <p className="text-xl md:text-2xl text-sage-green font-light">
+                    <p className="text-xl md:text-2xl font-parisienne text-sage-green">
                       We have carefully chosen every guest at our wedding.
                     </p>
 
@@ -503,166 +628,131 @@ export default function InvitationPage() {
             </section>
 
             {/* ===== SECTION 4: WEDDING TIMELINE ===== */}
-            <section className="min-h-screen flex items-center justify-center bg-gradient-to-br from-white via-warm-beige/5 to-dusty-rose/10 relative py-16">
-              <div className="max-w-6xl mx-auto px-6 w-full">
+            <section className="min-h-screen flex items-center justify-center bg-gradient-to-br from-white via-sage-green/5 to-dusty-rose/10 relative py-20 overflow-hidden">
+              <div
+                className="absolute inset-0 bg-cover bg-center bg-no-repeat pointer-events-none"
+                style={{
+                  backgroundImage: 'url(/weddingimgs/img2.jpg)',
+                  opacity: 0.08,
+                  transform: 'scale(1.1)'
+                }}
+              />
+              <div className="relative z-10 max-w-6xl mx-auto px-6 w-full">
 
                 {/* Section Header */}
                 <motion.div
-                  className="text-center mb-16"
+                  className="text-center mb-20"
                   initial={{ opacity: 0, y: 30 }}
                   animate={{ opacity: 1, y: 0 }}
                   transition={{ delay: 0.4, duration: 0.8 }}
                 >
-                  <h2 className="text-4xl md:text-5xl font-playfair text-slate-blue mb-6">
+                  <div className="text-xl md:text-2xl font-parisienne text-slate-blue/70 mb-4">
+                    MJ & Erica
+                  </div>
+                  <h2 className="text-6xl md:text-6xl font-parisienne text-slate-blue mb-4">
                     Wedding Timeline
                   </h2>
-                  <div className="flex justify-center items-center">
-                    <div className="w-16 h-px bg-gradient-to-r from-transparent via-dusty-rose to-transparent"></div>
-                    <div className="mx-4 w-2 h-2 bg-dusty-rose rounded-full"></div>
-                    <div className="w-16 h-px bg-gradient-to-r from-dusty-rose via-transparent to-transparent"></div>
+                  <p className="text-2xl font-parisienne text-black mb-8">
+                    January 16, 2026
+                  </p>
+
+                  {/* Decorative Flourish */}
+                  <motion.div
+                    className="flex justify-center items-center"
+                    initial={{ scaleX: 0 }}
+                    animate={{ scaleX: 1 }}
+                    transition={{ delay: 0.8, duration: 0.8 }}
+                  >
+                    <svg className="w-48 h-4 text-sage-green" viewBox="0 0 200 20" fill="currentColor">
+                      <path d="M10,10 Q50,2 100,10 Q150,18 190,10" stroke="currentColor" strokeWidth="1" fill="none" strokeLinecap="round" />
+                      <circle cx="20" cy="10" r="1.5" />
+                      <circle cx="40" cy="8" r="1" />
+                      <circle cx="60" cy="12" r="1" />
+                      <circle cx="80" cy="8" r="1.5" />
+                      <circle cx="100" cy="10" r="2" />
+                      <circle cx="120" cy="12" r="1.5" />
+                      <circle cx="140" cy="8" r="1" />
+                      <circle cx="160" cy="12" r="1" />
+                      <circle cx="180" cy="8" r="1.5" />
+                    </svg>
+                  </motion.div>
+                </motion.div>
+
+                {/* Timeline Content */}
+                <motion.div
+                  className="max-w-4xl mx-auto"
+                  initial={{ opacity: 0, y: 50 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  transition={{ delay: 0.6, duration: 0.8 }}
+                >
+                  <div className="flex items-center justify-center">
+                    <div className="space-y-2">
+                      {[
+                        { time: "11:00 AM", label: "Ceremony", icon: <Heart className="w-6 h-6 stroke-[1.5]" />, description: "Our Lady of Lourdes Parish" },
+                        { time: "12:30 PM", label: "Cocktails", icon: <Martini className="w-6 h-6 stroke-[1.5]" />, description: "Welcome Reception" },
+                        { time: "1:00 PM", label: "Photos", icon: <Camera className="w-6 h-6 stroke-[1.5]" />, description: "Wedding Portraits" },
+                        { time: "2:00 PM", label: "Reception", icon: <Utensils className="w-6 h-6 stroke-[1.5]" />, description: "AQUILA Crystal Palace" },
+                        { time: "2:30 PM", label: "Speeches", icon: <Mic className="w-6 h-6 stroke-[1.5]" />, description: "Toasts & Well Wishes" },
+                        { time: "3:00 PM", label: "Cake Cutting", icon: <Cake className="w-6 h-6 stroke-[1.5]" />, description: "Sweet Celebration" },
+                        { time: "4:00 PM", label: "First Dance", icon: <Music className="w-6 h-6 stroke-[1.5]" />, description: "Our Special Moment" },
+                        { time: "6:00 PM", label: "Send Off", icon: <Car className="w-6 h-6 stroke-[1.5]" />, description: "Farewell & Thanks" },
+                      ].map((item, idx) => (
+                        <motion.div
+                          key={idx}
+                          className="flex items-center gap-8 p-6 rounded-2xl hover:bg-sage-green/5 transition-colors"
+                          initial={{ opacity: 0, x: -30 }}
+                          whileInView={{ opacity: 1, x: 0 }}
+                          transition={{ duration: 0.6, delay: idx * 0.1 }}
+                          viewport={{ once: true }}
+                        >
+                          {/* Time */}
+                          <div className="w-24 text-right">
+                            <div className="text-lg md:text-xl font-geist-sans text-sage-green font-semibold">
+                              {item.time}
+                            </div>
+                          </div>
+
+                          {/* Icon */}
+                          <div className="w-18 h-18 bg-gradient-to-br from-sage-green/20 to-dusty-rose/20 rounded-full flex items-center justify-center">
+                            <span className="text-sage-green">{item.icon}</span>
+                          </div>
+
+                          {/* Content */}
+                          <div className="flex-1">
+                            <h3 className="text-xl md:text-2xl font-geist-sans text-slate-blue mb-1">
+                              {item.label}
+                            </h3>
+                            <p className="text-slate-blue/70 text-md md:text-xl">
+                              {item.description}
+                            </p>
+                          </div>
+
+                          {/* Decorative Line */}
+                          <div className="hidden md:block w-16 h-px bg-gradient-to-r from-sage-green/30 to-transparent"></div>
+                        </motion.div>
+                      ))}
+                    </div>
                   </div>
                 </motion.div>
 
-                {/* Timeline Container */}
-                <div className="relative">
-                  {/* Central Timeline Line */}
-                  <div className="absolute left-1/2 transform -translate-x-1/2 w-1 bg-gradient-to-b from-sage-green via-dusty-rose to-slate-blue h-full"></div>
-
-                  {/* Timeline Items */}
-                  <div className="space-y-16">
-
-                    {/* 10:30 AM Assembly */}
-                    <motion.div
-                      className="relative flex items-center"
-                      initial={{ opacity: 0, x: -100 }}
-                      whileInView={{ opacity: 1, x: 0 }}
-                      transition={{ duration: 0.6 }}
-                      viewport={{ once: true }}
-                    >
-                      <div className="w-1/2 pr-8 text-right">
-                        <div className="bg-white rounded-2xl p-6 shadow-xl border border-sage-green/20">
-                          <div className="text-2xl md:text-3xl font-bold text-slate-blue mb-2">10:30 AM</div>
-                          <div className="text-lg md:text-xl text-sage-green font-medium">Assembly</div>
-                          <div className="text-sm text-slate-blue/70 mt-2">Guests arrive and gather</div>
-                        </div>
-                      </div>
-                      <div className="absolute left-1/2 transform -translate-x-1/2 w-6 h-6 bg-sage-green rounded-full border-4 border-white shadow-lg z-10"></div>
-                      <div className="w-1/2 pl-8"></div>
-                    </motion.div>
-
-                    {/* 11:00 AM Ceremony */}
-                    <motion.div
-                      className="relative flex items-center"
-                      initial={{ opacity: 0, x: 100 }}
-                      whileInView={{ opacity: 1, x: 0 }}
-                      transition={{ duration: 0.6, delay: 0.2 }}
-                      viewport={{ once: true }}
-                    >
-                      <div className="w-1/2 pr-8"></div>
-                      <div className="absolute left-1/2 transform -translate-x-1/2 w-6 h-6 bg-dusty-rose rounded-full border-4 border-white shadow-lg z-10"></div>
-                      <div className="w-1/2 pl-8">
-                        <div className="bg-white rounded-2xl p-6 shadow-xl border border-dusty-rose/20">
-                          <div className="text-2xl md:text-3xl font-bold text-slate-blue mb-2">11:00 AM</div>
-                          <div className="text-lg md:text-xl text-dusty-rose font-medium">Ceremony</div>
-                          <div className="text-sm text-slate-blue/70 mt-2">The main event begins</div>
-                        </div>
-                      </div>
-                    </motion.div>
-
-                    {/* 12:00 NOON Photos */}
-                    <motion.div
-                      className="relative flex items-center"
-                      initial={{ opacity: 0, x: -100 }}
-                      whileInView={{ opacity: 1, x: 0 }}
-                      transition={{ duration: 0.6, delay: 0.4 }}
-                      viewport={{ once: true }}
-                    >
-                      <div className="w-1/2 pr-8 text-right">
-                        <div className="bg-white rounded-2xl p-6 shadow-xl border border-slate-blue/20">
-                          <div className="text-2xl md:text-3xl font-bold text-slate-blue mb-2">12:00 NOON</div>
-                          <div className="text-lg md:text-xl text-slate-blue font-medium">Photos</div>
-                          <div className="text-sm text-slate-blue/70 mt-2">Capture the memories</div>
-                        </div>
-                      </div>
-                      <div className="absolute left-1/2 transform -translate-x-1/2 w-6 h-6 bg-slate-blue rounded-full border-4 border-white shadow-lg z-10"></div>
-                      <div className="w-1/2 pl-8"></div>
-                    </motion.div>
-
-                    {/* 1:00 PM Reception */}
-                    <motion.div
-                      className="relative flex items-center"
-                      initial={{ opacity: 0, x: 100 }}
-                      whileInView={{ opacity: 1, x: 0 }}
-                      transition={{ duration: 0.6, delay: 0.6 }}
-                      viewport={{ once: true }}
-                    >
-                      <div className="w-1/2 pr-8"></div>
-                      <div className="absolute left-1/2 transform -translate-x-1/2 w-6 h-6 bg-warm-beige rounded-full border-4 border-white shadow-lg z-10"></div>
-                      <div className="w-1/2 pl-8">
-                        <div className="bg-white rounded-2xl p-6 shadow-xl border border-warm-beige/20">
-                          <div className="text-2xl md:text-3xl font-bold text-slate-blue mb-2">1:00 PM</div>
-                          <div className="text-lg md:text-xl text-warm-beige font-medium">Reception</div>
-                          <div className="text-sm text-slate-blue/70 mt-2">Welcome celebration</div>
-                        </div>
-                      </div>
-                    </motion.div>
-
-                    {/* 2:00 PM Food & Toasts */}
-                    <motion.div
-                      className="relative flex items-center"
-                      initial={{ opacity: 0, x: -100 }}
-                      whileInView={{ opacity: 1, x: 0 }}
-                      transition={{ duration: 0.6, delay: 0.8 }}
-                      viewport={{ once: true }}
-                    >
-                      <div className="w-1/2 pr-8 text-right">
-                        <div className="bg-white rounded-2xl p-6 shadow-xl border border-sage-green/20">
-                          <div className="text-2xl md:text-3xl font-bold text-slate-blue mb-2">2:00 PM</div>
-                          <div className="text-lg md:text-xl text-sage-green font-medium">Food & Toasts</div>
-                          <div className="text-sm text-slate-blue/70 mt-2">Dinner and speeches</div>
-                        </div>
-                      </div>
-                      <div className="absolute left-1/2 transform -translate-x-1/2 w-6 h-6 bg-sage-green rounded-full border-4 border-white shadow-lg z-10"></div>
-                      <div className="w-1/2 pl-8"></div>
-                    </motion.div>
-
-                    {/* 4:00 PM After Party */}
-                    <motion.div
-                      className="relative flex items-center"
-                      initial={{ opacity: 0, x: 100 }}
-                      whileInView={{ opacity: 1, x: 0 }}
-                      transition={{ duration: 0.6, delay: 1.0 }}
-                      viewport={{ once: true }}
-                    >
-                      <div className="w-1/2 pr-8"></div>
-                      <div className="absolute left-1/2 transform -translate-x-1/2 w-6 h-6 bg-dusty-rose rounded-full border-4 border-white shadow-lg z-10"></div>
-                      <div className="w-1/2 pl-8">
-                        <div className="bg-white rounded-2xl p-6 shadow-xl border border-dusty-rose/20">
-                          <div className="text-2xl md:text-3xl font-bold text-slate-blue mb-2">4:00 PM</div>
-                          <div className="text-lg md:text-xl text-dusty-rose font-medium">After Party</div>
-                          <div className="text-sm text-slate-blue/70 mt-2">Dancing and celebration</div>
-                        </div>
-                      </div>
-                    </motion.div>
-
-                  </div>
-                </div>
-
-                {/* Bottom Message */}
+                {/* Additional Note */}
                 <motion.div
-                  className="text-center mt-16"
+                  className="text-center mt-12"
                   initial={{ opacity: 0, y: 30 }}
-                  whileInView={{ opacity: 1, y: 0 }}
-                  transition={{ duration: 0.6, delay: 1.2 }}
-                  viewport={{ once: true }}
+                  animate={{ opacity: 1, y: 0 }}
+                  transition={{ duration: 0.6, delay: 1.0 }}
                 >
-                  <p className="text-lg text-slate-blue/80 max-w-3xl mx-auto leading-relaxed">
-                    Please arrive on time to ensure you don't miss any special moments of our celebration.
-                  </p>
+                  <div className="bg-white/60 backdrop-blur-sm rounded-2xl p-6 shadow-xl max-w-2xl mx-auto">
+                    <h4 className="text-lg font-parisienne text-slate-blue mb-3">Important Note</h4>
+                    <p className="text-slate-blue/80 leading-relaxed">
+                      Please arrive 15 minutes before the ceremony. Transportation between venues will be provided.
+                    </p>
+                  </div>
                 </motion.div>
 
               </div>
             </section>
+
 
             {/* 3 Images between Timeline and Entourage */}
             <div className="py-8 bg-white">
@@ -699,9 +789,16 @@ export default function InvitationPage() {
 
 
             {/* ===== SECTION 6: WEDDING ENTOURAGE ===== */}
-            <section className="min-h-screen flex items-center justify-center bg-gradient-to-br from-white via-warm-beige/5 to-dusty-rose/10 relative py-16">
-              <div className="max-w-5xl mx-auto px-6 w-full">
-
+            <section className="min-h-screen flex items-center justify-center bg-gradient-to-br from-white via-warm-beige/5 to-dusty-rose/10 relative py-16 overflow-hidden">
+              <div
+                className="absolute inset-0 bg-cover bg-center bg-no-repeat pointer-events-none"
+                style={{
+                  backgroundImage: 'url(/weddingimgs/img3.jpg)',
+                  opacity: 0.08,
+                  transform: 'scale(1.1)'
+                }}
+              />
+              <div className="relative z-10 max-w-6xl mx-auto px-6 w-full">
                 {/* Section Header */}
                 <motion.div
                   className="text-center mb-20"
@@ -709,13 +806,15 @@ export default function InvitationPage() {
                   animate={{ opacity: 1, y: 0 }}
                   transition={{ delay: 0.4, duration: 0.8 }}
                 >
-                  <div className="text-xl md:text-2xl font-playfair text-slate-blue/70 mb-4 tracking-widest">
-                    MJ & ERICA
+                  <div className="text-xl md:text-2xl font-parisienne text-slate-blue/70 mb-4">
+                    MJ & Erica
                   </div>
-                  <h2 className="text-5xl md:text-6xl font-playfair text-sage-green mb-8 tracking-wide">
-                    THE ENTOURAGE
+                  <h2 className="text-6xl md:text-6xl font-parisienne text-slate-blue mb-8">
+                    The Entourage
                   </h2>
-
+                  <p className="text-2xl font-parisienne text-black mb-8">
+                    January 16, 2026
+                  </p>
                   {/* Decorative Flourish */}
                   <motion.div
                     className="flex justify-center items-center mb-8"
@@ -749,7 +848,7 @@ export default function InvitationPage() {
                       transition={{ duration: 0.8 }}
                       viewport={{ once: true }}
                     >
-                      <h3 className="text-4xl md:text-5xl font-playfair text-sage-green mb-8 tracking-wide">
+                      <h3 className="text-4xl md:text-6xl font-parisienne text-sage-green mb-8">
                         {ENTOURAGE_CONFIG.bestMan.title}
                       </h3>
                       <div className="space-y-4 max-w-md mx-auto">
@@ -771,17 +870,17 @@ export default function InvitationPage() {
                       transition={{ duration: 0.8, delay: 0.2 }}
                       viewport={{ once: true }}
                     >
-                      <h3 className="text-4xl md:text-5xl font-playfair text-sage-green mb-12 tracking-wide">
+                      <h3 className="text-5xl md:text-6xl font-parisienne text-sage-green mb-12">
                         {ENTOURAGE_CONFIG.parents.title}
                       </h3>
 
                       <div className="grid md:grid-cols-2 gap-16 max-w-4xl mx-auto">
                         {/* Groom's Parents */}
                         <div className="space-y-4">
-                          <h4 className="text-2xl font-playfair text-sage-green mb-6">
+                          <h4 className="text-4xl font-parisienne text-sage-green mb-6">
                             {ENTOURAGE_CONFIG.parents.groomParents.title}
                           </h4>
-                          <div className="space-y-3 text-slate-blue/80 text-lg">
+                          <div className="space-y-3 text-slate-blue/80 text-xl">
                             {ENTOURAGE_CONFIG.parents.groomParents.members.map((member, index) => (
                               <p key={index}>{member.name}</p>
                             ))}
@@ -790,10 +889,10 @@ export default function InvitationPage() {
 
                         {/* Bride's Parents */}
                         <div className="space-y-4">
-                          <h4 className="text-2xl font-playfair text-dusty-rose mb-6">
+                          <h4 className="text-4xl font-parisienne text-dusty-rose mb-6">
                             {ENTOURAGE_CONFIG.parents.brideParents.title}
                           </h4>
-                          <div className="space-y-3 text-slate-blue/80 text-lg">
+                          <div className="space-y-3 text-slate-blue/80 text-xl">
                             {ENTOURAGE_CONFIG.parents.brideParents.members.map((member, index) => (
                               <p key={index}>{member.name}</p>
                             ))}
@@ -812,17 +911,17 @@ export default function InvitationPage() {
                       transition={{ duration: 0.8, delay: 0.4 }}
                       viewport={{ once: true }}
                     >
-                      <h3 className="text-4xl md:text-5xl font-playfair text-slate-blue mb-12 tracking-wide">
+                      <h3 className="text-5xl md:text-6xl font-parisienne text-slate-blue mb-12">
                         {ENTOURAGE_CONFIG.principalSponsors.title}
                       </h3>
 
                       <div className="grid md:grid-cols-2 gap-16 max-w-4xl mx-auto">
                         {/* Ninong */}
                         <div className="space-y-4">
-                          <h4 className="text-2xl font-playfair text-sage-green mb-8">
+                          <h4 className="text-3xl font-parisienne text-sage-green mb-8">
                             {ENTOURAGE_CONFIG.principalSponsors.ninong.title}
                           </h4>
-                          <div className="space-y-3 text-slate-blue/80 text-lg">
+                          <div className="space-y-3 text-slate-blue/80 text-xl">
                             {ENTOURAGE_CONFIG.principalSponsors.ninong.members.map((member, index) => (
                               <p key={index}>
                                 {ENTOURAGE_DISPLAY_CONFIG.showSponsorNumbers ? `${member.number}. ` : ''}
@@ -834,10 +933,10 @@ export default function InvitationPage() {
 
                         {/* Ninang */}
                         <div className="space-y-4">
-                          <h4 className="text-2xl font-playfair text-dusty-rose mb-8">
+                          <h4 className="text-3xl font-parisienne text-dusty-rose mb-8">
                             {ENTOURAGE_CONFIG.principalSponsors.ninang.title}
                           </h4>
-                          <div className="space-y-3 text-slate-blue/80 text-lg">
+                          <div className="space-y-3 text-slate-blue/80 text-xl">
                             {ENTOURAGE_CONFIG.principalSponsors.ninang.members.map((member, index) => (
                               <p key={index}>
                                 {ENTOURAGE_DISPLAY_CONFIG.showSponsorNumbers ? `${member.number}. ` : ''}
@@ -859,17 +958,17 @@ export default function InvitationPage() {
                       transition={{ duration: 0.8, delay: 0.6 }}
                       viewport={{ once: true }}
                     >
-                      <h3 className="text-4xl md:text-5xl font-playfair text-dusty-rose mb-12 tracking-wide">
+                      <h3 className="text-5xl md:text-6xl font-parisienne text-dusty-rose mb-12">
                         {ENTOURAGE_CONFIG.secondarySponsors.title}
                       </h3>
 
                       <div className="grid md:grid-cols-3 gap-8 max-w-6xl mx-auto">
                         {/* Candle (in) */}
                         <div className="space-y-3">
-                          <h4 className="text-xl font-playfair text-sage-green mb-4">
+                          <h4 className="text-3xl font-parisienne text-sage-green mb-4">
                             {ENTOURAGE_CONFIG.secondarySponsors.candleIn.title}
                           </h4>
-                          <div className="space-y-2 text-slate-blue/80 text-sm">
+                          <div className="space-y-2 text-slate-blue/80 text-xl">
                             {ENTOURAGE_CONFIG.secondarySponsors.candleIn.members.map((member, index) => (
                               <p key={index}>{member.name}</p>
                             ))}
@@ -878,10 +977,10 @@ export default function InvitationPage() {
 
                         {/* Veil */}
                         <div className="space-y-3">
-                          <h4 className="text-xl font-playfair text-dusty-rose mb-4">
+                          <h4 className="text-3xl font-parisienne text-dusty-rose mb-4">
                             {ENTOURAGE_CONFIG.secondarySponsors.veil.title}
                           </h4>
-                          <div className="space-y-2 text-slate-blue/80 text-sm">
+                          <div className="space-y-2 text-slate-blue/80 text-xl">
                             {ENTOURAGE_CONFIG.secondarySponsors.veil.members.map((member, index) => (
                               <p key={index}>{member.name}</p>
                             ))}
@@ -890,10 +989,10 @@ export default function InvitationPage() {
 
                         {/* Cord */}
                         <div className="space-y-3">
-                          <h4 className="text-xl font-playfair text-warm-beige mb-4">
+                          <h4 className="text-3xl font-parisienne text-warm-beige mb-4">
                             {ENTOURAGE_CONFIG.secondarySponsors.cord.title}
                           </h4>
-                          <div className="space-y-2 text-slate-blue/80 text-sm">
+                          <div className="space-y-2 text-slate-blue/80 text-xl">
                             {ENTOURAGE_CONFIG.secondarySponsors.cord.members.map((member, index) => (
                               <p key={index}>{member.name}</p>
                             ))}
@@ -902,10 +1001,10 @@ export default function InvitationPage() {
 
                         {/* Candle (out) */}
                         <div className="space-y-3">
-                          <h4 className="text-xl font-playfair text-sage-green mb-4">
+                          <h4 className="text-3xl font-parisienne text-sage-green mb-4">
                             {ENTOURAGE_CONFIG.secondarySponsors.candleOut.title}
                           </h4>
-                          <div className="space-y-2 text-slate-blue/80 text-sm">
+                          <div className="space-y-2 text-slate-blue/80 text-xl">
                             {ENTOURAGE_CONFIG.secondarySponsors.candleOut.members.map((member, index) => (
                               <p key={index}>{member.name}</p>
                             ))}
@@ -914,10 +1013,10 @@ export default function InvitationPage() {
 
                         {/* Veil 2 */}
                         <div className="space-y-3">
-                          <h4 className="text-xl font-playfair text-dusty-rose mb-4">
+                          <h4 className="text-3xl font-parisienne text-dusty-rose mb-4">
                             {ENTOURAGE_CONFIG.secondarySponsors.veil2.title}
                           </h4>
-                          <div className="space-y-2 text-slate-blue/80 text-sm">
+                          <div className="space-y-2 text-slate-blue/80 text-xl">
                             {ENTOURAGE_CONFIG.secondarySponsors.veil2.members.map((member, index) => (
                               <p key={index}>{member.name}</p>
                             ))}
@@ -926,10 +1025,10 @@ export default function InvitationPage() {
 
                         {/* Cord 2 */}
                         <div className="space-y-3">
-                          <h4 className="text-xl font-playfair text-warm-beige mb-4">
+                          <h4 className="text-3xl font-parisienne text-warm-beige mb-4">
                             {ENTOURAGE_CONFIG.secondarySponsors.cord2.title}
                           </h4>
-                          <div className="space-y-2 text-slate-blue/80 text-sm">
+                          <div className="space-y-2 text-slate-blue/80 text-xl">
                             {ENTOURAGE_CONFIG.secondarySponsors.cord2.members.map((member, index) => (
                               <p key={index}>{member.name}</p>
                             ))}
@@ -948,17 +1047,17 @@ export default function InvitationPage() {
                       transition={{ duration: 0.8, delay: 0.8 }}
                       viewport={{ once: true }}
                     >
-                      <h3 className="text-4xl md:text-5xl font-playfair text-dusty-rose mb-12 tracking-wide">
+                      <h3 className="text-5xl md:text-6xl font-parisienne text-dusty-rose mb-12">
                         {ENTOURAGE_CONFIG.weddingParty.title}
                       </h3>
 
                       <div className="grid md:grid-cols-2 gap-16 max-w-4xl mx-auto">
                         {/* Groomsmen */}
                         <div className="space-y-4">
-                          <h4 className="text-2xl font-playfair text-sage-green mb-8">
+                          <h4 className="text-3xl font-parisienne text-sage-green mb-8">
                             {ENTOURAGE_CONFIG.weddingParty.groomsmen.title}
                           </h4>
-                          <div className="space-y-3 text-slate-blue/80 text-lg">
+                          <div className="space-y-3 text-slate-blue/80 text-xl">
                             {ENTOURAGE_CONFIG.weddingParty.groomsmen.members.map((member, index) => (
                               <p key={index}>
                                 {ENTOURAGE_DISPLAY_CONFIG.showSponsorNumbers ? `${member.number}. ` : ''}
@@ -970,10 +1069,10 @@ export default function InvitationPage() {
 
                         {/* Bridesmaids */}
                         <div className="space-y-4">
-                          <h4 className="text-2xl font-playfair text-dusty-rose mb-8">
+                          <h4 className="text-3xl font-parisienne text-dusty-rose mb-8">
                             {ENTOURAGE_CONFIG.weddingParty.bridesmaids.title}
                           </h4>
-                          <div className="space-y-3 text-slate-blue/80 text-lg">
+                          <div className="space-y-3 text-slate-blue/80 text-xl">
                             {ENTOURAGE_CONFIG.weddingParty.bridesmaids.members.map((member, index) => (
                               <p key={index}>
                                 {ENTOURAGE_DISPLAY_CONFIG.showSponsorNumbers ? `${member.number}. ` : ''}
@@ -995,17 +1094,17 @@ export default function InvitationPage() {
                       transition={{ duration: 0.8, delay: 1.0 }}
                       viewport={{ once: true }}
                     >
-                      <h3 className="text-4xl md:text-5xl font-playfair text-warm-beige mb-12 tracking-wide">
+                      <h3 className="text-5xl md:text-6xl font-parisienne text-warm-beige mb-12">
                         {ENTOURAGE_CONFIG.bearers.title}
                       </h3>
 
                       <div className="grid md:grid-cols-3 gap-8 max-w-4xl mx-auto">
                         {/* Ring Bearer */}
                         <div className="space-y-3">
-                          <h4 className="text-xl font-playfair text-sage-green mb-4">
+                          <h4 className="text-3xl font-parisienne text-sage-green mb-4">
                             {ENTOURAGE_CONFIG.bearers.ring.title}
                           </h4>
-                          <div className="space-y-2 text-slate-blue/80 text-lg">
+                          <div className="space-y-2 text-slate-blue/80 text-xl">
                             {ENTOURAGE_CONFIG.bearers.ring.members.map((member, index) => (
                               <p key={index}>{member.name}</p>
                             ))}
@@ -1014,10 +1113,10 @@ export default function InvitationPage() {
 
                         {/* Arras Bearer */}
                         <div className="space-y-3">
-                          <h4 className="text-xl font-playfair text-dusty-rose mb-4">
+                          <h4 className="text-3xl font-parisienne text-dusty-rose mb-4">
                             {ENTOURAGE_CONFIG.bearers.arras.title}
                           </h4>
-                          <div className="space-y-2 text-slate-blue/80 text-lg">
+                          <div className="space-y-2 text-slate-blue/80 text-xl">
                             {ENTOURAGE_CONFIG.bearers.arras.members.map((member, index) => (
                               <p key={index}>{member.name}</p>
                             ))}
@@ -1026,10 +1125,10 @@ export default function InvitationPage() {
 
                         {/* Bible Bearer */}
                         <div className="space-y-3">
-                          <h4 className="text-xl font-playfair text-warm-beige mb-4">
+                          <h4 className="text-3xl font-parisienne text-warm-beige mb-4">
                             {ENTOURAGE_CONFIG.bearers.bible.title}
                           </h4>
-                          <div className="space-y-2 text-slate-blue/80 text-lg">
+                          <div className="space-y-2 text-slate-blue/80 text-xl">
                             {ENTOURAGE_CONFIG.bearers.bible.members.map((member, index) => (
                               <p key={index}>{member.name}</p>
                             ))}
@@ -1048,14 +1147,14 @@ export default function InvitationPage() {
                       transition={{ duration: 0.8, delay: 1.2 }}
                       viewport={{ once: true }}
                     >
-                      <h3 className="text-4xl md:text-5xl font-playfair text-sage-green mb-12 tracking-wide">
+                      <h3 className="text-5xl md:text-6xl font-parisienne text-sage-green mb-12">
                         {ENTOURAGE_CONFIG.flowerGirls.title}
                       </h3>
 
                       <div className="space-y-4 max-w-2xl mx-auto">
                         <div className="grid md:grid-cols-2 gap-8">
                           {ENTOURAGE_CONFIG.flowerGirls.members.map((member, index) => (
-                            <div key={index} className="text-slate-blue/80 text-lg">
+                            <div key={index} className="text-slate-blue/80 text-xl">
                               <p>
                                 {ENTOURAGE_DISPLAY_CONFIG.showSponsorNumbers ? `${member.number}. ` : ''}
                                 {member.name}
@@ -1077,7 +1176,7 @@ export default function InvitationPage() {
                       transition={{ duration: 0.8, delay: 1.4 }}
                       viewport={{ once: true }}
                     >
-                      <h3 className="text-4xl md:text-5xl font-playfair text-dusty-rose mb-12 tracking-wide">
+                      <h3 className="text-5xl md:text-6xl font-parisienne text-dusty-rose mb-12">
                         {ENTOURAGE_CONFIG.maidOfHonor.title}
                       </h3>
 
@@ -1099,14 +1198,14 @@ export default function InvitationPage() {
                     transition={{ duration: 0.8, delay: 1.6 }}
                     viewport={{ once: true }}
                   >
-                    <h3 className="text-4xl md:text-5xl font-playfair text-slate-blue mb-12 tracking-wide">
-                      THE COUPLE
+                    <h3 className="text-5xl md:text-6xl font-parisienne text-slate-blue mb-12">
+                      The Couple
                     </h3>
 
                     <div className="grid md:grid-cols-2 gap-16 max-w-4xl mx-auto">
                       {/* Groom */}
                       <div className="space-y-4">
-                        <h4 className="text-2xl font-playfair text-sage-green mb-6">
+                        <h4 className="text-2xl font-parisienne text-sage-green mb-6">
                           {ENTOURAGE_CONFIG.couple.groom.role}
                         </h4>
                         <div className="text-slate-blue/80 text-2xl font-medium">
@@ -1116,7 +1215,7 @@ export default function InvitationPage() {
 
                       {/* Bride */}
                       <div className="space-y-4">
-                        <h4 className="text-2xl font-playfair text-dusty-rose mb-6">
+                        <h4 className="text-2xl font-parisienne text-dusty-rose mb-6">
                           {ENTOURAGE_CONFIG.couple.bride.role}
                         </h4>
                         <div className="text-slate-blue/80 text-2xl font-medium">
@@ -1132,8 +1231,16 @@ export default function InvitationPage() {
             </section>
 
             {/* ===== SECTION 7: WEDDING VENUES ===== */}
-            <section className="min-h-screen flex items-center justify-center bg-gradient-to-br from-white via-warm-beige/5 to-dusty-rose/10 relative py-16">
-              <div className="max-w-7xl mx-auto px-6 w-full">
+            <section className="min-h-screen flex items-center justify-center bg-gradient-to-br from-white via-warm-beige/5 to-dusty-rose/10 relative py-16 overflow-hidden">
+              <div
+                className="absolute inset-0 bg-cover bg-center bg-no-repeat pointer-events-none"
+                style={{
+                  backgroundImage: 'url(/weddingimgs/img11.jpg)',
+                  opacity: 0.08,
+                  transform: 'scale(1.1)'
+                }}
+              />
+              <div className="relative z-10 max-w-7xl mx-auto px-6 w-full">
 
                 {/* Section Header */}
                 <motion.div
@@ -1142,14 +1249,35 @@ export default function InvitationPage() {
                   animate={{ opacity: 1, y: 0 }}
                   transition={{ delay: 0.4, duration: 0.8 }}
                 >
-                  <h2 className="text-4xl md:text-5xl font-playfair text-slate-blue mb-6">
+                  <div className="text-xl md:text-2xl font-parisienne text-slate-blue/70 mb-4">
+                    MJ & Erica
+                  </div>
+                  <h2 className="text-6xl md:text-6xl font-parisienne text-slate-blue mb-8">
                     Wedding Venues
                   </h2>
-                  <div className="flex justify-center items-center">
-                    <div className="w-16 h-px bg-gradient-to-r from-transparent via-dusty-rose to-transparent"></div>
-                    <div className="mx-4 w-2 h-2 bg-dusty-rose rounded-full"></div>
-                    <div className="w-16 h-px bg-gradient-to-r from-dusty-rose via-transparent to-transparent"></div>
-                  </div>
+                  <p className="text-2xl font-parisienne text-black mb-8">
+                    January 16, 2026
+                  </p>
+                  {/* Decorative Flourish */}
+                  <motion.div
+                    className="flex justify-center items-center mb-8"
+                    initial={{ scaleX: 0 }}
+                    animate={{ scaleX: 1 }}
+                    transition={{ delay: 0.8, duration: 0.8 }}
+                  >
+                    <svg className="w-48 h-4 text-sage-green" viewBox="0 0 200 20" fill="currentColor">
+                      <path d="M10,10 Q50,2 100,10 Q150,18 190,10" stroke="currentColor" strokeWidth="1" fill="none" strokeLinecap="round" />
+                      <circle cx="20" cy="10" r="1.5" />
+                      <circle cx="40" cy="8" r="1" />
+                      <circle cx="60" cy="12" r="1" />
+                      <circle cx="80" cy="8" r="1.5" />
+                      <circle cx="100" cy="10" r="2" />
+                      <circle cx="120" cy="12" r="1.5" />
+                      <circle cx="140" cy="8" r="1" />
+                      <circle cx="160" cy="12" r="1" />
+                      <circle cx="180" cy="8" r="1.5" />
+                    </svg>
+                  </motion.div>
                 </motion.div>
 
                 <div className="space-y-20">
@@ -1169,8 +1297,8 @@ export default function InvitationPage() {
                           <span className="text-white text-2xl">⛪</span>
                         </div>
                         <div>
-                          <h3 className="text-3xl md:text-4xl font-playfair text-slate-blue">Ceremony</h3>
-                          <p className="text-sage-green text-lg">11:00 AM</p>
+                          <h3 className="text-3xl md:text-4xl font-parisienne text-slate-blue">Ceremony</h3>
+                          <p className="text-sage-green text-lg font-parisienne">11:00 AM</p>
                         </div>
                       </div>
 
@@ -1239,8 +1367,8 @@ export default function InvitationPage() {
                           <span className="text-white text-2xl">🏰</span>
                         </div>
                         <div>
-                          <h3 className="text-3xl md:text-4xl font-playfair text-slate-blue">Reception</h3>
-                          <p className="text-dusty-rose text-lg">1:00 PM onwards</p>
+                          <h3 className="text-3xl md:text-4xl font-parisienne text-slate-blue">Reception</h3>
+                          <p className="text-dusty-rose text-lg font-parisienne">1:00 PM onwards</p>
                         </div>
                       </div>
 
@@ -1279,7 +1407,7 @@ export default function InvitationPage() {
                   viewport={{ once: true }}
                 >
                   <div className="bg-white/80 backdrop-blur-sm rounded-2xl p-6 shadow-xl max-w-3xl mx-auto">
-                    <h4 className="text-xl font-playfair text-slate-blue mb-4">Transportation</h4>
+                    <h4 className="text-xl font-parisienne text-slate-blue mb-4">Transportation</h4>
                     <p className="text-slate-blue/80 leading-relaxed">
                       Both venues are conveniently located in Tagaytay City. We recommend allowing extra travel time due to the scenic mountain roads.
                       Parking is available at both locations.
@@ -1291,9 +1419,16 @@ export default function InvitationPage() {
             </section>
 
             {/* ===== SECTION 8: DRESS CODE ===== */}
-            <section className="min-h-screen flex items-center justify-center bg-gradient-to-br from-white via-sage-green/5 to-dusty-rose/10 relative py-16">
-              <div className="max-w-6xl mx-auto px-6 w-full">
-
+            <section className="min-h-screen flex items-center justify-center bg-gradient-to-br from-white via-sage-green/5 to-dusty-rose/10 relative py-16 overflow-hidden">
+              <div
+                className="absolute inset-0 bg-cover bg-center bg-no-repeat pointer-events-none"
+                style={{
+                  backgroundImage: 'url(/weddingimgs/img15.jpg)',
+                  opacity: 0.08,
+                  transform: 'scale(1.1)'
+                }}
+              />
+              <div className="relative z-10 max-w-6xl mx-auto px-6 w-full">
                 {/* Section Header */}
                 <motion.div
                   className="text-center mb-20"
@@ -1301,13 +1436,13 @@ export default function InvitationPage() {
                   animate={{ opacity: 1, y: 0 }}
                   transition={{ delay: 0.4, duration: 0.8 }}
                 >
-                  <div className="text-xl md:text-2xl font-playfair text-slate-blue/70 mb-4 tracking-widest">
-                    MJ & ERICA
+                  <div className="text-xl md:text-2xl font-parisienne text-slate-blue/70 mb-4">
+                    MJ & Erica
                   </div>
-                  <h2 className="text-5xl md:text-6xl font-playfair text-sage-green mb-4 tracking-wide">
+                  <h2 className="text-6xl md:text-6xl font-parisienne text-slate-blue mb-8">
                     {DRESS_CODE_CONFIG.title}
                   </h2>
-                  <p className="text-2xl font-playfair text-dusty-rose mb-8">
+                  <p className="text-2xl font-parisienne text-black mb-8">
                     {DRESS_CODE_CONFIG.subtitle}
                   </p>
 
@@ -1455,11 +1590,15 @@ export default function InvitationPage() {
                         ATTIRE REQUIREMENTS
                       </h3>
 
-                      <div className="grid md:grid-cols-3 gap-12 max-w-5xl mx-auto">
+                      <div className="grid md:grid-cols-3 gap-12 max-w-6xl mx-auto">
                         {/* Ninong */}
                         <div className="space-y-6">
-                          <div className="w-20 h-20 rounded-lg mx-auto shadow-xl border border-sage-green/20 flex items-center justify-center bg-white/90 backdrop-blur-sm">
-                            <div className="w-12 h-12 rounded-md" style={{ backgroundColor: DRESS_CODE_CONFIG.requirements.ninong.color }}></div>
+                          <div className="w-32 h-32 rounded-lg mx-auto overflow-hidden">
+                            <img
+                              src="/imgs/ninong.png"
+                              alt="Ninong dress code"
+                              className="w-full h-full object-cover"
+                            />
                           </div>
                           <h4 className="text-2xl font-playfair text-sage-green">
                             {DRESS_CODE_CONFIG.requirements.ninong.title}
@@ -1471,8 +1610,12 @@ export default function InvitationPage() {
 
                         {/* Ninang */}
                         <div className="space-y-6">
-                          <div className="w-20 h-20 rounded-lg mx-auto shadow-xl border border-dusty-rose/20 flex items-center justify-center bg-white/90 backdrop-blur-sm">
-                            <div className="w-12 h-12 rounded-md" style={{ backgroundColor: DRESS_CODE_CONFIG.requirements.ninang.color }}></div>
+                          <div className="w-32 h-32 rounded-lg mx-auto overflow-hidden">
+                            <img
+                              src="/imgs/ninang.png"
+                              alt="Ninang dress code"
+                              className="w-full h-full object-cover"
+                            />
                           </div>
                           <h4 className="text-2xl font-playfair text-dusty-rose">
                             {DRESS_CODE_CONFIG.requirements.ninang.title}
@@ -1484,17 +1627,12 @@ export default function InvitationPage() {
 
                         {/* Guests */}
                         <div className="space-y-6">
-                          <div className="w-20 h-20 rounded-lg mx-auto shadow-xl border border-warm-beige/20 flex items-center justify-center bg-white/90 backdrop-blur-sm">
-                            <div className="flex space-x-1">
-                              <div
-                                className="w-5 h-5 rounded-sm shadow-sm"
-                                style={{ backgroundColor: DRESS_CODE_CONFIG.requirements.guests.colors[0] }}
-                              ></div>
-                              <div
-                                className="w-5 h-5 rounded-sm shadow-sm"
-                                style={{ backgroundColor: DRESS_CODE_CONFIG.requirements.guests.colors[1] }}
-                              ></div>
-                            </div>
+                          <div className="w-50 h-32 rounded-lg mx-auto overflow-hidden">
+                            <img
+                              src="/imgs/guest.png"
+                              alt="Guest dress code"
+                              className="w-full h-full object-cover"
+                            />
                           </div>
                           <h4 className="text-2xl font-playfair text-warm-beige">
                             {DRESS_CODE_CONFIG.requirements.guests.title}
@@ -1643,42 +1781,64 @@ export default function InvitationPage() {
                 </div>
               </motion.div>
             </div>
+
+            {/* ===== SECTION 11: RSVP ===== */}
+            <div id="rsvp-section">
+              <RSVPSection
+                guestName={invitation?.guestName || ''}
+                qrCode={qrCode}
+                customMessage={invitation?.customMessage || "We would be honored to have you join us as we celebrate our special day. Please let us know if you'll be able to attend our wedding celebration."}
+                currentRSVP={invitation?.rsvp}
+                onRSVPSuccess={handleRSVPSuccess}
+              />
+            </div>
           </motion.div>
         )}
       </AnimatePresence>
 
-      {/* RSVP Modal */}
-      {invitation && (
-        <RSVPModal
-          isOpen={showRSVPModal}
-          onClose={() => setShowRSVPModal(false)}
-          guestName={invitation.guestName}
-          qrCode={qrCode}
-          onSuccess={handleRSVPSuccess}
-          isUpdating={!!invitation.rsvp?.status && invitation.rsvp.status !== 'pending'}
-        />
+      {/* RSVP Reminder Modal */}
+      {showRSVPReminder && (
+        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+          <motion.div
+            initial={{ scale: 0.9, opacity: 0 }}
+            animate={{ scale: 1, opacity: 1 }}
+            className="bg-white rounded-3xl shadow-2xl max-w-md w-full p-8 border border-white/50"
+          >
+            <div className="text-center space-y-6">
+              <div className="flex justify-center mb-4">
+                <div className="w-16 h-16 bg-gradient-to-br from-rose-400 to-pink-500 rounded-full flex items-center justify-center">
+                  <Heart className="w-8 h-8 text-white" />
+                </div>
+              </div>
+
+              <h3 className="text-2xl font-playfair text-slate-blue mb-2">
+                Don't Forget to RSVP!
+              </h3>
+
+              <p className="text-gray-600 leading-relaxed">
+                We would love to know if you'll be joining us for our special day.
+                Please take a moment to respond to our invitation.
+              </p>
+
+              <div className="flex gap-3 pt-4">
+                <button
+                  onClick={handleRSVPReminderClose}
+                  className="flex-1 px-4 py-3 border border-gray-300 text-gray-700 rounded-xl hover:bg-gray-50 transition-colors"
+                >
+                  Maybe Later
+                </button>
+                <button
+                  onClick={handleGoToRSVP}
+                  className="flex-1 px-4 py-3 bg-[#5976DA] text-white rounded-xl hover:from-sage-green/90 hover:to-emerald-600/90 transition-all"
+                >
+                  RSVP Now
+                </button>
+              </div>
+            </div>
+          </motion.div>
+        </div>
       )}
 
-      {/* Success Modal */}
-      {rsvpStatus && (
-        <RSVPSuccessModal
-          isOpen={showSuccessModal}
-          status={rsvpStatus}
-          guestName={invitation?.guestName || ''}
-          attendeeCount={rsvpAttendeeCount}
-        />
-      )}
-
-      {/* RSVP Status Modal */}
-      {invitation?.rsvp?.status && invitation.rsvp.status !== 'pending' && (
-        <RSVPStatusModal
-          isOpen={showStatusModal}
-          onClose={() => setShowStatusModal(false)}
-          guestName={invitation.guestName}
-          rsvpData={invitation.rsvp as { status: 'attending' | 'not_attending'; attendeeCount?: number; respondedAt?: string; guestNames?: string[]; email?: string; phone?: string; }}
-          onUpdateRSVP={handleUpdateRSVP}
-        />
-      )}
     </div>
   );
 }

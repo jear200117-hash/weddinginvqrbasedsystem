@@ -48,8 +48,16 @@ export default function FAQSection({ openFAQIndex, setOpenFAQIndex }: FAQSection
   ];
 
   return (
-    <section className="min-h-screen flex items-center justify-center bg-gradient-to-br from-slate-blue/5 via-white to-sage-green/5 relative py-16">
-      <div className="max-w-6xl mx-auto px-6 w-full">
+    <section className="min-h-screen flex items-center justify-center bg-gradient-to-br from-slate-blue/5 via-white to-sage-green/5 relative py-16 overflow-hidden">
+      <div 
+        className="absolute inset-0 bg-cover bg-center bg-no-repeat pointer-events-none"
+        style={{
+          backgroundImage: 'url(/weddingimgs/img10.jpg)',
+          opacity: 0.08,
+          transform: 'scale(1.1)'
+        }}
+      />
+      <div className="relative z-10 max-w-6xl mx-auto px-6 w-full">
 
         {/* Section Header */}
         <motion.div
@@ -59,13 +67,13 @@ export default function FAQSection({ openFAQIndex, setOpenFAQIndex }: FAQSection
           transition={{ delay: 0.4, duration: 0.8 }}
           viewport={{ once: true }}
         >
-          <div className="text-xl md:text-2xl font-playfair text-slate-blue/70 mb-4 tracking-widest">
-            MJ & ERICA
+          <div className="text-xl md:text-2xl font-parisienne text-slate-blue/70 mb-4">
+            MJ & Erica
           </div>
-          <h2 className="text-5xl md:text-6xl font-playfair text-slate-blue mb-4 tracking-wide">
-            FREQUENTLY ASKED
+          <h2 className="text-5xl md:text-6xl font-parisienne text-slate-blue mb-4">
+            Frequently Asked
           </h2>
-          <p className="text-2xl font-playfair text-dusty-rose mb-8">
+          <p className="text-2xl font-parisienne text-black mb-8">
             Questions & Answers
           </p>
 
@@ -108,7 +116,7 @@ export default function FAQSection({ openFAQIndex, setOpenFAQIndex }: FAQSection
                 className={`w-full px-8 py-6 text-left flex items-center justify-between hover:bg-${faq.color}/5 transition-colors`}
                 onClick={() => setOpenFAQIndex(openFAQIndex === index ? null : index)}
               >
-                <h3 className="text-xl font-playfair text-slate-blue">
+                <h3 className="text-xl font-parisienne text-slate-blue">
                   {faq.question}
                 </h3>
                 <motion.div
@@ -150,7 +158,7 @@ export default function FAQSection({ openFAQIndex, setOpenFAQIndex }: FAQSection
           viewport={{ once: true }}
         >
           <div className="bg-gradient-to-r from-sage-green/10 via-dusty-rose/10 to-warm-beige/10 rounded-2xl p-8 max-w-3xl mx-auto">
-            <h4 className="text-2xl font-playfair text-slate-blue mb-4">Still have questions?</h4>
+            <h4 className="text-2xl font-parisienne text-slate-blue mb-4">Still have questions?</h4>
             <p className="text-slate-blue/80 leading-relaxed mb-6">
               Feel free to reach out to us directly. We're happy to help with any additional questions or concerns you may have.
             </p>

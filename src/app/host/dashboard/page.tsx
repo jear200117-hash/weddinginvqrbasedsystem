@@ -30,10 +30,12 @@ import {
   RefreshCw,
   QrCode,
   Copy,
-  ExternalLink
+  ExternalLink,
+  Palette
 } from 'lucide-react';
 import Cookies from 'js-cookie';
 import { useRouter } from 'next/navigation';
+import QRCodeConfig from '@/components/QRCodeConfig';
 
 
 interface Stats {
@@ -78,12 +80,11 @@ interface Album {
   mediaCount: number;
   isPublic: boolean;
   approvalStatus: 'pending' | 'approved' | 'rejected';
+  qrCode?: string;
+  qrCodeUrl?: string;
+  uploadUrl?: string;
   createdBy?: {
     _id: string;
-    email: string;
-  };
-  creatorInfo?: {
-    type: 'user' | 'guest';
     email: string;
   };
   createdAt: string;
@@ -93,18 +94,45 @@ export default function HostDashboard() {
   const [stats, setStats] = useState<Stats | null>(null);
   const [invitations, setInvitations] = useState<Invitation[]>([]);
   const [loading, setLoading] = useState(true);
-  const [activeTab, setActiveTab] = useState<'overview' | 'invitations' | 'albums' | 'pending-albums' | 'media'>('overview');
+  const [activeTab, setActiveTab] = useState<'overview' | 'invitations' | 'albums' | 'media'>('overview');
   const [albumViewMode, setAlbumViewMode] = useState<'grid' | 'detail'>('grid');
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [showCreateAlbumModal, setShowCreateAlbumModal] = useState(false);
   const [albums, setAlbums] = useState<Album[]>([]);
-  const [pendingAlbums, setPendingAlbums] = useState<Album[]>([]);
+  const [showQRModal, setShowQRModal] = useState(false);
+  const [selectedAlbum, setSelectedAlbum] = useState<Album | null>(null);
   const [newInvitation, setNewInvitation] = useState({
     guestName: '',
     guestRole: 'General Guest',
     customMessage: '',
     invitationType: 'personalized'
   });
+  const [isCreatingInvitation, setIsCreatingInvitation] = useState(false);
+
+  // Suggested custom messages
+  const suggestedMessages = [
+    "We would be honored to have you join us as we celebrate our special day. Please let us know if you'll be able to attend our wedding celebration.",
+    "Your presence would make our wedding day even more special. We hope you can join us for this joyous occasion.",
+    "We're excited to celebrate our love with family and friends. We would love for you to be part of our special day.",
+    "Join us as we say 'I Do' and begin our new journey together. Your presence would mean the world to us.",
+    "We're getting married and we want you there! Please let us know if you can celebrate with us on our special day.",
+    "Your friendship means so much to us. We would be delighted if you could join us for our wedding celebration.",
+    "We're tying the knot and we can't imagine celebrating without you. Please let us know if you can make it!",
+    "Love is in the air and we're getting married! We hope you can join us for this beautiful celebration.",
+    "We're extending this invitation to you and your family members. We would be delighted to have you all celebrate with us on our special day.",
+    "Please join us with your family as we celebrate our union. Your presence and that of your loved ones would make our day complete.",
+    "We warmly invite you and your family to be part of our wedding celebration. We hope you can all join us for this joyous occasion.",
+    "This invitation extends to you and your family members. We would love to have you all there as we say 'I Do' and begin our new journey together.",
+    "We're excited to celebrate with you and your family! Please let us know if you and your loved ones can join us on our special day.",
+    "Your family has always been special to us, and we would be honored to have you all celebrate our wedding with us.",
+    "We're getting married and we want you and your family there! Please let us know if you can all join us for this beautiful celebration.",
+    "This invitation is for you and your family members. We can't imagine celebrating without you all being part of our special day."
+  ];
+
+  const handleSelectSuggestedMessage = (message: string) => {
+    setNewInvitation({ ...newInvitation, customMessage: message });
+  };
+
   const [newAlbum, setNewAlbum] = useState({
     name: '',
     description: '',
@@ -113,7 +141,6 @@ export default function HostDashboard() {
   });
   
   // Album viewing state
-  const [selectedAlbum, setSelectedAlbum] = useState<Album | null>(null);
   const [albumMedia, setAlbumMedia] = useState<any[]>([]);
   const [loadingMedia, setLoadingMedia] = useState(false);
   
@@ -135,9 +162,27 @@ export default function HostDashboard() {
   const [lastRSVPRefresh, setLastRSVPRefresh] = useState(0);
   const [currentPage, setCurrentPage] = useState(1);
   const [itemsPerPage] = useState(10);
-  const [showQRModal, setShowQRModal] = useState(false);
   const [selectedInvitation, setSelectedInvitation] = useState<any>(null);
   const [qrImageLoading, setQrImageLoading] = useState(false);
+  const [qrConfig, setQrConfig] = useState({
+    centerType: 'monogram' as 'none' | 'logo' | 'monogram',
+    centerOptions: {
+      monogram: 'M&E',
+      fontSize: 40,
+      fontFamily: 'Arial',
+      textColor: '#000000',
+      backgroundColor: '#ffffff',
+      logoSize: 60,
+      logoMargin: 10
+    },
+    size: 300,
+    margin: 2,
+    color: {
+      dark: '#000000',
+      light: '#ffffff'
+    }
+  });
+  const [showQRConfig, setShowQRConfig] = useState(false);
 
   // Add request caching and debouncing
   const [lastFetchTime, setLastFetchTime] = useState(0);
@@ -180,13 +225,12 @@ export default function HostDashboard() {
 
     try {
       console.log('Fetching fresh dashboard data...');
-      const [invitationStats, albumStats, mediaStats, invitationsData, albumsData, pendingAlbumsData, rsvpDataResponse] = await Promise.all([
+      const [invitationStats, albumStats, mediaStats, invitationsData, albumsData, rsvpDataResponse] = await Promise.all([
         invitationsAPI.getStats(),
         albumsAPI.getStats(),
         mediaAPI.getStats(),
         invitationsAPI.getAll({ limit: 10 }),
-        albumsAPI.getAll(),
-        albumsAPI.getPending(),
+        albumsAPI.getHostAlbums(),
         rsvpAPI.getAll()
       ]);
 
@@ -198,7 +242,6 @@ export default function HostDashboard() {
       
       setInvitations(invitationsData.invitations);
       setAlbums(albumsData.albums || []);
-      setPendingAlbums(pendingAlbumsData.pendingAlbums || []);
       setRsvpData(rsvpDataResponse);
       setLastFetchTime(now);
     } catch (error: any) {
@@ -233,18 +276,25 @@ export default function HostDashboard() {
     setShowQRModal(true);
   };
 
-  const handleCopyLink = async (qrCode: string) => {
+  const handleViewAlbumQR = (album: Album) => {
+    setSelectedAlbum(album);
+    setShowQRModal(true);
+  };
+
+  const handleCopyLink = async (qrCode: string, type: 'invitation' | 'album' = 'invitation') => {
     if (!qrCode) {
-      toast.error('QR code not available for this invitation');
+      toast.error('QR code not available');
       return;
     }
     
     const baseUrl = window.location.origin;
-    const invitationUrl = `${baseUrl}/invitation/${qrCode}`;
+    const url = type === 'invitation' 
+      ? `${baseUrl}/invitation/${qrCode}`
+      : `${baseUrl}/upload/${qrCode}`;
     
     try {
-      await navigator.clipboard.writeText(invitationUrl);
-      toast.success('Invitation link copied to clipboard!');
+      await navigator.clipboard.writeText(url);
+      toast.success(`${type === 'invitation' ? 'Invitation' : 'Upload'} link copied to clipboard!`);
     } catch (error) {
       toast.error('Failed to copy link');
     }
@@ -297,7 +347,13 @@ export default function HostDashboard() {
     console.log('Cover image value:', newAlbum.coverImage);
 
     try {
-      const response = await albumsAPI.create(newAlbum);
+      // Create album with QR configuration
+      const albumData = {
+        ...newAlbum,
+        qrCenterType: qrConfig.centerType,
+        qrCenterOptions: qrConfig.centerOptions
+      };
+      const response = await albumsAPI.create(albumData);
       console.log('Album creation response:', response);
       
       // Immediately add the new album to the local state
@@ -490,50 +546,6 @@ export default function HostDashboard() {
     }
   };
 
-  const handleApproveAlbum = async (albumId: string, action: 'approve' | 'reject', rejectionReason?: string) => {
-    try {
-      await albumsAPI.approve(albumId, action, rejectionReason);
-      
-      // Immediately update the album status in local state
-      if (action === 'approve') {
-        // Move from pending to albums list
-        setPendingAlbums(prev => prev.filter(album => album._id !== albumId));
-        
-        // Find the approved album and add it to albums list
-        const approvedAlbum = pendingAlbums.find(album => album._id === albumId);
-        if (approvedAlbum) {
-          const updatedAlbum = { ...approvedAlbum, approvalStatus: 'approved' as const };
-          setAlbums(prev => [updatedAlbum, ...prev]);
-          
-          // Update stats
-          setStats(prev => {
-            if (!prev) return prev;
-            return {
-              ...prev,
-              albums: {
-                ...prev.albums,
-                totalAlbums: (prev.albums.totalAlbums || 0) + 1,
-                publicAlbums: prev.albums.publicAlbums + (updatedAlbum.isPublic ? 1 : 0)
-              }
-            };
-          });
-        }
-      } else if (action === 'reject') {
-        // Remove from pending list
-        setPendingAlbums(prev => prev.filter(album => album._id !== albumId));
-      }
-      
-      toast.success(`Album ${action}d successfully!`);
-      
-      // Refresh data in background to ensure consistency
-      setTimeout(() => {
-        fetchDashboardData(true);
-      }, 1000);
-      
-    } catch (error: any) {
-      toast.error(error.response?.data?.error || `Failed to ${action} album`);
-    }
-  };
 
   const handleCreateInvitation = async () => {
     if (!newInvitation.guestName.trim() || !newInvitation.customMessage.trim()) {
@@ -541,9 +553,15 @@ export default function HostDashboard() {
       return;
     }
 
+    setIsCreatingInvitation(true);
     try {
-      // Create the invitation
-      const response = await invitationsAPI.create(newInvitation);
+      // Create the invitation with QR configuration
+      const invitationData = {
+        ...newInvitation,
+        qrCenterType: qrConfig.centerType,
+        qrCenterOptions: qrConfig.centerOptions
+      };
+      const response = await invitationsAPI.create(invitationData);
       
       // Immediately add the new invitation to the local state
       if (response.invitation) {
@@ -613,6 +631,8 @@ export default function HostDashboard() {
       
     } catch (error: any) {
       toast.error(error.response?.data?.error || 'Failed to create invitation');
+    } finally {
+      setIsCreatingInvitation(false);
     }
   };
 
@@ -660,6 +680,14 @@ export default function HostDashboard() {
             </div>
             <div className="flex items-center gap-2 sm:gap-4">
               <button
+                onClick={() => setShowQRConfig(true)}
+                className="bg-gradient-to-r from-purple-500 to-pink-500 text-white px-3 sm:px-4 py-2 rounded-lg font-semibold flex items-center gap-2 hover:shadow-lg transition-all duration-300 text-sm sm:text-base"
+              >
+                <Palette size={18} className="sm:w-5" />
+                <span className="hidden sm:inline">QR Settings</span>
+                <span className="sm:hidden">QR</span>
+              </button>
+              <button
                 onClick={() => setShowCreateModal(true)}
                 className="bg-gradient-to-r from-[#667c93] to-[#84a2be] text-white px-3 sm:px-4 py-2 rounded-lg font-semibold flex items-center gap-2 hover:shadow-lg transition-all duration-300 text-sm sm:text-base"
               >
@@ -689,7 +717,6 @@ export default function HostDashboard() {
                 { id: 'overview', label: 'Overview', icon: BarChart3 },
                 { id: 'invitations', label: 'Invitations', icon: Mail },
                 { id: 'albums', label: 'Albums', icon: Image },
-                { id: 'pending-albums', label: 'Pending Albums', icon: Calendar },
                 { id: 'media', label: 'Media', icon: Users },
               ].map((tab) => (
                 <button
@@ -949,12 +976,12 @@ export default function HostDashboard() {
                             <button
                               onClick={(e) => {
                                 e.stopPropagation();
-                                handleUploadToAlbum(album);
+                                handleViewAlbumQR(album);
                               }}
-                              className="text-green-600 hover:text-green-800 p-1 rounded hover:bg-green-50"
-                              title="Upload Photos"
+                              className="text-purple-600 hover:text-purple-800 p-1 rounded hover:bg-purple-50"
+                              title="View QR Code"
                             >
-                              <Upload size={14} className="sm:w-4" />
+                              <QrCode size={14} className="sm:w-4" />
                             </button>
                             <button
                               onClick={(e) => {
@@ -1170,79 +1197,6 @@ export default function HostDashboard() {
           </div>
         )}
 
-        {/* Pending Albums Tab */}
-        {activeTab === 'pending-albums' && (
-          <div className="space-y-6">
-            <div className="flex items-center justify-between">
-              <h3 className="text-2xl font-bold text-gray-900">Pending Album Approvals</h3>
-              <div className="flex items-center gap-4">
-                <div className="text-sm text-gray-600">
-                  {pendingAlbums.length} album{pendingAlbums.length !== 1 ? 's' : ''} waiting for approval
-                </div>
-                <button
-                  onClick={() => fetchDashboardData(true)}
-                  className="bg-blue-500 text-white px-3 py-2 rounded-lg hover:bg-blue-600 transition-colors text-sm flex items-center gap-2"
-                  title="Refresh pending albums"
-                >
-                  🔄 Refresh
-                </button>
-              </div>
-            </div>
-
-            <div className="space-y-4">
-              {pendingAlbums.map((album) => (
-                <motion.div
-                  key={album._id}
-                  initial={{ opacity: 0, y: 20 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  className="bg-white rounded-xl shadow-lg p-6"
-                >
-                  <div className="flex items-start justify-between">
-                    <div className="flex-1">
-                      <h3 className="text-xl font-semibold text-gray-900 mb-2">{album.name}</h3>
-                      <p className="text-gray-600 text-sm mb-3">{album.description}</p>
-                                              <div className="flex items-center gap-4 text-sm text-gray-500">
-                          <span>Created by: {album.creatorInfo?.email || 'Unknown'}</span>
-                          <span>Type: {album.creatorInfo?.type === 'guest' ? 'Guest' : 'Host'}</span>
-                          <span>Created: {new Date(album.createdAt).toLocaleDateString()}</span>
-                          <span>Public: {album.isPublic ? 'Yes' : 'No'}</span>
-                        </div>
-                    </div>
-                    <div className="flex gap-2 ml-4">
-                      <button
-                        onClick={() => handleApproveAlbum(album._id, 'approve')}
-                        className="bg-green-600 text-white px-4 py-2 rounded-lg font-semibold hover:bg-green-700 transition-colors"
-                        title="Approve Album"
-                      >
-                        ✓ Approve
-                      </button>
-                      <button
-                        onClick={() => {
-                          const reason = prompt('Please provide a reason for rejection (optional):');
-                          if (reason !== null) {
-                            handleApproveAlbum(album._id, 'reject', reason);
-                          }
-                        }}
-                        className="bg-red-600 text-white px-4 py-2 rounded-lg font-semibold hover:bg-red-700 transition-colors"
-                        title="Reject Album"
-                      >
-                        ✗ Reject
-                      </button>
-                    </div>
-                  </div>
-                </motion.div>
-              ))}
-
-              {pendingAlbums.length === 0 && (
-                <div className="text-center py-12">
-                  <Calendar className="text-gray-400 mx-auto mb-4" size={64} />
-                  <h3 className="text-xl font-semibold text-gray-700 mb-2">No pending albums</h3>
-                  <p className="text-gray-500">All albums have been reviewed!</p>
-                </div>
-              )}
-            </div>
-          </div>
-        )}
 
 
 
@@ -1564,7 +1518,7 @@ export default function HostDashboard() {
         )}
 
         {/* Other tabs would go here - for brevity, showing overview only */}
-        {activeTab !== 'overview' && activeTab !== 'albums' && activeTab !== 'pending-albums' && activeTab !== 'invitations' && (
+        {activeTab !== 'overview' && activeTab !== 'albums' && activeTab !== 'invitations' && (
           <div className="bg-white rounded-xl shadow-lg p-8 text-center">
             <h3 className="text-xl font-semibold text-gray-700 mb-2">
               {activeTab.charAt(0).toUpperCase() + activeTab.slice(1)} Management
@@ -1585,6 +1539,22 @@ export default function HostDashboard() {
             className="bg-white rounded-xl max-w-md w-full p-4 sm:p-6 shadow-2xl border border-gray-200 max-h-[90vh] overflow-y-auto"
           >
             <h3 className="text-lg sm:text-xl font-bold text-gray-800 mb-4">Create New Album</h3>
+            
+            {/* QR Configuration Indicator */}
+            <div className="bg-blue-50 border border-blue-200 rounded-lg p-3 mb-4">
+              <div className="flex items-center gap-2 text-sm text-blue-700">
+                <Palette className="w-4 h-4" />
+                <span className="font-medium">QR Code Style:</span>
+                <span className="capitalize">
+                  {qrConfig.centerType === 'none' ? 'Plain QR Code' : 
+                   qrConfig.centerType === 'logo' ? 'With Logo' : 
+                   `With Monogram (${qrConfig.centerOptions.monogram})`}
+                </span>
+              </div>
+              <p className="text-xs text-blue-600 mt-1">
+                This album will use your current QR configuration. Change it in QR Settings if needed.
+              </p>
+            </div>
             
             <div className="space-y-4">
               <div>
@@ -1713,6 +1683,22 @@ export default function HostDashboard() {
           >
             <h3 className="text-xl font-bold text-gray-800 mb-4">Create New Invitation</h3>
             
+            {/* QR Configuration Indicator */}
+            <div className="bg-blue-50 border border-blue-200 rounded-lg p-3 mb-4">
+              <div className="flex items-center gap-2 text-sm text-blue-700">
+                <Palette className="w-4 h-4" />
+                <span className="font-medium">QR Code Style:</span>
+                <span className="capitalize">
+                  {qrConfig.centerType === 'none' ? 'Plain QR Code' : 
+                   qrConfig.centerType === 'logo' ? 'With Logo' : 
+                   `With Monogram (${qrConfig.centerOptions.monogram})`}
+                </span>
+              </div>
+              <p className="text-xs text-blue-600 mt-1">
+                This invitation will use your current QR configuration. Change it in QR Settings if needed.
+              </p>
+            </div>
+            
             <div className="space-y-4">
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-2">
@@ -1748,13 +1734,46 @@ export default function HostDashboard() {
                 <label className="block text-sm font-medium text-gray-700 mb-2">
                   Custom Message *
                 </label>
-                                  <textarea
+                <div className="relative">
+                  <textarea
                     value={newInvitation.customMessage}
                     onChange={(e) => setNewInvitation({...newInvitation, customMessage: e.target.value})}
                     placeholder="Enter personalized message for the guest"
                     rows={4}
                     className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#84a2be] focus:border-transparent text-gray-900 font-medium"
+                    required
+                    maxLength={1000}
                   />
+                  <div className="absolute bottom-2 right-2 text-xs text-gray-500 bg-white px-1 rounded">
+                    {newInvitation.customMessage.length}/1000
+                  </div>
+                </div>
+                
+                {/* Suggested Messages */}
+                <div className="mt-3">
+                  <div className="flex items-center justify-between mb-2">
+                    <p className="text-sm text-gray-600">Suggested messages:</p>
+                    <button
+                      type="button"
+                      onClick={() => setNewInvitation({ ...newInvitation, customMessage: '' })}
+                      className="text-xs text-gray-500 hover:text-gray-700 underline"
+                    >
+                      Clear
+                    </button>
+                  </div>
+                  <div className="grid grid-cols-1 gap-2 max-h-32 overflow-y-auto border border-gray-200 rounded-lg p-2 bg-gray-50">
+                    {suggestedMessages.map((message, index) => (
+                      <button
+                        key={index}
+                        type="button"
+                        onClick={() => handleSelectSuggestedMessage(message)}
+                        className="text-left p-2 text-xs bg-white hover:bg-blue-50 rounded border border-gray-200 transition-colors hover:border-blue-300"
+                      >
+                        {message.length > 80 ? `${message.substring(0, 80)}...` : message}
+                      </button>
+                    ))}
+                  </div>
+                </div>
               </div>
 
               <div>
@@ -1775,15 +1794,24 @@ export default function HostDashboard() {
             <div className="flex gap-3 mt-6">
               <button
                 onClick={() => setShowCreateModal(false)}
-                className="flex-1 px-4 py-2 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50"
+                disabled={isCreatingInvitation}
+                className="flex-1 px-4 py-2 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
               >
                 Cancel
               </button>
               <button
                 onClick={handleCreateInvitation}
-                className="flex-1 px-4 py-2 bg-gradient-to-r from-[#667c93] to-[#84a2be] text-white rounded-lg hover:shadow-lg"
+                disabled={isCreatingInvitation || !newInvitation.guestName.trim() || !newInvitation.customMessage.trim()}
+                className="flex-1 px-4 py-2 bg-gradient-to-r from-[#667c93] to-[#84a2be] text-white rounded-lg hover:shadow-lg disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
               >
-                Create Invitation
+                {isCreatingInvitation ? (
+                  <>
+                    <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
+                    Creating...
+                  </>
+                ) : (
+                  'Create Invitation'
+                )}
               </button>
             </div>
           </motion.div>
@@ -1792,13 +1820,17 @@ export default function HostDashboard() {
 
       {/* QR Code Modal */}
       <AnimatePresence>
-        {showQRModal && selectedInvitation && (
+        {showQRModal && (selectedInvitation || selectedAlbum) && (
           <motion.div
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
             className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50"
-            onClick={() => setShowQRModal(false)}
+            onClick={() => {
+              setShowQRModal(false);
+              setSelectedInvitation(null);
+              setSelectedAlbum(null);
+            }}
           >
             <motion.div
               initial={{ scale: 0.9, opacity: 0 }}
@@ -1808,9 +1840,15 @@ export default function HostDashboard() {
               onClick={(e) => e.stopPropagation()}
             >
               <div className="flex items-center justify-between mb-4">
-                <h3 className="text-lg font-semibold text-gray-800">QR Code</h3>
+                <h3 className="text-lg font-semibold text-gray-800">
+                  {selectedInvitation ? 'Invitation QR Code' : 'Album Upload QR Code'}
+                </h3>
                 <button
-                  onClick={() => setShowQRModal(false)}
+                  onClick={() => {
+                    setShowQRModal(false);
+                    setSelectedInvitation(null);
+                    setSelectedAlbum(null);
+                  }}
                   className="text-gray-400 hover:text-gray-600"
                 >
                   <X className="w-5 h-5" />
@@ -1819,29 +1857,48 @@ export default function HostDashboard() {
               
               <div className="text-center space-y-4">
                 <div className="bg-gray-50 rounded-lg p-4">
-                  <h4 className="font-medium text-gray-900 mb-2">{selectedInvitation.guestName}</h4>
-                  <p className="text-sm text-gray-600 mb-4">{selectedInvitation.guestRole}</p>
+                  {selectedInvitation ? (
+                    <>
+                      <h4 className="font-medium text-gray-900 mb-2">{selectedInvitation.guestName}</h4>
+                      <p className="text-sm text-gray-600 mb-4">{selectedInvitation.guestRole}</p>
+                    </>
+                  ) : selectedAlbum ? (
+                    <>
+                      <h4 className="font-medium text-gray-900 mb-2">{selectedAlbum.name}</h4>
+                      <p className="text-sm text-gray-600 mb-4">Upload photos to this album</p>
+                    </>
+                  ) : null}
                   
                   {/* QR Code Display */}
                   <div className="bg-white p-4 rounded-lg border-2 border-gray-200 inline-block">
                     <div className="w-48 h-48 bg-gray-100 rounded-lg flex items-center justify-center">
-                      {selectedInvitation.qrCodePath ? (
+                      {selectedInvitation?.qrCodePath ? (
                         <img 
                           src={selectedInvitation.qrCodePath} 
                           alt={`QR Code for ${selectedInvitation.guestName}`}
                           className="w-full h-full object-contain p-2"
                           onLoad={() => setQrImageLoading(false)}
                         />
+                      ) : selectedAlbum?.qrCodeUrl ? (
+                        <img 
+                          src={selectedAlbum.qrCodeUrl} 
+                          alt={`QR Code for ${selectedAlbum.name}`}
+                          className="w-full h-full object-contain p-2"
+                        />
                       ) : (
                         <div className="text-center text-gray-500">
                           <QrCode className="w-16 h-16 mx-auto mb-2 text-gray-400" />
                           <p className="text-sm">QR Code for</p>
-                          {selectedInvitation.qrCode ? (
-                            <p className="text-xs font-mono break-all">{selectedInvitation.qrCode}</p>
+                          {(selectedInvitation?.qrCode || selectedAlbum?.qrCode) ? (
+                            <p className="text-xs font-mono break-all">
+                              {selectedInvitation?.qrCode || selectedAlbum?.qrCode}
+                            </p>
                           ) : (
                             <p className="text-xs text-red-500">QR Code not available</p>
                           )}
-                          <p className="text-xs text-gray-400 mt-2">Scan to view invitation</p>
+                          <p className="text-xs text-gray-400 mt-2">
+                            {selectedInvitation ? 'Scan to view invitation' : 'Scan to upload photos'}
+                          </p>
                         </div>
                       )}
                     </div>
@@ -1850,24 +1907,29 @@ export default function HostDashboard() {
                 
                 <div className="space-y-3">
                   <button
-                    onClick={() => handleCopyLink(selectedInvitation.qrCode)}
-                    disabled={!selectedInvitation.qrCode}
+                    onClick={() => handleCopyLink(
+                      selectedInvitation?.qrCode || selectedAlbum?.qrCode || '', 
+                      selectedInvitation ? 'invitation' : 'album'
+                    )}
+                    disabled={!selectedInvitation?.qrCode && !selectedAlbum?.qrCode}
                     className="w-full flex items-center justify-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors disabled:bg-gray-400 disabled:cursor-not-allowed"
                   >
                     <Copy className="w-4 h-4" />
-                    Copy Invitation Link
+                    Copy {selectedInvitation ? 'Invitation' : 'Upload'} Link
                   </button>
                   
-                  <button
-                    onClick={() => handleOpenInvitation(selectedInvitation.qrCode)}
-                    disabled={!selectedInvitation.qrCode}
-                    className="w-full flex items-center justify-center gap-2 px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors disabled:bg-gray-400 disabled:cursor-not-allowed"
-                  >
-                    <ExternalLink className="w-4 h-4" />
-                    Open Invitation
-                  </button>
+                  {selectedInvitation && (
+                    <button
+                      onClick={() => handleOpenInvitation(selectedInvitation.qrCode)}
+                      disabled={!selectedInvitation.qrCode}
+                      className="w-full flex items-center justify-center gap-2 px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors disabled:bg-gray-400 disabled:cursor-not-allowed"
+                    >
+                      <ExternalLink className="w-4 h-4" />
+                      Open Invitation
+                    </button>
+                  )}
                   
-                  {selectedInvitation.qrCodePath && (
+                  {selectedInvitation?.qrCodePath && (
                     <button
                       onClick={() => handleDownloadQR(selectedInvitation.qrCodePath, selectedInvitation.guestName)}
                       className="w-full flex items-center justify-center gap-2 px-4 py-2 bg-orange-600 text-white rounded-lg hover:bg-orange-700 transition-colors"
@@ -1876,6 +1938,66 @@ export default function HostDashboard() {
                       Download QR Code
                     </button>
                   )}
+                </div>
+              </div>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      {/* QR Configuration Modal */}
+      <AnimatePresence>
+        {showQRConfig && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 bg-gray-900 bg-opacity-75 backdrop-blur-sm flex items-center justify-center p-4 z-50"
+            onClick={() => setShowQRConfig(false)}
+          >
+            <motion.div
+              initial={{ scale: 0.9, opacity: 0 }}
+              animate={{ scale: 1, opacity: 1 }}
+              exit={{ scale: 0.9, opacity: 0 }}
+              className="bg-white rounded-xl max-w-4xl w-full max-h-[90vh] overflow-y-auto shadow-2xl border border-gray-200"
+              onClick={(e) => e.stopPropagation()}
+            >
+              <div className="p-6">
+                <div className="flex items-center justify-between mb-6">
+                  <h3 className="text-2xl font-bold text-gray-800 flex items-center gap-2">
+                    <Palette className="w-6 h-6 text-purple-600" />
+                    QR Code Configuration
+                  </h3>
+                  <button
+                    onClick={() => setShowQRConfig(false)}
+                    className="text-gray-400 hover:text-gray-600 transition-colors"
+                  >
+                    <X className="w-6 h-6" />
+                  </button>
+                </div>
+                
+                <QRCodeConfig
+                  onConfigChange={setQrConfig}
+                  initialConfig={qrConfig}
+                  showPreview={true}
+                />
+                
+                <div className="flex gap-3 mt-6 pt-6 border-t border-gray-200">
+                  <button
+                    onClick={() => setShowQRConfig(false)}
+                    className="flex-1 px-4 py-2 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 transition-colors"
+                  >
+                    Close
+                  </button>
+                  <button
+                    onClick={() => {
+                      setShowQRConfig(false);
+                      toast.success('QR configuration saved!');
+                    }}
+                    className="flex-1 px-4 py-2 bg-gradient-to-r from-purple-500 to-pink-500 text-white rounded-lg hover:shadow-lg transition-all duration-300"
+                  >
+                    Save Configuration
+                  </button>
                 </div>
               </div>
             </motion.div>
