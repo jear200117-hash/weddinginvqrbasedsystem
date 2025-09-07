@@ -258,7 +258,7 @@ export default function QRCodeConfig({
                       }}
                     >
                       <img
-                        src={`/api/proxy-image?url=${encodeURIComponent(`http://localhost:5000${logo.url}`)}`}
+                        src={`/api/proxy-image?url=${encodeURIComponent(`https://backendv2-nasy.onrender.com${logo.url}`)}`}
                         alt={logo.name}
                         className="w-full h-16 object-contain"
                         onError={(e) => {

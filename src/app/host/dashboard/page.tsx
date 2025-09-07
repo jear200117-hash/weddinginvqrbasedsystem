@@ -650,7 +650,7 @@ export default function HostDashboard() {
     try {
       // Create download link for QR code
       const link = document.createElement('a');
-      link.href = `${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000'}/uploads/qr-${qrCode}.png`;
+      link.href = `${process.env.NEXT_PUBLIC_API_URL || 'https://backendv2-nasy.onrender.com'}/uploads/qr-${qrCode}.png`;
       link.download = `${guestName.replace(/\s+/g, '_')}_invitation_qr.png`;
       link.click();
     } catch (error) {

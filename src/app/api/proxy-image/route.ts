@@ -10,7 +10,7 @@ export async function GET(request: NextRequest) {
     }
 
     // Validate that the URL is from our backend server
-    if (!imageUrl.startsWith('http://localhost:5000/uploads/')) {
+    if (!imageUrl.startsWith('https://backendv2-nasy.onrender.com/uploads/')) {
       return NextResponse.json({ error: 'Invalid URL' }, { status: 400 });
     }
 
