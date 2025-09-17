@@ -7,15 +7,15 @@ import { invitationsAPI, albumsAPI, mediaAPI, authAPI, rsvpAPI, swrFetcher, rsvp
 import { getSocket } from '@/lib/socket';
 import { getBestDisplayUrl, getFullSizeDisplayUrl } from '@/lib/googleDriveUtils';
 import toast, { Toaster } from 'react-hot-toast';
-import { 
-  Users, 
-  Mail, 
-  Image, 
-  Settings, 
-  Plus, 
-  Eye, 
-  Edit, 
-  Trash2, 
+import {
+  Users,
+  Mail,
+  Image,
+  Settings,
+  Plus,
+  Eye,
+  Edit,
+  Trash2,
   Download,
   BarChart3,
   Calendar,
@@ -190,16 +190,16 @@ export default function HostDashboard() {
     isFeatured: false
   });
   const [isUpdatingAlbum, setIsUpdatingAlbum] = useState(false);
-  
+
   // Album viewing state
   const [albumMedia, setAlbumMedia] = useState<any[]>([]);
   const [loadingMedia, setLoadingMedia] = useState(false);
-  
+
   // Media viewing state
   const [showMediaViewer, setShowMediaViewer] = useState(false);
   const [selectedMedia, setSelectedMedia] = useState<any | null>(null);
   const [currentMediaIndex, setCurrentMediaIndex] = useState(0);
-  
+
   // Bulk operations state
   const [selectedMediaIds, setSelectedMediaIds] = useState<Set<string>>(new Set());
   const [isSelectionMode, setIsSelectionMode] = useState(false);
@@ -215,7 +215,7 @@ export default function HostDashboard() {
   });
   const [mediaPage, setMediaPage] = useState(1);
   const [mediaTotalPages, setMediaTotalPages] = useState(1);
-  
+
   const router = useRouter();
 
   // RSVP state
@@ -282,7 +282,7 @@ export default function HostDashboard() {
       router.push('/host/login');
       return;
     }
-    
+
     fetchDashboardData();
   }, []);
 
@@ -360,7 +360,7 @@ export default function HostDashboard() {
         page: mediaPage,
         limit: 20
       };
-      
+
       if (mediaFilters.album !== 'all') params.album = mediaFilters.album;
       if (mediaFilters.type !== 'all') params.type = mediaFilters.type;
       if (mediaFilters.approved !== 'all') params.approved = mediaFilters.approved === 'true';
@@ -391,7 +391,7 @@ export default function HostDashboard() {
       await mediaAPI.delete(mediaId);
       setAllMedia(prev => prev.filter(media => media._id !== mediaId));
       toast.success('Photo deleted successfully!');
-      
+
       // Refresh stats
       fetchDashboardData();
     } catch (error: any) {
@@ -417,7 +417,7 @@ export default function HostDashboard() {
         albums: albumStats.stats,
         media: mediaStats.stats
       });
-      
+
       setInvitations(invitationsData.invitations);
       setAlbums(albumsData.albums || []);
       if (rsvpDataResponse) setRsvpData(rsvpDataResponse);
@@ -457,12 +457,12 @@ export default function HostDashboard() {
       toast.error('QR code not available');
       return;
     }
-    
+
     const baseUrl = window.location.origin;
-    const url = type === 'invitation' 
+    const url = type === 'invitation'
       ? `${baseUrl}/invitation/${qrCode}`
       : `${baseUrl}/upload/${qrCode}`;
-    
+
     try {
       await navigator.clipboard.writeText(url);
       toast.success(`${type === 'invitation' ? 'Invitation' : 'Upload'} link copied to clipboard!`);
@@ -476,7 +476,7 @@ export default function HostDashboard() {
       toast.error('QR code not available for this invitation');
       return;
     }
-    
+
     const baseUrl = window.location.origin;
     const invitationUrl = `${baseUrl}/invitation/${qrCode}`;
     window.open(invitationUrl, '_blank');
@@ -487,7 +487,7 @@ export default function HostDashboard() {
       toast.error('QR code image not available for download');
       return;
     }
-    
+
     const link = document.createElement('a');
     link.href = qrCodePath;
     link.download = `qr-code-${guestName.replace(/\s+/g, '-').toLowerCase()}.png`;
@@ -528,7 +528,7 @@ export default function HostDashboard() {
       };
       const response = await albumsAPI.create(albumData);
       console.log('Album creation response:', response);
-      
+
       toast.success('Album created successfully!');
 
       // Close modal and reset form
@@ -571,8 +571,8 @@ export default function HostDashboard() {
       });
 
       // Update local state
-      setAlbums(prev => prev.map(album => 
-        album._id === editingAlbum._id 
+      setAlbums(prev => prev.map(album =>
+        album._id === editingAlbum._id
           ? { ...album, ...editAlbumData }
           : album
       ));
@@ -580,7 +580,7 @@ export default function HostDashboard() {
       toast.success('Album updated successfully!');
       setShowEditAlbumModal(false);
       setEditingAlbum(null);
-      
+
       // Refresh data
       mutate('/albums/host');
     } catch (error: any) {
@@ -678,19 +678,19 @@ export default function HostDashboard() {
 
   const handleBulkDownload = async () => {
     if (selectedMediaIds.size === 0) return;
-    
+
     setIsBulkOperationLoading(true);
     try {
       const selectedMedia = albumMedia.filter(media => selectedMediaIds.has(media._id));
-      
+
       // Use a different approach for multiple files - open each in a new tab
       if (selectedMedia.length === 1) {
         // Single file - direct download
         const media = selectedMedia[0];
-        const downloadUrl = media.googleDriveFileId 
+        const downloadUrl = media.googleDriveFileId
           ? `https://drive.google.com/uc?export=download&id=${media.googleDriveFileId}`
           : media.url;
-        
+
         const link = document.createElement('a');
         link.href = downloadUrl;
         link.download = media.originalName || media.filename || 'download';
@@ -701,17 +701,17 @@ export default function HostDashboard() {
       } else {
         // Multiple files - open each in a new tab to bypass popup blocker
         selectedMedia.forEach((media, index) => {
-          const downloadUrl = media.googleDriveFileId 
+          const downloadUrl = media.googleDriveFileId
             ? `https://drive.google.com/uc?export=download&id=${media.googleDriveFileId}`
             : media.url;
-          
+
           // Open in new tab with a small delay to prevent blocking
           setTimeout(() => {
             window.open(downloadUrl, '_blank');
           }, index * 100);
         });
       }
-      
+
       toast.success(`Downloaded ${selectedMediaIds.size} files`);
     } catch (error) {
       console.error('Bulk download error:', error);
@@ -723,26 +723,26 @@ export default function HostDashboard() {
 
   const handleBulkDelete = async () => {
     if (selectedMediaIds.size === 0) return;
-    
+
     if (!confirm(`Are you sure you want to delete ${selectedMediaIds.size} selected photos? This action cannot be undone.`)) {
       return;
     }
-    
+
     setIsBulkOperationLoading(true);
     try {
       const selectedMedia = albumMedia.filter(media => selectedMediaIds.has(media._id));
-      
+
       // Delete each selected media file
       for (const media of selectedMedia) {
         await mediaAPI.delete(media._id);
       }
-      
+
       // Update local state
       setAlbumMedia(prev => prev.filter(media => !selectedMediaIds.has(media._id)));
-      
+
       // Clear selection
       setSelectedMediaIds(new Set());
-      
+
       toast.success(`Deleted ${selectedMediaIds.size} photos`);
     } catch (error) {
       console.error('Bulk delete error:', error);
@@ -778,17 +778,17 @@ export default function HostDashboard() {
     if (confirm('Are you sure you want to delete this album? This action cannot be undone.')) {
       try {
         await albumsAPI.delete(albumId);
-        
+
         // Immediately remove the album from local state
         setAlbums(prev => prev.filter(album => album._id !== albumId));
-        
+
         // Update stats immediately
         setStats(prev => {
           if (!prev) return prev;
-          
+
           const deletedAlbum = albums.find(album => album._id === albumId);
           if (!deletedAlbum) return prev;
-          
+
           return {
             ...prev,
             albums: {
@@ -799,14 +799,14 @@ export default function HostDashboard() {
             }
           };
         });
-        
+
         toast.success('Album deleted successfully!');
-        
+
         // Refresh data in background to ensure consistency
         setTimeout(() => {
           fetchDashboardData();
         }, 1000);
-        
+
       } catch (error: any) {
         toast.error(error.response?.data?.error || 'Failed to delete album');
       }
@@ -829,10 +829,10 @@ export default function HostDashboard() {
         qrCenterOptions: qrConfig.centerOptions
       };
       const response = await invitationsAPI.create(invitationData);
-      
+
       // Clear cache for invitations
       cacheUtils.clearInvitations();
-      
+
       // Immediately add the new invitation to the local state
       if (response.invitation) {
         const newInvitationWithId = {
@@ -842,10 +842,10 @@ export default function HostDashboard() {
           qrCode: response.invitation.qrCode || `qr-${Date.now()}`,
           status: 'active'
         };
-        
+
         // Update invitations list immediately
         setInvitations(prev => [newInvitationWithId, ...prev]);
-        
+
         // Update stats immediately
         setStats(prev => {
           if (!prev) {
@@ -869,7 +869,7 @@ export default function HostDashboard() {
               }
             };
           }
-          
+
           return {
             ...prev,
             invitations: {
@@ -879,10 +879,10 @@ export default function HostDashboard() {
             }
           };
         });
-        
+
         console.log('New invitation added to state immediately:', newInvitationWithId);
       }
-      
+
       toast.success('Invitation created successfully!');
       setShowCreateModal(false);
       setNewInvitation({
@@ -891,12 +891,12 @@ export default function HostDashboard() {
         customMessage: '',
         invitationType: 'personalized'
       });
-      
+
       // Refresh data in background to ensure consistency
       setTimeout(() => {
         fetchDashboardData();
       }, 1000);
-      
+
     } catch (error: any) {
       toast.error(error.response?.data?.error || 'Failed to create invitation');
     } finally {
@@ -937,14 +937,17 @@ export default function HostDashboard() {
   return (
     <div className="min-h-screen bg-gray-100">
       <Toaster position="top-center" />
-      
+
       {/* Header */}
       <div className="bg-white shadow-sm">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 py-4">
           <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
-            <div className="flex items-center gap-3">
-                              <Heart className="text-[#cba397] sm:w-8" size={28} />
-                              <h1 className="text-xl sm:text-2xl font-bold text-gray-900">MJ & Erica's Wedding Dashboard</h1>
+            <div className="w-14 h-14 items-center overflow-hidden">
+              <img
+                src="/imgs/monogram-flower-black.png"
+                alt="MJ & Erica Monogram"
+                className="w-full h-full object-contain"
+              />
             </div>
             <div className="flex items-center gap-2 sm:gap-4">
               <button
@@ -990,11 +993,10 @@ export default function HostDashboard() {
                 <button
                   key={tab.id}
                   onClick={() => setActiveTab(tab.id as any)}
-                  className={`flex items-center gap-1 sm:gap-2 py-2 px-2 sm:px-1 border-b-2 font-medium text-xs sm:text-sm whitespace-nowrap ${
-                    activeTab === tab.id
-                      ? 'border-rose-500 text-rose-600'
-                      : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
-                  }`}
+                  className={`flex items-center gap-1 sm:gap-2 py-2 px-2 sm:px-1 border-b-2 font-medium text-xs sm:text-sm whitespace-nowrap ${activeTab === tab.id
+                    ? 'border-rose-500 text-rose-600'
+                    : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+                    }`}
                 >
                   <tab.icon size={16} className="sm:w-[18px]" />
                   <span className="hidden xs:inline">{tab.label}</span>
@@ -1086,69 +1088,68 @@ export default function HostDashboard() {
                     </tr>
                   </thead>
                   <tbody>
-                                         {invitations.slice(0, 5).map((invitation) => (
-                       <tr key={invitation._id} className="border-b border-gray-100">
-                         <td className="py-3 px-4 text-gray-900 font-medium">{invitation.guestName}</td>
-                         <td className="py-3 px-4">
-                           <span className="bg-gray-100 text-gray-700 px-2 py-1 rounded-full text-xs font-medium">
-                             {invitation.guestRole}
-                           </span>
-                         </td>
-                         <td className="py-3 px-4">
-                           <span className={`px-2 py-1 rounded-full text-xs font-medium ${
-                             invitation.isOpened 
-                               ? 'bg-green-100 text-green-700'
-                               : 'bg-yellow-100 text-yellow-700'
-                           }`}>
-                             {invitation.isOpened ? 'Opened' : 'Sent'}
-                           </span>
-                         </td>
-                         <td className="py-3 px-4 text-gray-700 text-sm font-medium">
-                           {new Date(invitation.createdAt).toLocaleDateString()}
-                         </td>
-                                                  <td className="py-3 px-4">
-                           <div className="flex items-center gap-1">
-                             {invitation.qrCode && (
-                               <>
-                                 <button
-                                   onClick={() => handleViewQR(invitation)}
-                                   className="p-1.5 text-blue-600 hover:bg-blue-50 rounded transition-colors"
-                                   title="View QR Code"
-                                 >
-                                   <QrCode className="w-3.5 h-3.5" />
-                                 </button>
-                                 
-                                 <button
-                                   onClick={() => handleCopyLink(invitation.qrCode)}
-                                   className="p-1.5 text-green-600 hover:bg-green-50 rounded transition-colors"
-                                   title="Copy Invitation Link"
-                                 >
-                                   <Copy className="w-3.5 h-3.5" />
-                                 </button>
-                                 
-                                 <button
-                                   onClick={() => handleOpenInvitation(invitation.qrCode)}
-                                   className="p-1.5 text-purple-600 hover:bg-purple-50 rounded transition-colors"
-                                   title="Open Invitation"
-                                 >
-                                   <ExternalLink className="w-3.5 h-3.5" />
-                                 </button>
-                                 
-                                 {invitation.qrCodePath && (
-                                   <button
-                                     onClick={() => handleViewQR(invitation)}
-                                     className="p-1.5 text-orange-600 hover:bg-orange-50 rounded transition-colors"
-                                     title="Show QR Code"
-                                   >
-                                     <Download className="w-3.5 h-3.5" />
-                                   </button>
-                                 )}
-                               </>
-                             )}
-                           </div>
-                         </td>
-                       </tr>
-                     ))}
+                    {invitations.slice(0, 5).map((invitation) => (
+                      <tr key={invitation._id} className="border-b border-gray-100">
+                        <td className="py-3 px-4 text-gray-900 font-medium">{invitation.guestName}</td>
+                        <td className="py-3 px-4">
+                          <span className="bg-gray-100 text-gray-700 px-2 py-1 rounded-full text-xs font-medium">
+                            {invitation.guestRole}
+                          </span>
+                        </td>
+                        <td className="py-3 px-4">
+                          <span className={`px-2 py-1 rounded-full text-xs font-medium ${invitation.isOpened
+                            ? 'bg-green-100 text-green-700'
+                            : 'bg-yellow-100 text-yellow-700'
+                            }`}>
+                            {invitation.isOpened ? 'Opened' : 'Sent'}
+                          </span>
+                        </td>
+                        <td className="py-3 px-4 text-gray-700 text-sm font-medium">
+                          {new Date(invitation.createdAt).toLocaleDateString()}
+                        </td>
+                        <td className="py-3 px-4">
+                          <div className="flex items-center gap-1">
+                            {invitation.qrCode && (
+                              <>
+                                <button
+                                  onClick={() => handleViewQR(invitation)}
+                                  className="p-1.5 text-blue-600 hover:bg-blue-50 rounded transition-colors"
+                                  title="View QR Code"
+                                >
+                                  <QrCode className="w-3.5 h-3.5" />
+                                </button>
+
+                                <button
+                                  onClick={() => handleCopyLink(invitation.qrCode)}
+                                  className="p-1.5 text-green-600 hover:bg-green-50 rounded transition-colors"
+                                  title="Copy Invitation Link"
+                                >
+                                  <Copy className="w-3.5 h-3.5" />
+                                </button>
+
+                                <button
+                                  onClick={() => handleOpenInvitation(invitation.qrCode)}
+                                  className="p-1.5 text-purple-600 hover:bg-purple-50 rounded transition-colors"
+                                  title="Open Invitation"
+                                >
+                                  <ExternalLink className="w-3.5 h-3.5" />
+                                </button>
+
+                                {invitation.qrCodePath && (
+                                  <button
+                                    onClick={() => handleViewQR(invitation)}
+                                    className="p-1.5 text-orange-600 hover:bg-orange-50 rounded transition-colors"
+                                    title="Show QR Code"
+                                  >
+                                    <Download className="w-3.5 h-3.5" />
+                                  </button>
+                                )}
+                              </>
+                            )}
+                          </div>
+                        </td>
+                      </tr>
+                    ))}
                   </tbody>
                 </table>
               </div>
@@ -1298,16 +1299,15 @@ export default function HostDashboard() {
                         <div className="flex items-center gap-2">
                           <button
                             onClick={toggleSelectionMode}
-                            className={`px-4 py-2 rounded-lg transition-colors flex items-center gap-2 ${
-                              isSelectionMode 
-                                ? 'bg-blue-600 text-white hover:bg-blue-700' 
-                                : 'bg-gray-200 text-gray-700 hover:bg-gray-300'
-                            }`}
+                            className={`px-4 py-2 rounded-lg transition-colors flex items-center gap-2 ${isSelectionMode
+                              ? 'bg-blue-600 text-white hover:bg-blue-700'
+                              : 'bg-gray-200 text-gray-700 hover:bg-gray-300'
+                              }`}
                           >
                             {isSelectionMode ? <CheckSquare size={16} /> : <Square size={16} />}
                             {isSelectionMode ? 'Exit Selection' : 'Select Photos'}
                           </button>
-                          
+
                           {isSelectionMode && (
                             <>
                               <button
@@ -1326,7 +1326,7 @@ export default function HostDashboard() {
                           )}
                         </div>
                       )}
-                      
+
                       <button
                         onClick={() => handleUploadToAlbum(selectedAlbum)}
                         className="bg-green-600 text-white px-4 py-2 rounded-lg hover:bg-green-700 transition-colors flex items-center gap-2"
@@ -1381,15 +1381,15 @@ export default function HostDashboard() {
                   ) : albumMedia.length > 0 ? (
                     <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
                       {albumMedia.map((media, index) => (
-                        <div 
-                          key={media._id || index} 
+                        <div
+                          key={media._id || index}
                           className={`relative group ${isSelectionMode ? 'cursor-default' : 'cursor-pointer'}`}
                           onClick={() => isSelectionMode ? toggleMediaSelection(media._id) : handleMediaClick(media, index)}
                         >
                           {media.mediaType === 'image' ? (
-                            <div 
+                            <div
                               className="w-full rounded-lg overflow-hidden"
-                              style={{ 
+                              style={{
                                 aspectRatio: '1/1',
                                 minHeight: '200px',
                                 backgroundColor: '#ffffff',
@@ -1447,20 +1447,19 @@ export default function HostDashboard() {
                               </div>
                             </div>
                           )}
-                          
+
                           {/* Selection Checkbox */}
                           {isSelectionMode && (
                             <div className="absolute top-2 left-2 z-10">
-                              <div className={`w-6 h-6 rounded border-2 flex items-center justify-center ${
-                                selectedMediaIds.has(media._id)
-                                  ? 'bg-blue-600 border-blue-600 text-white'
-                                  : 'bg-white border-gray-300'
-                              }`}>
+                              <div className={`w-6 h-6 rounded border-2 flex items-center justify-center ${selectedMediaIds.has(media._id)
+                                ? 'bg-blue-600 border-blue-600 text-white'
+                                : 'bg-white border-gray-300'
+                                }`}>
                                 {selectedMediaIds.has(media._id) && <Check size={16} />}
                               </div>
                             </div>
                           )}
-                          
+
                           {/* Media Info Overlay */}
                           <div className="absolute inset-0 bg-black bg-opacity-0 group-hover:bg-opacity-20 transition-all duration-300 flex items-end rounded-lg">
                             <div className="opacity-0 group-hover:opacity-100 transition-opacity duration-300 p-3 w-full">
@@ -1572,14 +1571,14 @@ export default function HostDashboard() {
               ) : allMedia.length > 0 ? (
                 <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-4">
                   {allMedia.map((media) => (
-                    <div 
-                      key={media._id} 
+                    <div
+                      key={media._id}
                       className="relative group cursor-pointer"
                     >
                       {media.mediaType === 'image' ? (
-                        <div 
+                        <div
                           className="w-full rounded-lg overflow-hidden"
-                          style={{ 
+                          style={{
                             aspectRatio: '1/1',
                             minHeight: '200px',
                             backgroundColor: '#ffffff',
@@ -1632,7 +1631,7 @@ export default function HostDashboard() {
                           </div>
                         </div>
                       )}
-                      
+
                       {/* Media Info Overlay */}
                       <div className="absolute inset-0 bg-transparent bg-opacity-0 group-hover:bg-opacity-40 transition-all duration-300 flex items-end rounded-lg">
                         <div className="opacity-0 group-hover:opacity-100 transition-opacity duration-300 p-3 w-full">
@@ -1663,7 +1662,7 @@ export default function HostDashboard() {
                         <button
                           onClick={(e) => {
                             e.stopPropagation();
-                            const downloadUrl = media.googleDriveFileId 
+                            const downloadUrl = media.googleDriveFileId
                               ? `https://drive.google.com/uc?export=download&id=${media.googleDriveFileId}`
                               : media.url;
                             const link = document.createElement('a');
@@ -1869,7 +1868,7 @@ export default function HostDashboard() {
                               >
                                 <QrCode className="w-4 h-4" />
                               </button>
-                              
+
                               <button
                                 onClick={() => handleCopyLink(invitation.qrCode)}
                                 className="p-2 text-green-600 hover:bg-green-50 rounded-lg transition-colors"
@@ -1877,7 +1876,7 @@ export default function HostDashboard() {
                               >
                                 <Copy className="w-4 h-4" />
                               </button>
-                              
+
                               <button
                                 onClick={() => handleOpenInvitation(invitation.qrCode)}
                                 className="p-2 text-purple-600 hover:bg-purple-50 rounded-lg transition-colors"
@@ -1885,7 +1884,7 @@ export default function HostDashboard() {
                               >
                                 <ExternalLink className="w-4 h-4" />
                               </button>
-                              
+
                               {invitation.qrCodePath && (
                                 <button
                                   onClick={() => handleViewQR(invitation)}
@@ -1900,15 +1899,14 @@ export default function HostDashboard() {
                         </div>
 
                         <div className="text-right">
-                          <div className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${
-                            invitation.rsvp.status === 'attending' 
-                              ? 'bg-green-100 text-green-800'
-                              : invitation.rsvp.status === 'not_attending'
+                          <div className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${invitation.rsvp.status === 'attending'
+                            ? 'bg-green-100 text-green-800'
+                            : invitation.rsvp.status === 'not_attending'
                               ? 'bg-red-100 text-red-800'
                               : 'bg-yellow-100 text-yellow-800'
-                          }`}>
-                            {invitation.rsvp.status === 'attending' ? 'Attending' : 
-                             invitation.rsvp.status === 'not_attending' ? 'Not Attending' : 'Pending'}
+                            }`}>
+                            {invitation.rsvp.status === 'attending' ? 'Attending' :
+                              invitation.rsvp.status === 'not_attending' ? 'Not Attending' : 'Pending'}
                           </div>
                           {invitation.rsvp.respondedAt && (
                             <div className="text-xs text-gray-500 mt-1">
@@ -1964,7 +1962,7 @@ export default function HostDashboard() {
                     <div className="text-sm text-gray-600">
                       Showing {startIndex + 1} to {Math.min(endIndex, rsvpData?.invitations?.length || 0)} of {rsvpData?.invitations?.length || 0} invitations
                     </div>
-                    
+
                     <div className="flex items-center gap-2">
                       <button
                         onClick={() => handlePageChange(currentPage - 1)}
@@ -1974,23 +1972,22 @@ export default function HostDashboard() {
                         <ChevronLeft className="w-4 h-4" />
                         Previous
                       </button>
-                      
+
                       <div className="flex items-center gap-1">
                         {Array.from({ length: totalPages }, (_, i) => i + 1).map((page) => (
                           <button
                             key={page}
                             onClick={() => handlePageChange(page)}
-                            className={`px-3 py-2 text-sm rounded-lg transition-colors ${
-                              currentPage === page
-                                ? 'bg-blue-600 text-white'
-                                : 'text-gray-600 hover:bg-gray-100'
-                            }`}
+                            className={`px-3 py-2 text-sm rounded-lg transition-colors ${currentPage === page
+                              ? 'bg-blue-600 text-white'
+                              : 'text-gray-600 hover:bg-gray-100'
+                              }`}
                           >
                             {page}
                           </button>
                         ))}
                       </div>
-                      
+
                       <button
                         onClick={() => handlePageChange(currentPage + 1)}
                         disabled={currentPage === totalPages}
@@ -2035,48 +2032,48 @@ export default function HostDashboard() {
             className="bg-white rounded-xl max-w-md w-full p-4 sm:p-6 shadow-2xl border border-gray-200 max-h-[90vh] overflow-y-auto"
           >
             <h3 className="text-lg sm:text-xl font-bold text-gray-800 mb-4">Create New Album</h3>
-            
+
             {/* QR Configuration Indicator */}
             <div className="bg-blue-50 border border-blue-200 rounded-lg p-3 mb-4">
               <div className="flex items-center gap-2 text-sm text-blue-700">
                 <Palette className="w-4 h-4" />
                 <span className="font-medium">QR Code Style:</span>
                 <span className="capitalize">
-                  {qrConfig.centerType === 'none' ? 'Plain QR Code' : 
-                   qrConfig.centerType === 'logo' ? 'With Logo' : 
-                   `With Monogram (${qrConfig.centerOptions.monogram})`}
+                  {qrConfig.centerType === 'none' ? 'Plain QR Code' :
+                    qrConfig.centerType === 'logo' ? 'With Logo' :
+                      `With Monogram (${qrConfig.centerOptions.monogram})`}
                 </span>
               </div>
               <p className="text-xs text-blue-600 mt-1">
                 This album will use your current QR configuration. Change it in QR Settings if needed.
               </p>
             </div>
-            
+
             <div className="space-y-4">
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-2">
                   Album Name *
                 </label>
-                                  <input
-                    type="text"
-                    value={newAlbum.name}
-                    onChange={(e) => setNewAlbum({...newAlbum, name: e.target.value})}
-                    placeholder="Enter album name"
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#84a2be] focus:border-transparent text-gray-900 font-medium"
-                  />
+                <input
+                  type="text"
+                  value={newAlbum.name}
+                  onChange={(e) => setNewAlbum({ ...newAlbum, name: e.target.value })}
+                  placeholder="Enter album name"
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#84a2be] focus:border-transparent text-gray-900 font-medium"
+                />
               </div>
 
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-2">
                   Description
                 </label>
-                                  <textarea
-                    value={newAlbum.description}
-                    onChange={(e) => setNewAlbum({...newAlbum, description: e.target.value})}
-                    placeholder="Enter album description"
-                    rows={3}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#84a2be] focus:border-transparent text-gray-900 font-medium"
-                  />
+                <textarea
+                  value={newAlbum.description}
+                  onChange={(e) => setNewAlbum({ ...newAlbum, description: e.target.value })}
+                  placeholder="Enter album description"
+                  rows={3}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#84a2be] focus:border-transparent text-gray-900 font-medium"
+                />
               </div>
 
               <div>
@@ -2084,7 +2081,7 @@ export default function HostDashboard() {
                   <input
                     type="checkbox"
                     checked={newAlbum.isPublic}
-                    onChange={(e) => setNewAlbum({...newAlbum, isPublic: e.target.checked})}
+                    onChange={(e) => setNewAlbum({ ...newAlbum, isPublic: e.target.checked })}
                     className="mr-2"
                   />
                   <span className="text-sm text-gray-700">Public Album (guests can view and upload)</span>
@@ -2098,14 +2095,14 @@ export default function HostDashboard() {
                 <div className="border-2 border-dashed border-gray-300 rounded-lg p-3 sm:p-4 text-center hover:border-rose-400 transition-colors">
                   {newAlbum.coverImage ? (
                     <div className="space-y-2">
-                      <img 
-                        src={newAlbum.coverImage} 
-                        alt="Cover preview" 
+                      <img
+                        src={newAlbum.coverImage}
+                        alt="Cover preview"
                         className="w-20 h-20 sm:w-24 sm:h-24 object-cover rounded-lg mx-auto"
                       />
                       <button
                         type="button"
-                        onClick={() => setNewAlbum({...newAlbum, coverImage: undefined})}
+                        onClick={() => setNewAlbum({ ...newAlbum, coverImage: undefined })}
                         className="text-xs sm:text-sm text-red-600 hover:text-red-700"
                       >
                         Remove
@@ -2131,7 +2128,7 @@ export default function HostDashboard() {
                             // For now, we'll use a placeholder. In production, you'd upload to Cloudinary
                             const reader = new FileReader();
                             reader.onload = (e) => {
-                              setNewAlbum({...newAlbum, coverImage: e.target?.result as string});
+                              setNewAlbum({ ...newAlbum, coverImage: e.target?.result as string });
                             };
                             reader.readAsDataURL(file);
                           }
@@ -2139,7 +2136,7 @@ export default function HostDashboard() {
                         className="hidden"
                         id="host-cover-photo-upload"
                       />
-                      <label 
+                      <label
                         htmlFor="host-cover-photo-upload"
                         className="cursor-pointer inline-block px-3 py-1 bg-rose-100 text-rose-700 rounded-lg hover:bg-rose-200 transition-colors text-sm"
                       >
@@ -2179,7 +2176,7 @@ export default function HostDashboard() {
             className="bg-white rounded-xl max-w-md w-full p-4 sm:p-6 shadow-2xl border border-gray-200"
           >
             <h3 className="text-xl font-bold text-gray-800 mb-4">Edit Album</h3>
-            
+
             <div className="space-y-4">
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-2">
@@ -2188,7 +2185,7 @@ export default function HostDashboard() {
                 <input
                   type="text"
                   value={editAlbumData.name}
-                  onChange={(e) => setEditAlbumData({...editAlbumData, name: e.target.value})}
+                  onChange={(e) => setEditAlbumData({ ...editAlbumData, name: e.target.value })}
                   placeholder="Enter album name"
                   className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#84a2be] focus:border-transparent text-gray-900 font-medium"
                 />
@@ -2200,7 +2197,7 @@ export default function HostDashboard() {
                 </label>
                 <textarea
                   value={editAlbumData.description}
-                  onChange={(e) => setEditAlbumData({...editAlbumData, description: e.target.value})}
+                  onChange={(e) => setEditAlbumData({ ...editAlbumData, description: e.target.value })}
                   placeholder="Enter album description (optional)"
                   rows={3}
                   className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#84a2be] focus:border-transparent text-gray-900 font-medium"
@@ -2213,7 +2210,7 @@ export default function HostDashboard() {
                     type="checkbox"
                     id="editIsPublic"
                     checked={editAlbumData.isPublic}
-                    onChange={(e) => setEditAlbumData({...editAlbumData, isPublic: e.target.checked})}
+                    onChange={(e) => setEditAlbumData({ ...editAlbumData, isPublic: e.target.checked })}
                     className="h-4 w-4 text-[#84a2be] focus:ring-[#84a2be] border-gray-300 rounded"
                   />
                   <label htmlFor="editIsPublic" className="ml-2 block text-sm text-gray-900">
@@ -2225,7 +2222,7 @@ export default function HostDashboard() {
                     type="checkbox"
                     id="editIsFeatured"
                     checked={editAlbumData.isFeatured}
-                    onChange={(e) => setEditAlbumData({...editAlbumData, isFeatured: e.target.checked})}
+                    onChange={(e) => setEditAlbumData({ ...editAlbumData, isFeatured: e.target.checked })}
                     className="h-4 w-4 text-[#84a2be] focus:ring-[#84a2be] border-gray-300 rounded"
                   />
                   <label htmlFor="editIsFeatured" className="ml-2 block text-sm text-gray-900">
@@ -2266,46 +2263,46 @@ export default function HostDashboard() {
             className="bg-white rounded-xl max-w-md w-full p-6 shadow-2xl border border-gray-200 max-h-[90vh] overflow-y-auto"
           >
             <h3 className="text-xl font-bold text-gray-800 mb-4">Create New Invitation</h3>
-            
+
             {/* QR Configuration Indicator */}
             <div className="bg-blue-50 border border-blue-200 rounded-lg p-3 mb-4">
               <div className="flex items-center gap-2 text-sm text-blue-700">
                 <Palette className="w-4 h-4" />
                 <span className="font-medium">QR Code Style:</span>
                 <span className="capitalize">
-                  {qrConfig.centerType === 'none' ? 'Plain QR Code' : 
-                   qrConfig.centerType === 'logo' ? 'With Logo' : 
-                   `With Monogram (${qrConfig.centerOptions.monogram})`}
+                  {qrConfig.centerType === 'none' ? 'Plain QR Code' :
+                    qrConfig.centerType === 'logo' ? 'With Logo' :
+                      `With Monogram (${qrConfig.centerOptions.monogram})`}
                 </span>
               </div>
               <p className="text-xs text-blue-600 mt-1">
                 This invitation will use your current QR configuration. Change it in QR Settings if needed.
               </p>
             </div>
-            
+
             <div className="space-y-4">
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-2">
                   Guest Name *
                 </label>
-                                  <input
-                    type="text"
-                    value={newInvitation.guestName}
-                    onChange={(e) => setNewInvitation({...newInvitation, guestName: e.target.value})}
-                    placeholder="Enter guest name"
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#84a2be] focus:border-transparent text-gray-900 font-medium"
-                  />
+                <input
+                  type="text"
+                  value={newInvitation.guestName}
+                  onChange={(e) => setNewInvitation({ ...newInvitation, guestName: e.target.value })}
+                  placeholder="Enter guest name"
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#84a2be] focus:border-transparent text-gray-900 font-medium"
+                />
               </div>
 
               <div>
                 <label className="block text-sm font-medium text-gray-700 mb-2">
                   Guest Role
                 </label>
-                                  <select
-                    value={newInvitation.guestRole}
-                    onChange={(e) => setNewInvitation({...newInvitation, guestRole: e.target.value})}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#84a2be] focus:border-transparent text-gray-900 font-medium"
-                  >
+                <select
+                  value={newInvitation.guestRole}
+                  onChange={(e) => setNewInvitation({ ...newInvitation, guestRole: e.target.value })}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#84a2be] focus:border-transparent text-gray-900 font-medium"
+                >
                   {entourageRoles.map((role) => (
                     <option key={role} value={role}>{role}</option>
                   ))}
@@ -2319,7 +2316,7 @@ export default function HostDashboard() {
                 <div className="relative">
                   <textarea
                     value={newInvitation.customMessage}
-                    onChange={(e) => setNewInvitation({...newInvitation, customMessage: e.target.value})}
+                    onChange={(e) => setNewInvitation({ ...newInvitation, customMessage: e.target.value })}
                     placeholder="Enter personalized message for the guest"
                     rows={4}
                     className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#84a2be] focus:border-transparent text-gray-900 font-medium"
@@ -2330,7 +2327,7 @@ export default function HostDashboard() {
                     {newInvitation.customMessage.length}/1000
                   </div>
                 </div>
-                
+
                 {/* Suggested Messages */}
                 <div className="mt-3">
                   <div className="flex items-center justify-between mb-2">
@@ -2362,11 +2359,11 @@ export default function HostDashboard() {
                 <label className="block text-sm font-medium text-gray-700 mb-2">
                   Invitation Type
                 </label>
-                                  <select
-                    value={newInvitation.invitationType}
-                    onChange={(e) => setNewInvitation({...newInvitation, invitationType: e.target.value})}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#84a2be] focus:border-transparent text-gray-900 font-medium"
-                  >
+                <select
+                  value={newInvitation.invitationType}
+                  onChange={(e) => setNewInvitation({ ...newInvitation, invitationType: e.target.value })}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#84a2be] focus:border-transparent text-gray-900 font-medium"
+                >
                   <option value="personalized">Personalized</option>
                   <option value="general">General</option>
                 </select>
@@ -2436,7 +2433,7 @@ export default function HostDashboard() {
                   <X className="w-5 h-5" />
                 </button>
               </div>
-              
+
               <div className="text-center space-y-4">
                 <div className="bg-gray-50 rounded-lg p-4">
                   {selectedInvitation ? (
@@ -2450,21 +2447,21 @@ export default function HostDashboard() {
                       <p className="text-sm text-gray-600 mb-4">Upload photos to this album</p>
                     </>
                   ) : null}
-                  
+
                   {/* QR Code Display */}
                   <div className="bg-white p-4 rounded-lg border-2 border-gray-200 inline-block">
                     <div className="w-48 h-48 bg-gray-100 rounded-lg flex items-center justify-center">
                       {selectedInvitation?.qrCodePath ? (
-                        <img 
-                          src={selectedInvitation.qrCodePath} 
+                        <img
+                          src={selectedInvitation.qrCodePath}
                           alt={`QR Code for ${selectedInvitation.guestName}`}
                           className="w-full h-full object-contain p-2"
                           onLoad={() => setQrImageLoading(false)}
                           referrerPolicy="no-referrer"
                         />
                       ) : selectedAlbum?.qrCodeUrl ? (
-                        <img 
-                          src={selectedAlbum.qrCodeUrl} 
+                        <img
+                          src={selectedAlbum.qrCodeUrl}
                           alt={`QR Code for ${selectedAlbum.name}`}
                           className="w-full h-full object-contain p-2"
                         />
@@ -2487,11 +2484,11 @@ export default function HostDashboard() {
                     </div>
                   </div>
                 </div>
-                
+
                 <div className="space-y-3">
                   <button
                     onClick={() => handleCopyLink(
-                      selectedInvitation?.qrCode || selectedAlbum?.qrCode || '', 
+                      selectedInvitation?.qrCode || selectedAlbum?.qrCode || '',
                       selectedInvitation ? 'invitation' : 'album'
                     )}
                     disabled={!selectedInvitation?.qrCode && !selectedAlbum?.qrCode}
@@ -2500,7 +2497,7 @@ export default function HostDashboard() {
                     <Copy className="w-4 h-4" />
                     Copy {selectedInvitation ? 'Invitation' : 'Upload'} Link
                   </button>
-                  
+
                   {selectedInvitation && (
                     <button
                       onClick={() => handleOpenInvitation(selectedInvitation.qrCode)}
@@ -2511,7 +2508,7 @@ export default function HostDashboard() {
                       Open Invitation
                     </button>
                   )}
-                  
+
                   {selectedInvitation?.qrCodePath && (
                     <button
                       onClick={() => handleDownloadQR(selectedInvitation.qrCodePath, selectedInvitation.guestName)}
@@ -2558,13 +2555,13 @@ export default function HostDashboard() {
                     <X className="w-6 h-6" />
                   </button>
                 </div>
-                
+
                 <QRCodeConfig
                   onConfigChange={setQrConfig}
                   initialConfig={qrConfig}
                   showPreview={true}
                 />
-                
+
                 <div className="flex gap-3 mt-6 pt-6 border-t border-gray-200">
                   <button
                     onClick={() => setShowQRConfig(false)}
@@ -2680,9 +2677,8 @@ export default function HostDashboard() {
                   {albumMedia.map((_, index) => (
                     <div
                       key={index}
-                      className={`w-2 h-2 rounded-full cursor-pointer ${
-                        index === currentMediaIndex ? 'bg-white' : 'bg-gray-500'
-                      }`}
+                      className={`w-2 h-2 rounded-full cursor-pointer ${index === currentMediaIndex ? 'bg-white' : 'bg-gray-500'
+                        }`}
                       onClick={(e) => {
                         e.stopPropagation();
                         setCurrentMediaIndex(index);

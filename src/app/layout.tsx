@@ -31,8 +31,15 @@ const parisienne = Parisienne({
 });
 
 export const metadata: Metadata = {
-  title: "MJ & Erica's Wedding",
+  title: "MJ & Erica",
   description: "Join us in celebrating the love story of MJ and Erica",
+  icons: {
+    icon: [
+      { url: "/imgs/circle-logo.png", type: "image/png", sizes: "32x32" },
+    ],
+    apple: "/imgs/circle-logo.png",
+    shortcut: "/imgs/circle-logo.png",
+  },
 };
 
 export default function RootLayout({
