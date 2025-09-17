@@ -11,7 +11,7 @@ export async function GET(request: NextRequest) {
 
     // Allow our backend uploads and Google Drive CDN URLs
     const allowed = [
-      'http://localhost:5000/uploads/',
+      'https://backendv2-nasy.onrender.com/uploads/',
       'https://drive.google.com/',
       'https://lh3.googleusercontent.com/'
     ];

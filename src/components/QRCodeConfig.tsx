@@ -260,7 +260,7 @@ export default function QRCodeConfig({
                         return l.url;
                       }
                     } catch {}
-                    return `http://localhost:5000${l.url}`;
+                    return `https://backendv2-nasy.onrender.com${l.url}`;
                   };
 
                   const viewUrl = getLogoViewUrl(logo);
