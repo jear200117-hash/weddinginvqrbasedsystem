@@ -3,7 +3,8 @@
 import { useState, useEffect, useMemo } from 'react';
 import useSWR, { mutate } from 'swr';
 import { motion, AnimatePresence } from 'framer-motion';
-import { invitationsAPI, albumsAPI, mediaAPI, authAPI, rsvpAPI, swrFetcher, rsvpAllKey } from '@/lib/api';
+import { invitationsAPI, albumsAPI, mediaAPI, authAPI, rsvpAPI, swrFetcher, rsvpAllKey, swrConfig, realtimeConfig, cacheUtils } from '@/lib/api';
+import { getSocket } from '@/lib/socket';
 import { getBestDisplayUrl, getFullSizeDisplayUrl } from '@/lib/googleDriveUtils';
 import toast, { Toaster } from 'react-hot-toast';
 import { 
@@ -248,13 +249,9 @@ export default function HostDashboard() {
   });
   const [showQRConfig, setShowQRConfig] = useState(false);
 
-  // SWR for RSVP data
+  // SWR for RSVP data with real-time configuration (critical data)
   const rsvpKey = rsvpAllKey(rsvpFilters);
-  const { data: swrRsvpData, isLoading: swrRsvpLoading } = useSWR(rsvpKey, swrFetcher, {
-    revalidateOnFocus: true,
-    revalidateOnReconnect: true,
-    dedupingInterval: 3000
-  });
+  const { data: swrRsvpData, isLoading: swrRsvpLoading } = useSWR(rsvpKey, swrFetcher, realtimeConfig);
   useEffect(() => {
     if (swrRsvpData) {
       setRsvpData(swrRsvpData);
@@ -262,22 +259,16 @@ export default function HostDashboard() {
     }
   }, [swrRsvpData]);
 
-  // SWR for invitations list (overview card usage)
-  const { data: swrInvites } = useSWR('/invitations?limit=10', swrFetcher, {
-    revalidateOnFocus: true,
-    dedupingInterval: 3000
-  });
+  // SWR for invitations list (socket-backed, no polling/no focus revalidate)
+  const { data: swrInvites } = useSWR('/invitations?limit=10', swrFetcher, realtimeConfig);
   useEffect(() => {
     if (swrInvites?.invitations) {
       setInvitations(swrInvites.invitations);
     }
   }, [swrInvites]);
 
-  // SWR for host albums list
-  const { data: swrHostAlbums } = useSWR('/albums/host', swrFetcher, {
-    revalidateOnFocus: true,
-    dedupingInterval: 3000
-  });
+  // SWR for host albums list with optimized caching
+  const { data: swrHostAlbums } = useSWR('/albums/host', swrFetcher, swrConfig);
   useEffect(() => {
     if (swrHostAlbums?.albums) {
       setAlbums(swrHostAlbums.albums);
@@ -294,6 +285,52 @@ export default function HostDashboard() {
     
     fetchDashboardData();
   }, []);
+
+  // Realtime subscriptions (Socket.IO)
+  useEffect(() => {
+    const socket = getSocket();
+    const handleRSVP = () => {
+      cacheUtils.clearRSVP();
+      mutate(rsvpKey);
+    };
+    const handleInvChange = () => {
+      cacheUtils.clearInvitations();
+      mutate('/invitations?limit=10');
+    };
+    const handleAlbumsChange = () => {
+      cacheUtils.clearAlbums();
+      mutate('/albums/host');
+    };
+    const handleMediaChange = (payload?: any) => {
+      // Invalidate album details if we have an album id
+      cacheUtils.clearPattern('/albums/');
+      mutate((key: string) => key?.startsWith('/albums/'));
+    };
+
+    socket.on('rsvp:updated', handleRSVP);
+    socket.on('invitations:created', handleInvChange);
+    socket.on('invitations:updated', handleInvChange);
+    socket.on('invitations:deleted', handleInvChange);
+    socket.on('albums:created', handleAlbumsChange);
+    socket.on('albums:updated', handleAlbumsChange);
+    socket.on('albums:deleted', handleAlbumsChange);
+    socket.on('media:uploaded', handleMediaChange);
+    socket.on('media:approved', handleMediaChange);
+    socket.on('media:deleted', handleMediaChange);
+
+    return () => {
+      socket.off('rsvp:updated', handleRSVP);
+      socket.off('invitations:created', handleInvChange);
+      socket.off('invitations:updated', handleInvChange);
+      socket.off('invitations:deleted', handleInvChange);
+      socket.off('albums:created', handleAlbumsChange);
+      socket.off('albums:updated', handleAlbumsChange);
+      socket.off('albums:deleted', handleAlbumsChange);
+      socket.off('media:uploaded', handleMediaChange);
+      socket.off('media:approved', handleMediaChange);
+      socket.off('media:deleted', handleMediaChange);
+    };
+  }, [rsvpKey]);
 
 
 
@@ -792,6 +829,9 @@ export default function HostDashboard() {
         qrCenterOptions: qrConfig.centerOptions
       };
       const response = await invitationsAPI.create(invitationData);
+      
+      // Clear cache for invitations
+      cacheUtils.clearInvitations();
       
       // Immediately add the new invitation to the local state
       if (response.invitation) {

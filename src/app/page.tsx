@@ -4,10 +4,11 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { Heart, Mail, Image, Users, ArrowRight, Calendar, MapPin, Clock, Camera, BookOpen, Gift, Music, Utensils, Home, User, Camera as CameraIcon, Users as UsersIcon, MapPin as MapPinIcon, Clock as ClockIcon, X, Eye, Play, Download, Martini, Mic, Cake, Car, CheckSquare, Square, Check } from 'lucide-react';
 import Link from 'next/link';
 import { useState, useEffect, useRef, Suspense } from 'react';
-import useSWR from 'swr';
-import { swrFetcher } from '@/lib/api';
+import useSWR, { mutate } from 'swr';
+import { swrFetcher, swrConfig } from '@/lib/api';
 import { useSearchParams } from 'next/navigation';
-import { albumsAPI, mediaAPI } from '@/lib/api';
+import { albumsAPI, mediaAPI, cacheUtils } from '@/lib/api';
+import { getSocket } from '@/lib/socket';
 import { getBestDisplayUrl, getFullSizeDisplayUrl } from '@/lib/googleDriveUtils';
 import toast, { Toaster } from 'react-hot-toast';
 
@@ -201,11 +202,11 @@ export default function HomePage() {
     return () => clearInterval(interval);
   }, [isClient]);
 
-  // SWR: Albums list when Photos tab is active
+  // SWR: Albums list when Photos tab is active with optimized caching
   const { data: swrAlbums, isLoading: swrAlbumsLoading } = useSWR(
     activeTab === 'photos' && !selectedAlbum ? '/albums?limit=200' : null,
     swrFetcher,
-    { revalidateOnFocus: true, dedupingInterval: 3000 }
+    swrConfig
   );
 
   useEffect(() => {
@@ -217,11 +218,11 @@ export default function HomePage() {
     }
   }, [swrAlbums, swrAlbumsLoading, activeTab]);
 
-  // SWR: Album media when an album is selected
+  // SWR: Album media when an album is selected with optimized caching
   const { data: swrAlbumDetails, isLoading: swrAlbumLoading } = useSWR(
     selectedAlbum ? `/albums/${selectedAlbum._id}` : null,
     swrFetcher,
-    { revalidateOnFocus: true, dedupingInterval: 3000 }
+    swrConfig
   );
 
   useEffect(() => {
@@ -229,6 +230,41 @@ export default function HomePage() {
       setAlbumMedia(swrAlbumDetails.media || []);
     }
   }, [swrAlbumDetails]);
+
+  // Realtime subscriptions for guest pages (albums/media)
+  useEffect(() => {
+    const socket = getSocket();
+
+    const handleAlbumsChange = () => {
+      if (activeTab === 'photos' && !selectedAlbum) {
+        cacheUtils.clearAlbums();
+        mutate('/albums?limit=200');
+      }
+    };
+
+    const handleMediaChange = () => {
+      if (selectedAlbum) {
+        cacheUtils.clearPattern('/albums/');
+        mutate(`/albums/${selectedAlbum._id}`);
+      }
+    };
+
+    socket.on('albums:created', handleAlbumsChange);
+    socket.on('albums:updated', handleAlbumsChange);
+    socket.on('albums:deleted', handleAlbumsChange);
+    socket.on('media:uploaded', handleMediaChange);
+    socket.on('media:approved', handleMediaChange);
+    socket.on('media:deleted', handleMediaChange);
+
+    return () => {
+      socket.off('albums:created', handleAlbumsChange);
+      socket.off('albums:updated', handleAlbumsChange);
+      socket.off('albums:deleted', handleAlbumsChange);
+      socket.off('media:uploaded', handleMediaChange);
+      socket.off('media:approved', handleMediaChange);
+      socket.off('media:deleted', handleMediaChange);
+    };
+  }, [activeTab, selectedAlbum]);
 
   // Close mobile menu when clicking outside or scrolling
   useEffect(() => {
@@ -417,7 +453,7 @@ export default function HomePage() {
                     }}
                   >
                     <img
-                      src="/imgs/monogram-flower-white.png"
+                      src="/imgs/monogram.png"
                       alt="MJ & Erica Monogram"
                       className="mx-auto w-40 md:w-56 h-auto object-contain drop-shadow-[0_2px_4px_rgba(0,0,0,0.4)]"
                     />
@@ -436,9 +472,6 @@ export default function HomePage() {
                       `
                     }}
                   >
-                    <p className="text-xl md:text-2xl font-light">
-                      January 16, 2026
-                    </p>
                     <p className="text-lg md:text-xl font-light opacity-90">
                       Tagaytay City, Cavite
                     </p>

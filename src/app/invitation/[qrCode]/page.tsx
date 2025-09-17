@@ -21,7 +21,9 @@ import BackgroundMusic from '@/components/BackgroundMusic';
 import OtherDetailsSection from '@/components/OtherDetailsSection';
 import FAQSection from '@/components/FAQSection';
 import { Martini, Camera, Utensils, Mic, Cake, Music, Car } from "lucide-react";
-import useSWR from 'swr';
+import useSWR, { mutate } from 'swr';
+import { getSocket } from '@/lib/socket';
+import { cacheUtils } from '@/lib/api';
 
 interface Invitation {
   _id: string;
@@ -136,6 +138,21 @@ export default function InvitationPage() {
       setLoading(false);
     }
   }, [swrError]);
+
+  // Realtime RSVP updates for this invitation
+  useEffect(() => {
+    const socket = getSocket();
+    const handleRSVP = () => {
+      if (qrCode) {
+        cacheUtils.clearPattern('/invitations/qr/');
+        mutate(`/invitations/qr/${qrCode}`);
+      }
+    };
+    socket.on('rsvp:updated', handleRSVP);
+    return () => {
+      socket.off('rsvp:updated', handleRSVP);
+    };
+  }, [qrCode]);
 
   // Countdown timer effect
   useEffect(() => {
@@ -596,7 +613,7 @@ export default function InvitationPage() {
                   >
                     {/* Logo/Monogram */}
                     <div className="flex items-center mb-8">
-                      <div className="w-20 h-20 flex items-center justify-center overflow-hidden">
+                      <div className="w-32 h-32 flex items-center justify-center overflow-hidden">
                         <img
                           src="/imgs/monogram-black.png"
                           alt="MJ & Erica Monogram"
@@ -866,7 +883,7 @@ export default function InvitationPage() {
                       transition={{ duration: 0.8 }}
                       viewport={{ once: true }}
                     >
-                      <h3 className="text-4xl md:text-6xl font-parisienne text-sage-green mb-8">
+                      <h3 className="text-4xl md:text-6xl font-parisienne text-slate-blue mb-8">
                         {ENTOURAGE_CONFIG.bestMan.title}
                       </h3>
                       <div className="space-y-4 max-w-md mx-auto">
@@ -888,14 +905,14 @@ export default function InvitationPage() {
                       transition={{ duration: 0.8, delay: 0.2 }}
                       viewport={{ once: true }}
                     >
-                      <h3 className="text-5xl md:text-6xl font-parisienne text-sage-green mb-12">
+                      <h3 className="text-5xl md:text-6xl font-parisienne text-dusty-rose mb-12">
                         {ENTOURAGE_CONFIG.parents.title}
                       </h3>
 
                       <div className="grid md:grid-cols-2 gap-16 max-w-4xl mx-auto">
                         {/* Groom's Parents */}
                         <div className="space-y-4">
-                          <h4 className="text-4xl font-parisienne text-sage-green mb-6">
+                          <h4 className="text-4xl font-parisienne text-slate-blue mb-6">
                             {ENTOURAGE_CONFIG.parents.groomParents.title}
                           </h4>
                           <div className="space-y-3 text-slate-blue/80 text-xl">
@@ -929,20 +946,19 @@ export default function InvitationPage() {
                       transition={{ duration: 0.8, delay: 0.4 }}
                       viewport={{ once: true }}
                     >
-                      <h3 className="text-5xl md:text-6xl font-parisienne text-slate-blue mb-12">
+                      <h3 className="text-5xl md:text-6xl font-parisienne text-dusty-rose mb-12">
                         {ENTOURAGE_CONFIG.principalSponsors.title}
                       </h3>
 
                       <div className="grid md:grid-cols-2 gap-16 max-w-4xl mx-auto">
                         {/* Ninong */}
                         <div className="space-y-4">
-                          <h4 className="text-3xl font-parisienne text-sage-green mb-8">
+                          <h4 className="text-3xl font-parisienne text-slate-blue mb-8">
                             {ENTOURAGE_CONFIG.principalSponsors.ninong.title}
                           </h4>
                           <div className="space-y-3 text-slate-blue/80 text-xl">
                             {ENTOURAGE_CONFIG.principalSponsors.ninong.members.map((member, index) => (
                               <p key={index}>
-                                {ENTOURAGE_DISPLAY_CONFIG.showSponsorNumbers ? `${member.number}. ` : ''}
                                 {member.name}
                               </p>
                             ))}
@@ -957,7 +973,6 @@ export default function InvitationPage() {
                           <div className="space-y-3 text-slate-blue/80 text-xl">
                             {ENTOURAGE_CONFIG.principalSponsors.ninang.members.map((member, index) => (
                               <p key={index}>
-                                {ENTOURAGE_DISPLAY_CONFIG.showSponsorNumbers ? `${member.number}. ` : ''}
                                 {member.name}
                               </p>
                             ))}
@@ -983,7 +998,7 @@ export default function InvitationPage() {
                       <div className="grid md:grid-cols-3 gap-8 max-w-6xl mx-auto">
                         {/* Candle (in) */}
                         <div className="space-y-3">
-                          <h4 className="text-3xl font-parisienne text-sage-green mb-4">
+                          <h4 className="text-3xl font-parisienne text-dusty-rose mb-4">
                             {ENTOURAGE_CONFIG.secondarySponsors.candleIn.title}
                           </h4>
                           <div className="space-y-2 text-slate-blue/80 text-xl">
@@ -1016,42 +1031,6 @@ export default function InvitationPage() {
                             ))}
                           </div>
                         </div>
-
-                        {/* Candle (out) */}
-                        <div className="space-y-3">
-                          <h4 className="text-3xl font-parisienne text-sage-green mb-4">
-                            {ENTOURAGE_CONFIG.secondarySponsors.candleOut.title}
-                          </h4>
-                          <div className="space-y-2 text-slate-blue/80 text-xl">
-                            {ENTOURAGE_CONFIG.secondarySponsors.candleOut.members.map((member, index) => (
-                              <p key={index}>{member.name}</p>
-                            ))}
-                          </div>
-                        </div>
-
-                        {/* Veil 2 */}
-                        <div className="space-y-3">
-                          <h4 className="text-3xl font-parisienne text-dusty-rose mb-4">
-                            {ENTOURAGE_CONFIG.secondarySponsors.veil2.title}
-                          </h4>
-                          <div className="space-y-2 text-slate-blue/80 text-xl">
-                            {ENTOURAGE_CONFIG.secondarySponsors.veil2.members.map((member, index) => (
-                              <p key={index}>{member.name}</p>
-                            ))}
-                          </div>
-                        </div>
-
-                        {/* Cord 2 */}
-                        <div className="space-y-3">
-                          <h4 className="text-3xl font-parisienne text-warm-beige mb-4">
-                            {ENTOURAGE_CONFIG.secondarySponsors.cord2.title}
-                          </h4>
-                          <div className="space-y-2 text-slate-blue/80 text-xl">
-                            {ENTOURAGE_CONFIG.secondarySponsors.cord2.members.map((member, index) => (
-                              <p key={index}>{member.name}</p>
-                            ))}
-                          </div>
-                        </div>
                       </div>
                     </motion.div>
                   )}
@@ -1072,13 +1051,12 @@ export default function InvitationPage() {
                       <div className="grid md:grid-cols-2 gap-16 max-w-4xl mx-auto">
                         {/* Groomsmen */}
                         <div className="space-y-4">
-                          <h4 className="text-3xl font-parisienne text-sage-green mb-8">
+                          <h4 className="text-3xl font-parisienne text-slate-blue mb-8">
                             {ENTOURAGE_CONFIG.weddingParty.groomsmen.title}
                           </h4>
                           <div className="space-y-3 text-slate-blue/80 text-xl">
                             {ENTOURAGE_CONFIG.weddingParty.groomsmen.members.map((member, index) => (
                               <p key={index}>
-                                {ENTOURAGE_DISPLAY_CONFIG.showSponsorNumbers ? `${member.number}. ` : ''}
                                 {member.name}
                               </p>
                             ))}
@@ -1093,7 +1071,6 @@ export default function InvitationPage() {
                           <div className="space-y-3 text-slate-blue/80 text-xl">
                             {ENTOURAGE_CONFIG.weddingParty.bridesmaids.members.map((member, index) => (
                               <p key={index}>
-                                {ENTOURAGE_DISPLAY_CONFIG.showSponsorNumbers ? `${member.number}. ` : ''}
                                 {member.name}
                               </p>
                             ))}
@@ -1119,7 +1096,7 @@ export default function InvitationPage() {
                       <div className="grid md:grid-cols-3 gap-8 max-w-4xl mx-auto">
                         {/* Ring Bearer */}
                         <div className="space-y-3">
-                          <h4 className="text-3xl font-parisienne text-sage-green mb-4">
+                          <h4 className="text-3xl font-parisienne text-dusty-rose mb-4">
                             {ENTOURAGE_CONFIG.bearers.ring.title}
                           </h4>
                           <div className="space-y-2 text-slate-blue/80 text-xl">
@@ -1165,25 +1142,78 @@ export default function InvitationPage() {
                       transition={{ duration: 0.8, delay: 1.2 }}
                       viewport={{ once: true }}
                     >
-                      <h3 className="text-5xl md:text-6xl font-parisienne text-sage-green mb-12">
+                      <h3 className="text-5xl md:text-6xl font-parisienne text-dusty-rose mb-12">
                         {ENTOURAGE_CONFIG.flowerGirls.title}
                       </h3>
-
-                      <div className="space-y-4 max-w-2xl mx-auto">
-                        <div className="grid md:grid-cols-2 gap-8">
-                          {ENTOURAGE_CONFIG.flowerGirls.members.map((member, index) => (
-                            <div key={index} className="text-slate-blue/80 text-xl">
-                              <p>
-                                {ENTOURAGE_DISPLAY_CONFIG.showSponsorNumbers ? `${member.number}. ` : ''}
+                      
+                      <div className="grid md:grid-cols-2 gap-16 max-w-4xl mx-auto">
+                        {/* Escort */}
+                      <div className="space-y-4">
+                          <h4 className="text-3xl font-parisienne text-slate-blue mb-8">
+                            {ENTOURAGE_CONFIG.escort.title}
+                          </h4>
+                          <div className="space-y-3 text-slate-blue/80 text-xl">
+                            {ENTOURAGE_CONFIG.escort.members.map((member, index) => (
+                              <p key={index}>
                                 {member.name}
-                                {member.role && <span className="text-sm text-slate-blue/60 ml-2">({member.role})</span>}
                               </p>
-                            </div>
-                          ))}
+                            ))}
+                          </div>
+                      </div>
+
+                        {/* Flower Girls */}
+                        <div className="space-y-4">
+                          <h4 className="text-3xl font-parisienne text-dusty-rose mb-8">
+                            {ENTOURAGE_CONFIG.flowerGirls.title}
+                          </h4>
+                          <div className="space-y-3 text-slate-blue/80 text-xl">
+                            {ENTOURAGE_CONFIG.flowerGirls.members.map((member, index) => (
+                              <p key={index}>
+                                {member.name}
+                              </p>
+                            ))}
+                          </div>
                         </div>
+
+                        
                       </div>
                     </motion.div>
                   )}
+
+                  {/* Little Bride and Little Groom */}
+                  <motion.div
+                    className="text-center"
+                    initial={{ opacity: 0, y: 50 }}
+                    whileInView={{ opacity: 1, y: 0 }}
+                    transition={{ duration: 0.8, delay: 1.4 }}
+                    viewport={{ once: true }}
+                  >
+                    <h3 className="text-5xl md:text-6xl font-parisienne text-dusty-rose mb-12">
+                      The Little Couple
+                    </h3>
+
+                    <div className="grid md:grid-cols-2 gap-16 max-w-4xl mx-auto">
+                      {/* Groom */}
+                      <div className="space-y-4">
+                        <h4 className="text-2xl font-parisienne text-slate-blue mb-6">
+                          {ENTOURAGE_CONFIG.littleCouple.littleGroom.role}
+                        </h4>
+                        <div className="text-slate-blue/80 text-2xl font-medium">
+                          <p>{ENTOURAGE_CONFIG.littleCouple.littleGroom.name}</p>
+                        </div>
+                      </div>
+
+                      {/* Bride */}
+                      <div className="space-y-4">
+                        <h4 className="text-2xl font-parisienne text-dusty-rose mb-6">
+                          {ENTOURAGE_CONFIG.littleCouple.littleBride.role}
+                        </h4>
+                        <div className="text-slate-blue/80 text-2xl font-medium">
+                          <p>{ENTOURAGE_CONFIG.littleCouple.littleBride.name}</p>
+                        </div>
+                      </div>
+                    </div>
+                  </motion.div>
 
                   {/* Maid of Honor */}
                   {ENTOURAGE_DISPLAY_CONFIG.showMaidOfHonor && (
@@ -1191,7 +1221,7 @@ export default function InvitationPage() {
                       className="text-center"
                       initial={{ opacity: 0, y: 50 }}
                       whileInView={{ opacity: 1, y: 0 }}
-                      transition={{ duration: 0.8, delay: 1.4 }}
+                      transition={{ duration: 0.8, delay: 1.6 }}
                       viewport={{ once: true }}
                     >
                       <h3 className="text-5xl md:text-6xl font-parisienne text-dusty-rose mb-12">
@@ -1213,7 +1243,7 @@ export default function InvitationPage() {
                     className="text-center"
                     initial={{ opacity: 0, y: 50 }}
                     whileInView={{ opacity: 1, y: 0 }}
-                    transition={{ duration: 0.8, delay: 1.6 }}
+                    transition={{ duration: 0.8, delay: 1.8 }}
                     viewport={{ once: true }}
                   >
                     <h3 className="text-5xl md:text-6xl font-parisienne text-slate-blue mb-12">
@@ -1223,7 +1253,7 @@ export default function InvitationPage() {
                     <div className="grid md:grid-cols-2 gap-16 max-w-4xl mx-auto">
                       {/* Groom */}
                       <div className="space-y-4">
-                        <h4 className="text-2xl font-parisienne text-sage-green mb-6">
+                        <h4 className="text-4xl font-parisienne text-sage-green mb-6">
                           {ENTOURAGE_CONFIG.couple.groom.role}
                         </h4>
                         <div className="text-slate-blue/80 text-2xl font-medium">
@@ -1233,7 +1263,7 @@ export default function InvitationPage() {
 
                       {/* Bride */}
                       <div className="space-y-4">
-                        <h4 className="text-2xl font-parisienne text-dusty-rose mb-6">
+                        <h4 className="text-4xl font-parisienne text-dusty-rose mb-6">
                           {ENTOURAGE_CONFIG.couple.bride.role}
                         </h4>
                         <div className="text-slate-blue/80 text-2xl font-medium">

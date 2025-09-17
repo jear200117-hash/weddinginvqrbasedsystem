@@ -1,7 +1,103 @@
 import axios from 'axios';
 import Cookies from 'js-cookie';
+import { offlineCacheUtils, networkStatus } from './offlineCache';
+import { realtimeCache } from './realtimeCache';
 
+// Ensure the API base URL includes /api in local dev
 const API_BASE_URL = 'https://backendv2-nasy.onrender.com/api';
+
+// Custom cache implementation
+interface CacheEntry {
+  data: any;
+  timestamp: number;
+  maxAge: number;
+}
+
+class ApiCache {
+  private cache = new Map<string, CacheEntry>();
+  private readonly defaultMaxAge = 2 * 60 * 1000; // 2 minutes (reduced for more real-time)
+  private pendingRequests = new Map<string, Promise<any>>();
+
+  private shouldCache(url: string, method: string): boolean {
+    // Don't cache POST, PUT, DELETE, PATCH requests
+    if (['post', 'put', 'delete', 'patch'].includes(method.toLowerCase())) {
+      return false;
+    }
+    
+    // Don't cache auth endpoints
+    if (url.includes('/auth/login') || url.includes('/auth/logout') || url.includes('/auth/change-password')) {
+      return false;
+    }
+    
+    return true;
+  }
+
+  private getCacheKey(url: string, params?: any): string {
+    const paramString = params ? JSON.stringify(params) : '';
+    return `${url}${paramString}`;
+  }
+
+  get(url: string, params?: any): any | null {
+    if (!this.shouldCache(url, 'get')) return null;
+    
+    const key = this.getCacheKey(url, params);
+    const entry = this.cache.get(key);
+    
+    if (!entry) return null;
+    
+    // Check if cache is still valid
+    if (Date.now() - entry.timestamp > entry.maxAge) {
+      this.cache.delete(key);
+      return null;
+    }
+    
+    return entry.data;
+  }
+
+  set(url: string, data: any, params?: any, maxAge?: number): void {
+    if (!this.shouldCache(url, 'get')) return;
+    
+    const key = this.getCacheKey(url, params);
+    this.cache.set(key, {
+      data,
+      timestamp: Date.now(),
+      maxAge: maxAge || this.defaultMaxAge
+    });
+  }
+
+  clear(): void {
+    this.cache.clear();
+    this.pendingRequests.clear();
+  }
+
+  // Request deduplication
+  async deduplicateRequest<T>(key: string, requestFn: () => Promise<T>): Promise<T> {
+    // If request is already pending, return the existing promise
+    if (this.pendingRequests.has(key)) {
+      return this.pendingRequests.get(key)!;
+    }
+
+    // Create new request
+    const requestPromise = requestFn().finally(() => {
+      // Remove from pending requests when done
+      this.pendingRequests.delete(key);
+    });
+
+    this.pendingRequests.set(key, requestPromise);
+    return requestPromise;
+  }
+
+  // Clear cache for specific patterns
+  clearPattern(pattern: string): void {
+    for (const key of this.cache.keys()) {
+      if (key.includes(pattern)) {
+        this.cache.delete(key);
+      }
+    }
+  }
+}
+
+const apiCache = new ApiCache();
 
 // Create axios instance
 const api = axios.create({
@@ -9,19 +105,50 @@ const api = axios.create({
   timeout: 30000,
 });
 
-// Request interceptor to add auth token
+// Request interceptor to add auth token and check cache
 api.interceptors.request.use((config) => {
   const token = Cookies.get('auth_token');
   if (token) {
     config.headers.Authorization = `Bearer ${token}`;
   }
+
+  // Check cache for GET requests
+  if (config.method === 'get') {
+    const cachedData = apiCache.get(config.url || '', config.params);
+    if (cachedData) {
+      // Return cached data immediately
+      return Promise.reject({
+        isCached: true,
+        data: cachedData,
+        config
+      });
+    }
+  }
+
   return config;
 });
 
-// Response interceptor for error handling
+// Response interceptor for error handling and caching
 api.interceptors.response.use(
-  (response) => response,
+  (response) => {
+    // Cache successful GET responses
+    if (response.config.method === 'get' && response.status >= 200 && response.status < 300) {
+      apiCache.set(response.config.url || '', response.data, response.config.params);
+    }
+    return response;
+  },
   (error) => {
+    // Handle cached responses
+    if (error.isCached) {
+      return Promise.resolve({
+        data: error.data,
+        status: 200,
+        statusText: 'OK',
+        headers: {},
+        config: error.config
+      });
+    }
+
     const status = error.response?.status;
     const data = error.response?.data;
 
@@ -33,6 +160,7 @@ api.interceptors.response.use(
 
     if (status === 401) {
       Cookies.remove('auth_token');
+      apiCache.clear(); // Clear cache on logout
       if (typeof window !== 'undefined' && !window.location.pathname.startsWith('/host/login')) {
         window.location.href = '/host/login';
       }
@@ -397,10 +525,91 @@ export const rsvpAPI = {
 export default api;
 
 
-// SWR fetcher using axios instance
+  // Cache management functions (no realtime calls here to avoid cycles)
+export const cacheUtils = {
+  clearAll: () => {
+    apiCache.clear();
+  },
+  clearPattern: (pattern: string) => {
+    apiCache.clearPattern(pattern);
+  },
+  // Clear cache for specific data types
+  clearInvitations: () => {
+    apiCache.clearPattern('/invitations');
+  },
+  clearAlbums: () => {
+    apiCache.clearPattern('/albums');
+  },
+  clearMedia: () => {
+    apiCache.clearPattern('/media');
+  },
+  clearRSVP: () => {
+    apiCache.clearPattern('/rsvp');
+  },
+};
+
+// SWR fetcher using axios instance with optimized caching and offline support
 export const swrFetcher = async (url: string) => {
-  const res = await api.get(url);
-  return res.data;
+  try {
+    const res = await api.get(url);
+    
+    // Cache data offline for critical endpoints
+    if (url.includes('/albums') && !url.includes('/albums/')) {
+      offlineCacheUtils.setAlbums(res.data.albums || res.data);
+    } else if (url.includes('/invitations') && !url.includes('/invitations/')) {
+      offlineCacheUtils.setInvitations(res.data.invitations || res.data);
+    } else if (url.includes('/rsvp')) {
+      offlineCacheUtils.setRSVP(res.data.rsvp || res.data);
+    } else if (url.includes('/stats')) {
+      offlineCacheUtils.setStats(res.data);
+    }
+    
+    return res.data;
+  } catch (error) {
+    // Try to return offline data if network fails
+    if (!networkStatus.getOnlineStatus()) {
+      if (url.includes('/albums') && !url.includes('/albums/')) {
+        const offlineData = offlineCacheUtils.getAlbums();
+        if (offlineData) return { albums: offlineData };
+      } else if (url.includes('/invitations') && !url.includes('/invitations/')) {
+        const offlineData = offlineCacheUtils.getInvitations();
+        if (offlineData) return { invitations: offlineData };
+      } else if (url.includes('/rsvp')) {
+        const offlineData = offlineCacheUtils.getRSVP();
+        if (offlineData) return { rsvp: offlineData };
+      } else if (url.includes('/stats')) {
+        const offlineData = offlineCacheUtils.getStats();
+        if (offlineData) return offlineData;
+      }
+    }
+    
+    throw error;
+  }
+};
+
+// Enhanced SWR configuration for better caching with real-time support
+export const swrConfig = {
+  // Enable real-time revalidation
+  revalidateOnFocus: true,
+  revalidateOnReconnect: true,
+  revalidateIfStale: true,
+  // Shorter deduplication for more real-time updates
+  dedupingInterval: 2000, // 2 seconds
+  // Add error retry
+  errorRetryCount: 3,
+  errorRetryInterval: 1000,
+  // Shorter focus throttle for real-time
+  focusThrottleInterval: 5000, // 5 seconds
+  // Add polling for critical data
+  refreshInterval: 0, // Disabled by default, can be enabled per use case
+};
+
+// Real-time configuration for socket-backed data (no polling, no focus revalidate)
+export const realtimeConfig = {
+  ...swrConfig,
+  refreshInterval: 0,
+  revalidateOnFocus: false,
+  dedupingInterval: 5000, // 5 seconds, socket pushes invalidate
 };
 
 // Helper to create a stable SWR key for RSVP list

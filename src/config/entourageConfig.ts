@@ -72,47 +72,33 @@ export const ENTOURAGE_CONFIG = {
   secondarySponsors: {
     title: "Secondary Sponsors",
     candleIn: {
-      title: "Candle (in)",
+      title: "Candle",
       members: [
         { name: "John Erick Pineda", role: "Male" },
-        { name: "Jyn Sheeren Abellar", role: "Female" }
+        { name: "Jyn Sheeren Abellar", role: "Female"},
+        { name: "Alexis De La Rea", role: "Male" },
+        { name: "Eries Veroya", role: "Female" }
+        
       ]
     },
     veil: {
       title: "Veil",
       members: [
         { name: "Aries De La Rea", role: "Male" },
-        { name: "Paoline Creag", role: "Female" }
+        { name: "Ruth Anne Vera", role: "Female" },
+        { name: "Morice James Buisan", role: "Male" },
+        { name: "Rica Ella Cayanan", role: "Female" }
       ]
     },
     cord: {
       title: "Cord",
       members: [
-        { name: "Jason Quinag", role: "Male" },
-        { name: "Ruth Anne Vera", role: "Female" }
-      ]
-    },
-    candleOut: {
-      title: "Candle (out)",
-      members: [
         { name: "Gene Mari Christopher De La Rea", role: "Male" },
+        { name: "Paoline Creag", role: "Female" },
+        { name: "Aljhon Gabriel Catitir", role: "Male" },
         { name: "Shaira Ann Marquez", role: "Female" }
       ]
     },
-    veil2: {
-      title: "Veil",
-      members: [
-        { name: "Aljhon Gabriel Catitir", role: "Male" },
-        { name: "Eries Veroya", role: "Female" }
-      ]
-    },
-    cord2: {
-      title: "Cord",
-      members: [
-        { name: "Morice James Buisan", role: "Male" },
-        { name: "Rica Ella Cayanan", role: "Female" }
-      ]
-    }
   },
 
   // Wedding Party
@@ -121,9 +107,9 @@ export const ENTOURAGE_CONFIG = {
     groomsmen: {
       title: "Groomsmen",
       members: [
-        { name: "Paul Melchor Aguda", number: 1 },
-        { name: "Alexis De La Rea", number: 2 },
-        { name: "John Matthew Benig", number: 3 }
+        { name: "John Matthew Benig", number: 1 },
+        { name: "Jason Quinag", number: 2 },
+        { name: "Paul Melchor Aguda", number: 3 }
       ]
     },
     bridesmaids: {
@@ -142,19 +128,19 @@ export const ENTOURAGE_CONFIG = {
     ring: {
       title: "Ring",
       members: [
-        { name: "Liam Ramos", role: "Ring Bearer" }
+        { name: "Brent Gabrielle Alday", role: "Ring Bearer" }
       ]
     },
     arras: {
       title: "Arras and Coins",
       members: [
-        { name: "Amiel Pineda", role: "Arras Bearer" }
+        { name: "Jose Jacob Ramos", role: "Arras Bearer" }
       ]
     },
     bible: {
       title: "Bible",
       members: [
-        { name: "Chase Arkmel Fariñas", role: "Bible Bearer" }
+        { name: "Wheiy Pineda", role: "Bible Bearer" }
       ]
     }
   },
@@ -163,13 +149,31 @@ export const ENTOURAGE_CONFIG = {
   flowerGirls: {
     title: "Flower Girls",
     members: [
-      { name: "Amaris Christelle Marquez", number: 1 },
-      { name: "Ginn Elizsh Wyn Cebeda", number: 2 },
-      { name: "Euliza Cheyenne Alinton", number: 3 },
-      { name: "Zyrel Miñano", role: "Little Bride", number: 4 }
+      { name: "Euliza Cheyenne Alinton", number: 1 },
+      { name: "Amaris Christelle Marquez", number: 2 },
+      { name: "Ginn Elizsh Wyn Cebeda", number: 3 }
     ]
   },
 
+  escort: {
+    title: "Escort",
+    members: [
+      { name: "Amiel Pineda", number: 1 },
+      { name: "Chase Arkmel Fariñas", number: 2 },
+      { name: "Jacob Aiden Albert D. Arenas", number: 3 }
+    ]
+  },
+
+  littleCouple: {
+    littleGroom: {
+      name: "Jose Liam Ramos",
+      role: "Little Groom"
+    },
+    littleBride: {
+      name: "Zyrel Miñano", 
+      role: "Little Bride"
+    }
+  },
   // Maid of Honor
   maidOfHonor: {
     title: "Maid of Honor",
@@ -202,6 +206,11 @@ export const ENTOURAGE_DISPLAY_CONFIG = {
   showBearers: true,
   showFlowerGirls: true,
   showMaidOfHonor: true,
+  showEscort: true,
+  showLittleBride: true,
+  showLittleGroom: true,
+  showFlowerGirlsNumbers: true,
+  showEscortNumbers: true,
   
   // Layout options
   principalSponsorsPerRow: 3, // Number of sponsors per row
