@@ -67,8 +67,12 @@ export default function FAQSection({ openFAQIndex, setOpenFAQIndex }: FAQSection
           transition={{ delay: 0.4, duration: 0.8 }}
           viewport={{ once: true }}
         >
-          <div className="text-xl md:text-2xl font-parisienne text-slate-blue/70 mb-4">
-            MJ & Erica
+          <div className="w-20 h-20 mx-auto flex items-center justify-center overflow-hidden mb-5">
+            <img 
+              src="/imgs/monogram-flower-black.png" 
+              alt="MJ & Erica Monogram" 
+              className="w-full h-full object-contain"
+            />
           </div>
           <h2 className="text-5xl md:text-6xl font-parisienne text-slate-blue mb-4">
             Frequently Asked

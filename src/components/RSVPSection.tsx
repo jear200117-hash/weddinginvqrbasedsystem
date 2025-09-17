@@ -159,11 +159,15 @@ export default function RSVPSection({ guestName, qrCode, customMessage, currentR
           animate={{ opacity: 1, y: 0 }}
           transition={{ delay: 0.4, duration: 0.8 }}
         >
-          <div className="text-xl md:text-2xl font-parisienne text-slate-blue/70 mb-4">
-            MJ & Erica
+          <div className="w-20 h-20 mx-auto flex items-center justify-center overflow-hidden mb-5">
+            <img 
+              src="/imgs/monogram-flower-black.png" 
+              alt="MJ & Erica Monogram" 
+              className="w-full h-full object-contain"
+            />
           </div>
           <h2 className="text-5xl md:text-6xl font-parisienne text-sage-green mb-4">
-            RSVP
+            Rsvp
           </h2>
           <p className="text-2xl font-parisienne text-black mb-8">
             Please respond by December 10, 2026
@@ -205,9 +209,13 @@ export default function RSVPSection({ guestName, qrCode, customMessage, currentR
                 // Initial RSVP Prompt
                 <div className="text-center space-y-8">
                   <div className="flex justify-center mb-6">
-                    <div className="w-20 h-20 bg-gradient-to-br from-rose-400 to-pink-500 rounded-full flex items-center justify-center">
-                      <Heart className="w-10 h-10 text-white" />
-                    </div>
+                  <div className="w-20 h-20 flex items-center justify-center overflow-hidden">
+                        <img 
+                          src="/imgs/monogram-black.png" 
+                          alt="MJ & Erica Monogram" 
+                          className="w-full h-full object-contain"
+                        />
+                      </div>
                   </div>
                   
                   <h3 className="text-3xl font-parisienne text-slate-blue mb-4">

@@ -3,7 +3,7 @@
 import { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Heart, Calendar, MapPin, Users, ArrowRight, Send } from 'lucide-react';
-import { invitationsAPI, rsvpAPI } from '@/lib/api';
+import { invitationsAPI, rsvpAPI, swrFetcher } from '@/lib/api';
 import { useParams } from 'next/navigation';
 import Link from 'next/link';
 import RotatingBackground from '@/components/RotatingBackground';
@@ -21,6 +21,7 @@ import BackgroundMusic from '@/components/BackgroundMusic';
 import OtherDetailsSection from '@/components/OtherDetailsSection';
 import FAQSection from '@/components/FAQSection';
 import { Martini, Camera, Utensils, Mic, Cake, Music, Car } from "lucide-react";
+import useSWR from 'swr';
 
 interface Invitation {
   _id: string;
@@ -113,11 +114,28 @@ export default function InvitationPage() {
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, [invitation?.rsvp?.status]);
 
+  const { data: swrInvitation, error: swrError, isLoading: swrLoading } = useSWR(
+    qrCode ? `/invitations/qr/${qrCode}` : null,
+    swrFetcher,
+    { revalidateOnFocus: true, dedupingInterval: 3000 }
+  );
+
   useEffect(() => {
-    if (qrCode) {
-      fetchInvitation();
+    if (swrInvitation?.invitation) {
+      setInvitation(swrInvitation.invitation);
+      // Start animation sequence
+      setTimeout(() => setAnimationStage('envelope'), 2000);
+      setTimeout(() => setAnimationStage('invitation'), 4000);
+      setLoading(false);
     }
-  }, [qrCode]);
+  }, [swrInvitation]);
+
+  useEffect(() => {
+    if (swrError) {
+      setError('Failed to load invitation');
+      setLoading(false);
+    }
+  }, [swrError]);
 
   // Countdown timer effect
   useEffect(() => {
@@ -141,22 +159,6 @@ export default function InvitationPage() {
 
     return () => clearInterval(timer);
   }, []);
-
-  const fetchInvitation = async () => {
-    try {
-      const response = await invitationsAPI.getByQRCode(qrCode);
-      setInvitation(response);
-      console.log('Fetched invitation:', response);
-
-      // Start animation sequence
-      setTimeout(() => setAnimationStage('envelope'), 2000);
-      setTimeout(() => setAnimationStage('invitation'), 4000);
-    } catch (error: any) {
-      setError(error.response?.data?.error || 'Failed to load invitation');
-    } finally {
-      setLoading(false);
-    }
-  };
 
   const handleRSVPClick = () => {
     if (invitation?.rsvp?.status && invitation.rsvp.status !== 'pending') {
@@ -200,7 +202,7 @@ export default function InvitationPage() {
     }
   };
 
-  if (loading) {
+  if (loading || swrLoading) {
     return (
       <div className="min-h-screen bg-gradient-to-br from-rose-50 to-pink-100 flex items-center justify-center">
         <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-rose-500"></div>
@@ -399,7 +401,7 @@ export default function InvitationPage() {
                   transition={{ delay: 1.2, duration: 0.8 }}
                 >
                   <p className="text-lg md:text-xl font-light text-white max-w-3xl mx-auto leading-relaxed drop-shadow-lg">
-                    Join us as we say "I Do" and begin our new journey together.
+                    Walk with us as we say 'I Do'and step into our forever.
                   </p>
                 </motion.div>
 
@@ -412,8 +414,8 @@ export default function InvitationPage() {
                   <motion.button
                     onClick={handleRSVPClick}
                     className={`group relative px-10 py-3 backdrop-blur-sm text-white rounded-full overflow-hidden text-lg font-medium shadow-xl border border-white/50 ${invitation?.rsvp?.status === 'pending' || !invitation?.rsvp
-                        ? 'bg-sage-green/90 hover:bg-sage-green'
-                        : 'bg-emerald-600/90 hover:bg-emerald-600'
+                      ? 'bg-sage-green/90 hover:bg-sage-green'
+                      : 'bg-emerald-600/90 hover:bg-emerald-600'
                       }`}
                     whileHover={{ scale: 1.05 }}
                     whileTap={{ scale: 0.98 }}
@@ -478,8 +480,12 @@ export default function InvitationPage() {
                   animate={{ opacity: 1, y: 0 }}
                   transition={{ delay: 0.4, duration: 0.8 }}
                 >
-                  <div className="text-xl md:text-2xl font-parisienne text-slate-blue/70 mb-4">
-                    MJ & Erica
+                  <div className="w-20 h-20 mx-auto flex items-center justify-center overflow-hidden mb-5">
+                    <img
+                      src="/imgs/monogram-flower-black.png"
+                      alt="MJ & Erica Monogram"
+                      className="w-full h-full object-contain"
+                    />
                   </div>
                   <h2 className="text-6xl md:text-6xl font-parisienne text-slate-blue mb-4">
                     We are getting married
@@ -590,8 +596,12 @@ export default function InvitationPage() {
                   >
                     {/* Logo/Monogram */}
                     <div className="flex items-center mb-8">
-                      <div className="w-20 h-20 rounded-full border-2 border-sage-green flex items-center justify-center">
-                        <div className="text-2xl font-playfair font-bold text-sage-green">ME</div>
+                      <div className="w-20 h-20 flex items-center justify-center overflow-hidden">
+                        <img
+                          src="/imgs/monogram-black.png"
+                          alt="MJ & Erica Monogram"
+                          className="w-full h-full object-contain"
+                        />
                       </div>
                     </div>
 
@@ -646,8 +656,12 @@ export default function InvitationPage() {
                   animate={{ opacity: 1, y: 0 }}
                   transition={{ delay: 0.4, duration: 0.8 }}
                 >
-                  <div className="text-xl md:text-2xl font-parisienne text-slate-blue/70 mb-4">
-                    MJ & Erica
+                  <div className="w-20 h-20 mx-auto flex items-center justify-center overflow-hidden mb-5">
+                    <img
+                      src="/imgs/monogram-flower-black.png"
+                      alt="MJ & Erica Monogram"
+                      className="w-full h-full object-contain"
+                    />
                   </div>
                   <h2 className="text-6xl md:text-6xl font-parisienne text-slate-blue mb-4">
                     Wedding Timeline
@@ -745,7 +759,7 @@ export default function InvitationPage() {
                   <div className="bg-white/60 backdrop-blur-sm rounded-2xl p-6 shadow-xl max-w-2xl mx-auto">
                     <h4 className="text-lg font-parisienne text-slate-blue mb-3">Important Note</h4>
                     <p className="text-slate-blue/80 leading-relaxed">
-                      Please arrive 15 minutes before the ceremony. Transportation between venues will be provided.
+                      Please arrive 15 minutes before the ceremony.
                     </p>
                   </div>
                 </motion.div>
@@ -806,8 +820,12 @@ export default function InvitationPage() {
                   animate={{ opacity: 1, y: 0 }}
                   transition={{ delay: 0.4, duration: 0.8 }}
                 >
-                  <div className="text-xl md:text-2xl font-parisienne text-slate-blue/70 mb-4">
-                    MJ & Erica
+                  <div className="w-20 h-20 mx-auto flex items-center justify-center overflow-hidden mb-5">
+                    <img
+                      src="/imgs/monogram-flower-black.png"
+                      alt="MJ & Erica Monogram"
+                      className="w-full h-full object-contain"
+                    />
                   </div>
                   <h2 className="text-6xl md:text-6xl font-parisienne text-slate-blue mb-8">
                     The Entourage
@@ -1249,8 +1267,12 @@ export default function InvitationPage() {
                   animate={{ opacity: 1, y: 0 }}
                   transition={{ delay: 0.4, duration: 0.8 }}
                 >
-                  <div className="text-xl md:text-2xl font-parisienne text-slate-blue/70 mb-4">
-                    MJ & Erica
+                  <div className="w-20 h-20 mx-auto flex items-center justify-center overflow-hidden mb-5">
+                    <img
+                      src="/imgs/monogram-flower-black.png"
+                      alt="MJ & Erica Monogram"
+                      className="w-full h-full object-contain"
+                    />
                   </div>
                   <h2 className="text-6xl md:text-6xl font-parisienne text-slate-blue mb-8">
                     Wedding Venues
@@ -1436,8 +1458,12 @@ export default function InvitationPage() {
                   animate={{ opacity: 1, y: 0 }}
                   transition={{ delay: 0.4, duration: 0.8 }}
                 >
-                  <div className="text-xl md:text-2xl font-parisienne text-slate-blue/70 mb-4">
-                    MJ & Erica
+                  <div className="w-20 h-20 mx-auto flex items-center justify-center overflow-hidden mb-5">
+                    <img
+                      src="/imgs/monogram-flower-black.png"
+                      alt="MJ & Erica Monogram"
+                      className="w-full h-full object-contain"
+                    />
                   </div>
                   <h2 className="text-6xl md:text-6xl font-parisienne text-slate-blue mb-8">
                     {DRESS_CODE_CONFIG.title}
@@ -1541,7 +1567,7 @@ export default function InvitationPage() {
                             className="w-20 h-20 rounded-full mx-auto shadow-lg border-2 border-white"
                             style={{ backgroundColor: DRESS_CODE_CONFIG.colors.pink }}
                           ></div>
-                          <p className="text-sm font-medium text-slate-blue">Pink</p>
+                          <p className="text-sm font-medium text-slate-blue">DustyPink</p>
                           {DRESS_CODE_DISPLAY_CONFIG.showColorCodes && (
                             <p className="text-xs text-slate-blue/60 font-mono">{DRESS_CODE_CONFIG.colors.pink}</p>
                           )}
@@ -1553,7 +1579,7 @@ export default function InvitationPage() {
                             className="w-20 h-20 rounded-full mx-auto shadow-lg border-2 border-white"
                             style={{ backgroundColor: DRESS_CODE_CONFIG.colors.lightPink }}
                           ></div>
-                          <p className="text-sm font-medium text-slate-blue">Light Pink</p>
+                          <p className="text-sm font-medium text-slate-blue">Light Dusty Pink</p>
                           {DRESS_CODE_DISPLAY_CONFIG.showColorCodes && (
                             <p className="text-xs text-slate-blue/60 font-mono">{DRESS_CODE_CONFIG.colors.lightPink}</p>
                           )}

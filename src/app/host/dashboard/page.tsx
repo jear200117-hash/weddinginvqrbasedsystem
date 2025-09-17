@@ -1,8 +1,10 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
+import useSWR, { mutate } from 'swr';
 import { motion, AnimatePresence } from 'framer-motion';
-import { invitationsAPI, albumsAPI, mediaAPI, authAPI, rsvpAPI } from '@/lib/api';
+import { invitationsAPI, albumsAPI, mediaAPI, authAPI, rsvpAPI, swrFetcher, rsvpAllKey } from '@/lib/api';
+import { getBestDisplayUrl, getFullSizeDisplayUrl } from '@/lib/googleDriveUtils';
 import toast, { Toaster } from 'react-hot-toast';
 import { 
   Users, 
@@ -18,6 +20,9 @@ import {
   Calendar,
   Heart,
   Upload,
+  CheckSquare,
+  Square,
+  Check,
   X,
   ChevronLeft,
   ChevronRight,
@@ -27,15 +32,16 @@ import {
   Filter,
   Phone,
   User,
-  RefreshCw,
   QrCode,
   Copy,
   ExternalLink,
-  Palette
+  Palette,
+  QrCodeIcon
 } from 'lucide-react';
 import Cookies from 'js-cookie';
 import { useRouter } from 'next/navigation';
 import QRCodeConfig from '@/components/QRCodeConfig';
+import { ENTOURAGE_CONFIG } from '@/config/entourageConfig';
 
 
 interface Stats {
@@ -52,8 +58,6 @@ interface Stats {
   };
   media: {
     totalMedia: number;
-    approvedMedia: number;
-    pendingMedia: number;
     imageCount: number;
     videoCount: number;
   };
@@ -77,9 +81,10 @@ interface Album {
   name: string;
   description: string;
   coverImage?: string;
+  googleDriveFileId?: string;
   mediaCount: number;
   isPublic: boolean;
-  approvalStatus: 'pending' | 'approved' | 'rejected';
+  isFeatured?: boolean;
   qrCode?: string;
   qrCodeUrl?: string;
   uploadUrl?: string;
@@ -98,6 +103,7 @@ export default function HostDashboard() {
   const [albumViewMode, setAlbumViewMode] = useState<'grid' | 'detail'>('grid');
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [showCreateAlbumModal, setShowCreateAlbumModal] = useState(false);
+  const [showEditAlbumModal, setShowEditAlbumModal] = useState(false);
   const [albums, setAlbums] = useState<Album[]>([]);
   const [showQRModal, setShowQRModal] = useState(false);
   const [selectedAlbum, setSelectedAlbum] = useState<Album | null>(null);
@@ -108,6 +114,41 @@ export default function HostDashboard() {
     invitationType: 'personalized'
   });
   const [isCreatingInvitation, setIsCreatingInvitation] = useState(false);
+  const [isCreatingAlbum, setIsCreatingAlbum] = useState(false);
+
+  // Build unique entourage roles list from ENTOURAGE_CONFIG
+  const entourageRoles = useMemo(() => {
+    const rolesSet = new Set<string>();
+    const deriveRoleFromTitle = (title: string) => {
+      const t = title.trim();
+      if (/^groomsmen$/i.test(t)) return 'Groomsman';
+      if (/^bridesmaids$/i.test(t)) return 'Bridesmaid';
+      if (/^flower girls$/i.test(t)) return 'Flower Girl';
+      return t.replace(/s$/i, '');
+    };
+    const walk = (node: any) => {
+      if (!node || typeof node !== 'object') return;
+      if (Array.isArray(node)) {
+        node.forEach(walk);
+        return;
+      }
+      if (node.members && Array.isArray(node.members)) {
+        for (const m of node.members) {
+          if (m && typeof m === 'object') {
+            if (m.role && typeof m.role === 'string') {
+              rolesSet.add(m.role);
+            } else if (typeof node.title === 'string') {
+              rolesSet.add(deriveRoleFromTitle(node.title));
+            }
+          }
+        }
+      }
+      Object.values(node).forEach(walk);
+    };
+    walk(ENTOURAGE_CONFIG);
+    // Always include General Guest at top
+    return ['General Guest', ...Array.from(rolesSet).filter(r => r && r !== 'General Guest')];
+  }, []);
 
   // Suggested custom messages
   const suggestedMessages = [
@@ -139,6 +180,15 @@ export default function HostDashboard() {
     isPublic: true,
     coverImage: undefined as string | undefined
   });
+
+  const [editingAlbum, setEditingAlbum] = useState<Album | null>(null);
+  const [editAlbumData, setEditAlbumData] = useState({
+    name: '',
+    description: '',
+    isPublic: true,
+    isFeatured: false
+  });
+  const [isUpdatingAlbum, setIsUpdatingAlbum] = useState(false);
   
   // Album viewing state
   const [albumMedia, setAlbumMedia] = useState<any[]>([]);
@@ -149,6 +199,22 @@ export default function HostDashboard() {
   const [selectedMedia, setSelectedMedia] = useState<any | null>(null);
   const [currentMediaIndex, setCurrentMediaIndex] = useState(0);
   
+  // Bulk operations state
+  const [selectedMediaIds, setSelectedMediaIds] = useState<Set<string>>(new Set());
+  const [isSelectionMode, setIsSelectionMode] = useState(false);
+  const [isBulkOperationLoading, setIsBulkOperationLoading] = useState(false);
+
+  // Media management state
+  const [allMedia, setAllMedia] = useState<any[]>([]);
+  const [loadingAllMedia, setLoadingAllMedia] = useState(false);
+  const [mediaFilters, setMediaFilters] = useState({
+    album: 'all',
+    type: 'all',
+    approved: 'all'
+  });
+  const [mediaPage, setMediaPage] = useState(1);
+  const [mediaTotalPages, setMediaTotalPages] = useState(1);
+  
   const router = useRouter();
 
   // RSVP state
@@ -158,8 +224,6 @@ export default function HostDashboard() {
     role: 'all',
     search: ''
   });
-  const [isRefreshingRSVP, setIsRefreshingRSVP] = useState(false);
-  const [lastRSVPRefresh, setLastRSVPRefresh] = useState(0);
   const [currentPage, setCurrentPage] = useState(1);
   const [itemsPerPage] = useState(10);
   const [selectedInvitation, setSelectedInvitation] = useState<any>(null);
@@ -184,9 +248,41 @@ export default function HostDashboard() {
   });
   const [showQRConfig, setShowQRConfig] = useState(false);
 
-  // Add request caching and debouncing
-  const [lastFetchTime, setLastFetchTime] = useState(0);
-  const CACHE_DURATION = 30000; // 30 seconds cache
+  // SWR for RSVP data
+  const rsvpKey = rsvpAllKey(rsvpFilters);
+  const { data: swrRsvpData, isLoading: swrRsvpLoading } = useSWR(rsvpKey, swrFetcher, {
+    revalidateOnFocus: true,
+    revalidateOnReconnect: true,
+    dedupingInterval: 3000
+  });
+  useEffect(() => {
+    if (swrRsvpData) {
+      setRsvpData(swrRsvpData);
+      setCurrentPage(1);
+    }
+  }, [swrRsvpData]);
+
+  // SWR for invitations list (overview card usage)
+  const { data: swrInvites } = useSWR('/invitations?limit=10', swrFetcher, {
+    revalidateOnFocus: true,
+    dedupingInterval: 3000
+  });
+  useEffect(() => {
+    if (swrInvites?.invitations) {
+      setInvitations(swrInvites.invitations);
+    }
+  }, [swrInvites]);
+
+  // SWR for host albums list
+  const { data: swrHostAlbums } = useSWR('/albums/host', swrFetcher, {
+    revalidateOnFocus: true,
+    dedupingInterval: 3000
+  });
+  useEffect(() => {
+    if (swrHostAlbums?.albums) {
+      setAlbums(swrHostAlbums.albums);
+    }
+  }, [swrHostAlbums]);
 
   useEffect(() => {
     // Check if user is authenticated
@@ -214,15 +310,60 @@ export default function HostDashboard() {
     return () => document.removeEventListener('keydown', handleKeyDown);
   }, [activeTab]);
 
-  const fetchDashboardData = async (forceRefresh = false) => {
-    const now = Date.now();
-    
-    // Check if we should use cached data
-    if (!forceRefresh && (now - lastFetchTime) < CACHE_DURATION) {
-      console.log('Using cached dashboard data');
+  useEffect(() => {
+    if (activeTab === 'media') {
+      fetchAllMedia();
+    }
+  }, [activeTab, mediaFilters, mediaPage]);
+
+  const fetchAllMedia = async () => {
+    setLoadingAllMedia(true);
+    try {
+      const params: any = {
+        page: mediaPage,
+        limit: 20
+      };
+      
+      if (mediaFilters.album !== 'all') params.album = mediaFilters.album;
+      if (mediaFilters.type !== 'all') params.type = mediaFilters.type;
+      if (mediaFilters.approved !== 'all') params.approved = mediaFilters.approved === 'true';
+
+      const response = await mediaAPI.getAll(params);
+      setAllMedia(response.media || []);
+      setMediaTotalPages(response.totalPages || 1);
+    } catch (error: any) {
+      console.error('Fetch media error:', error);
+      toast.error('Failed to load media');
+    } finally {
+      setLoadingAllMedia(false);
+    }
+  };
+
+  const handleMediaFilterChange = (filterType: string, value: string) => {
+    const newFilters = { ...mediaFilters, [filterType]: value };
+    setMediaFilters(newFilters);
+    setMediaPage(1);
+  };
+
+  const handleDeleteMediaFromGallery = async (mediaId: string) => {
+    if (!confirm('Are you sure you want to delete this photo? This action cannot be undone.')) {
       return;
     }
 
+    try {
+      await mediaAPI.delete(mediaId);
+      setAllMedia(prev => prev.filter(media => media._id !== mediaId));
+      toast.success('Photo deleted successfully!');
+      
+      // Refresh stats
+      fetchDashboardData();
+    } catch (error: any) {
+      console.error('Delete media error:', error);
+      toast.error(error.message || 'Failed to delete photo');
+    }
+  };
+
+  const fetchDashboardData = async () => {
     try {
       console.log('Fetching fresh dashboard data...');
       const [invitationStats, albumStats, mediaStats, invitationsData, albumsData, rsvpDataResponse] = await Promise.all([
@@ -231,7 +372,7 @@ export default function HostDashboard() {
         mediaAPI.getStats(),
         invitationsAPI.getAll({ limit: 10 }),
         albumsAPI.getHostAlbums(),
-        rsvpAPI.getAll()
+        Promise.resolve(null)
       ]);
 
       setStats({
@@ -242,8 +383,7 @@ export default function HostDashboard() {
       
       setInvitations(invitationsData.invitations);
       setAlbums(albumsData.albums || []);
-      setRsvpData(rsvpDataResponse);
-      setLastFetchTime(now);
+      if (rsvpDataResponse) setRsvpData(rsvpDataResponse);
     } catch (error: any) {
       toast.error('Failed to load dashboard data');
     } finally {
@@ -253,15 +393,9 @@ export default function HostDashboard() {
 
   const fetchRSVPData = async (filters = rsvpFilters) => {
     try {
-      setIsRefreshingRSVP(true);
-      const response = await rsvpAPI.getAll(filters);
-      setRsvpData(response);
-      setLastRSVPRefresh(Date.now());
-      setCurrentPage(1); // Reset to first page when filters change
+      await mutate(rsvpAllKey(filters));
     } catch (error: any) {
       toast.error('Failed to load RSVP data');
-    } finally {
-      setIsRefreshingRSVP(false);
     }
   };
 
@@ -337,6 +471,7 @@ export default function HostDashboard() {
   };
 
   const handleCreateAlbum = async () => {
+    if (isCreatingAlbum) return;
     if (!newAlbum.name.trim()) {
       toast.error('Please enter an album name');
       return;
@@ -347,6 +482,7 @@ export default function HostDashboard() {
     console.log('Cover image value:', newAlbum.coverImage);
 
     try {
+      setIsCreatingAlbum(true);
       // Create album with QR configuration
       const albumData = {
         ...newAlbum,
@@ -356,79 +492,66 @@ export default function HostDashboard() {
       const response = await albumsAPI.create(albumData);
       console.log('Album creation response:', response);
       
-      // Immediately add the new album to the local state
-      if (response.album) {
-        const newAlbumWithId = {
-          ...response.album,
-          _id: response.album._id || Date.now().toString(),
-          createdAt: new Date().toISOString(),
-          mediaCount: 0,
-          approvalStatus: 'approved' as const,
-          createdBy: {
-            _id: 'host', // Since this is created by host
-            email: 'host@wedding.com'
-          }
-        };
-        
-        // Update albums list immediately
-        setAlbums(prev => [newAlbumWithId, ...prev]);
-        
-        // Update stats immediately
-        setStats(prev => {
-          if (!prev) {
-            return {
-              invitations: {
-                total: 0,
-                active: 0,
-                opened: 0
-              },
-              albums: {
-                totalAlbums: 1,
-                publicAlbums: newAlbumWithId.isPublic ? 1 : 0,
-                featuredAlbums: 0,
-                totalMedia: 0
-              },
-              media: {
-                totalMedia: 0,
-                approvedMedia: 0,
-                pendingMedia: 0,
-                imageCount: 0,
-                videoCount: 0
-              }
-            };
-          }
-          
-          return {
-            ...prev,
-            albums: {
-              ...prev.albums,
-              totalAlbums: (prev.albums.totalAlbums || 0) + 1,
-              publicAlbums: prev.albums.publicAlbums + (newAlbumWithId.isPublic ? 1 : 0)
-            }
-          };
-        });
-        
-        console.log('New album added to state immediately:', newAlbumWithId);
-      }
-      
       toast.success('Album created successfully!');
+
+      // Close modal and reset form
       setShowCreateAlbumModal(false);
       setNewAlbum({ name: '', description: '', isPublic: true, coverImage: undefined });
-      
-      // Refresh data in background to ensure consistency
-      setTimeout(() => {
-        fetchDashboardData(true);
-      }, 1000);
-      
+
     } catch (error: any) {
       console.error('Album creation error:', error);
       toast.error(error.response?.data?.error || 'Failed to create album');
+    } finally {
+      setIsCreatingAlbum(false);
     }
   };
 
-  const handleEditAlbum = (album: any) => {
-    // TODO: Implement edit functionality
-    toast.success('Edit functionality coming soon!');
+  const handleEditAlbum = (album: Album) => {
+    setEditingAlbum(album);
+    setEditAlbumData({
+      name: album.name,
+      description: album.description || '',
+      isPublic: album.isPublic,
+      isFeatured: album.isFeatured || false
+    });
+    setShowEditAlbumModal(true);
+  };
+
+  const handleUpdateAlbum = async () => {
+    if (isUpdatingAlbum || !editingAlbum) return;
+    if (!editAlbumData.name.trim()) {
+      toast.error('Please enter an album name');
+      return;
+    }
+
+    setIsUpdatingAlbum(true);
+    try {
+      const response = await albumsAPI.update(editingAlbum._id, {
+        name: editAlbumData.name.trim(),
+        description: editAlbumData.description.trim(),
+        isPublic: editAlbumData.isPublic,
+        isFeatured: editAlbumData.isFeatured
+      });
+
+      // Update local state
+      setAlbums(prev => prev.map(album => 
+        album._id === editingAlbum._id 
+          ? { ...album, ...editAlbumData }
+          : album
+      ));
+
+      toast.success('Album updated successfully!');
+      setShowEditAlbumModal(false);
+      setEditingAlbum(null);
+      
+      // Refresh data
+      mutate('/albums/host');
+    } catch (error: any) {
+      console.error('Update album error:', error);
+      toast.error(error.message || 'Failed to update album');
+    } finally {
+      setIsUpdatingAlbum(false);
+    }
   };
 
   const handleUploadToAlbum = (album: Album) => {
@@ -436,21 +559,25 @@ export default function HostDashboard() {
     toast.success(`Upload functionality for ${album.name} coming soon!`);
   };
 
-  const handleViewAlbum = async (album: Album) => {
+  const handleViewAlbum = (album: Album) => {
     setSelectedAlbum(album);
     setAlbumViewMode('detail');
-    setLoadingMedia(true);
-    
-    try {
-      const response = await albumsAPI.getById(album._id, {});
-      setAlbumMedia(response.media || []);
-    } catch (error: any) {
-      toast.error('Failed to load album media');
-      setAlbumMedia([]);
-    } finally {
-      setLoadingMedia(false);
-    }
   };
+
+  const { data: swrDashboardAlbum, isLoading: swrDashAlbumLoading } = useSWR(
+    selectedAlbum && albumViewMode === 'detail' ? `/albums/${selectedAlbum._id}` : null,
+    swrFetcher,
+    { revalidateOnFocus: true, dedupingInterval: 3000 }
+  );
+
+  useEffect(() => {
+    if (swrDashboardAlbum?.media) {
+      setAlbumMedia(swrDashboardAlbum.media || []);
+      setLoadingMedia(false);
+    } else if (selectedAlbum && albumViewMode === 'detail') {
+      setLoadingMedia(swrDashAlbumLoading);
+    }
+  }, [swrDashboardAlbum, swrDashAlbumLoading, selectedAlbum, albumViewMode]);
 
   const handleBackToAlbums = () => {
     setAlbumViewMode('grid');
@@ -482,6 +609,109 @@ export default function HostDashboard() {
       const newIndex = currentMediaIndex + 1;
       setCurrentMediaIndex(newIndex);
       setSelectedMedia(albumMedia[newIndex]);
+    }
+  };
+
+  // Bulk operations functions
+  const toggleSelectionMode = () => {
+    setIsSelectionMode(!isSelectionMode);
+    setSelectedMediaIds(new Set());
+  };
+
+  const toggleMediaSelection = (mediaId: string) => {
+    setSelectedMediaIds(prev => {
+      const newSet = new Set(prev);
+      if (newSet.has(mediaId)) {
+        newSet.delete(mediaId);
+      } else {
+        newSet.add(mediaId);
+      }
+      return newSet;
+    });
+  };
+
+  const selectAllMedia = () => {
+    const allIds = new Set(albumMedia.map(media => media._id));
+    setSelectedMediaIds(allIds);
+  };
+
+  const clearSelection = () => {
+    setSelectedMediaIds(new Set());
+  };
+
+  const handleBulkDownload = async () => {
+    if (selectedMediaIds.size === 0) return;
+    
+    setIsBulkOperationLoading(true);
+    try {
+      const selectedMedia = albumMedia.filter(media => selectedMediaIds.has(media._id));
+      
+      // Use a different approach for multiple files - open each in a new tab
+      if (selectedMedia.length === 1) {
+        // Single file - direct download
+        const media = selectedMedia[0];
+        const downloadUrl = media.googleDriveFileId 
+          ? `https://drive.google.com/uc?export=download&id=${media.googleDriveFileId}`
+          : media.url;
+        
+        const link = document.createElement('a');
+        link.href = downloadUrl;
+        link.download = media.originalName || media.filename || 'download';
+        link.style.display = 'none';
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+      } else {
+        // Multiple files - open each in a new tab to bypass popup blocker
+        selectedMedia.forEach((media, index) => {
+          const downloadUrl = media.googleDriveFileId 
+            ? `https://drive.google.com/uc?export=download&id=${media.googleDriveFileId}`
+            : media.url;
+          
+          // Open in new tab with a small delay to prevent blocking
+          setTimeout(() => {
+            window.open(downloadUrl, '_blank');
+          }, index * 100);
+        });
+      }
+      
+      toast.success(`Downloaded ${selectedMediaIds.size} files`);
+    } catch (error) {
+      console.error('Bulk download error:', error);
+      toast.error('Failed to download some files');
+    } finally {
+      setIsBulkOperationLoading(false);
+    }
+  };
+
+  const handleBulkDelete = async () => {
+    if (selectedMediaIds.size === 0) return;
+    
+    if (!confirm(`Are you sure you want to delete ${selectedMediaIds.size} selected photos? This action cannot be undone.`)) {
+      return;
+    }
+    
+    setIsBulkOperationLoading(true);
+    try {
+      const selectedMedia = albumMedia.filter(media => selectedMediaIds.has(media._id));
+      
+      // Delete each selected media file
+      for (const media of selectedMedia) {
+        await mediaAPI.delete(media._id);
+      }
+      
+      // Update local state
+      setAlbumMedia(prev => prev.filter(media => !selectedMediaIds.has(media._id)));
+      
+      // Clear selection
+      setSelectedMediaIds(new Set());
+      
+      toast.success(`Deleted ${selectedMediaIds.size} photos`);
+    } catch (error) {
+      console.error('Bulk delete error:', error);
+      toast.error('Failed to delete some photos');
+    } finally {
+      setIsBulkOperationLoading(false);
     }
   };
 
@@ -537,7 +767,7 @@ export default function HostDashboard() {
         
         // Refresh data in background to ensure consistency
         setTimeout(() => {
-          fetchDashboardData(true);
+          fetchDashboardData();
         }, 1000);
         
       } catch (error: any) {
@@ -594,8 +824,6 @@ export default function HostDashboard() {
               },
               media: {
                 totalMedia: 0,
-                approvedMedia: 0,
-                pendingMedia: 0,
                 imageCount: 0,
                 videoCount: 0
               }
@@ -626,7 +854,7 @@ export default function HostDashboard() {
       
       // Refresh data in background to ensure consistency
       setTimeout(() => {
-        fetchDashboardData(true);
+        fetchDashboardData();
       }, 1000);
       
     } catch (error: any) {
@@ -650,7 +878,7 @@ export default function HostDashboard() {
     try {
       // Create download link for QR code
       const link = document.createElement('a');
-      link.href = `${process.env.NEXT_PUBLIC_API_URL || 'https://backendv2-nasy.onrender.com'}/uploads/qr-${qrCode}.png`;
+      link.href = `${process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5000'}/uploads/qr-${qrCode}.png`;
       link.download = `${guestName.replace(/\s+/g, '_')}_invitation_qr.png`;
       link.click();
     } catch (error) {
@@ -681,9 +909,9 @@ export default function HostDashboard() {
             <div className="flex items-center gap-2 sm:gap-4">
               <button
                 onClick={() => setShowQRConfig(true)}
-                className="bg-gradient-to-r from-purple-500 to-pink-500 text-white px-3 sm:px-4 py-2 rounded-lg font-semibold flex items-center gap-2 hover:shadow-lg transition-all duration-300 text-sm sm:text-base"
+                className="bg-gradient-to-r from-[#667c93] to-[#84a2be] text-white px-3 sm:px-4 py-2 rounded-lg font-semibold flex items-center gap-2 hover:shadow-lg transition-all duration-300 text-sm sm:text-base"
               >
-                <Palette size={18} className="sm:w-5" />
+                <QrCodeIcon size={18} className="sm:w-5" />
                 <span className="hidden sm:inline">QR Settings</span>
                 <span className="sm:hidden">QR</span>
               </button>
@@ -801,25 +1029,6 @@ export default function HostDashboard() {
                 </div>
               </motion.div>
 
-              <motion.div
-                initial={{ opacity: 0, y: 20 }}
-                animate={{ opacity: 1, y: 0 }}
-                transition={{ delay: 0.3 }}
-                className="bg-white p-6 rounded-xl shadow-lg"
-              >
-                <div className="flex items-center justify-between">
-                  <div>
-                    <p className="text-gray-600 text-sm">Pending Approval</p>
-                    <p className="text-3xl font-bold text-gray-900">{stats.media.pendingMedia}</p>
-                  </div>
-                  <Calendar className="text-yellow-500" size={32} />
-                </div>
-                <div className="mt-4">
-                  <p className="text-sm text-gray-600">
-                    {stats.media.approvedMedia} approved media
-                  </p>
-                </div>
-              </motion.div>
             </div>
 
             {/* Recent Invitations */}
@@ -917,13 +1126,6 @@ export default function HostDashboard() {
                   <h3 className="text-2xl font-bold text-gray-900">Albums Management</h3>
                   <div className="flex gap-2">
                     <button
-                      onClick={() => fetchDashboardData(true)}
-                      className="bg-blue-500 text-white px-3 py-2 rounded-lg hover:bg-blue-600 transition-colors text-sm flex items-center gap-2"
-                      title="Refresh albums data"
-                    >
-                      🔄 Refresh
-                    </button>
-                    <button
                       onClick={() => setShowCreateAlbumModal(true)}
                       className="bg-gradient-to-r from-[#667c93] to-[#84a2be] text-white px-4 py-2 rounded-lg font-semibold hover:shadow-lg transition-all duration-300 flex items-center gap-2"
                     >
@@ -945,7 +1147,7 @@ export default function HostDashboard() {
                       <div className="h-32 sm:h-48 bg-gradient-to-br from-rose-100 to-pink-100 flex items-center justify-center">
                         {album.coverImage ? (
                           <img
-                            src={album.coverImage}
+                            src={getBestDisplayUrl(album.coverImage, album.googleDriveFileId, 400)}
                             alt={album.name}
                             className="w-full h-full object-cover"
                             style={{
@@ -1046,12 +1248,45 @@ export default function HostDashboard() {
                         <p className="text-gray-600">{selectedAlbum.description}</p>
                         <div className="flex items-center gap-4 mt-2 text-sm text-gray-500">
                           <span>{selectedAlbum.mediaCount} items</span>
-                          <span>Status: {selectedAlbum.approvalStatus}</span>
                           <span>Public: {selectedAlbum.isPublic ? 'Yes' : 'No'}</span>
                         </div>
                       </div>
                     </div>
                     <div className="flex gap-2">
+                      {/* Selection Controls */}
+                      {albumMedia.length > 0 && (
+                        <div className="flex items-center gap-2">
+                          <button
+                            onClick={toggleSelectionMode}
+                            className={`px-4 py-2 rounded-lg transition-colors flex items-center gap-2 ${
+                              isSelectionMode 
+                                ? 'bg-blue-600 text-white hover:bg-blue-700' 
+                                : 'bg-gray-200 text-gray-700 hover:bg-gray-300'
+                            }`}
+                          >
+                            {isSelectionMode ? <CheckSquare size={16} /> : <Square size={16} />}
+                            {isSelectionMode ? 'Exit Selection' : 'Select Photos'}
+                          </button>
+                          
+                          {isSelectionMode && (
+                            <>
+                              <button
+                                onClick={selectAllMedia}
+                                className="px-3 py-2 bg-gray-200 text-gray-700 rounded-lg hover:bg-gray-300 transition-colors text-sm"
+                              >
+                                Select All
+                              </button>
+                              <button
+                                onClick={clearSelection}
+                                className="px-3 py-2 bg-gray-200 text-gray-700 rounded-lg hover:bg-gray-300 transition-colors text-sm"
+                              >
+                                Clear
+                              </button>
+                            </>
+                          )}
+                        </div>
+                      )}
+                      
                       <button
                         onClick={() => handleUploadToAlbum(selectedAlbum)}
                         className="bg-green-600 text-white px-4 py-2 rounded-lg hover:bg-green-700 transition-colors flex items-center gap-2"
@@ -1069,6 +1304,35 @@ export default function HostDashboard() {
                     </div>
                   </div>
 
+                  {/* Bulk Action Controls */}
+                  {isSelectionMode && selectedMediaIds.size > 0 && (
+                    <div className="bg-gray-50 rounded-lg p-4 mb-6">
+                      <div className="flex items-center justify-between">
+                        <span className="text-sm text-gray-600">
+                          {selectedMediaIds.size} photos selected
+                        </span>
+                        <div className="flex items-center gap-2">
+                          <button
+                            onClick={handleBulkDownload}
+                            disabled={isBulkOperationLoading}
+                            className="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors flex items-center gap-2 disabled:opacity-50"
+                          >
+                            <Download size={16} />
+                            Download
+                          </button>
+                          <button
+                            onClick={handleBulkDelete}
+                            disabled={isBulkOperationLoading}
+                            className="px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors flex items-center gap-2 disabled:opacity-50"
+                          >
+                            <Trash2 size={16} />
+                            Delete
+                          </button>
+                        </div>
+                      </div>
+                    </div>
+                  )}
+
                   {/* Album Content */}
                   {loadingMedia ? (
                     <div className="flex items-center justify-center py-12">
@@ -1079,8 +1343,8 @@ export default function HostDashboard() {
                       {albumMedia.map((media, index) => (
                         <div 
                           key={media._id || index} 
-                          className="relative group cursor-pointer"
-                          onClick={() => handleMediaClick(media, index)}
+                          className={`relative group ${isSelectionMode ? 'cursor-default' : 'cursor-pointer'}`}
+                          onClick={() => isSelectionMode ? toggleMediaSelection(media._id) : handleMediaClick(media, index)}
                         >
                           {media.mediaType === 'image' ? (
                             <div 
@@ -1094,7 +1358,7 @@ export default function HostDashboard() {
                               }}
                             >
                               <img
-                                src={media.thumbnailUrl || media.url}
+                                src={getBestDisplayUrl(media.thumbnailUrl || media.url, media.googleDriveFileId, 300)}
                                 alt={media.originalName || 'Album media'}
                                 style={{
                                   width: '100%',
@@ -1140,6 +1404,19 @@ export default function HostDashboard() {
                                     </svg>
                                   </div>
                                 </div>
+                              </div>
+                            </div>
+                          )}
+                          
+                          {/* Selection Checkbox */}
+                          {isSelectionMode && (
+                            <div className="absolute top-2 left-2 z-10">
+                              <div className={`w-6 h-6 rounded border-2 flex items-center justify-center ${
+                                selectedMediaIds.has(media._id)
+                                  ? 'bg-blue-600 border-blue-600 text-white'
+                                  : 'bg-white border-gray-300'
+                              }`}>
+                                {selectedMediaIds.has(media._id) && <Check size={16} />}
                               </div>
                             </div>
                           )}
@@ -1197,8 +1474,216 @@ export default function HostDashboard() {
           </div>
         )}
 
+        {/* Media Management Tab */}
+        {activeTab === 'media' && (
+          <div className="space-y-6">
+            <div className="flex items-center justify-between">
+              <h3 className="text-2xl font-bold text-gray-900">Media Gallery</h3>
+              <div className="text-sm text-gray-600">
+                {allMedia.length} photos and videos
+              </div>
+            </div>
 
+            {/* Filters */}
+            <div className="bg-white rounded-xl shadow-lg p-6">
+              <div className="flex flex-wrap gap-4 mb-6">
+                <div className="flex items-center gap-2">
+                  <Filter className="w-4 h-4 text-gray-500" />
+                  <span className="text-sm font-medium text-gray-700">Filters:</span>
+                </div>
 
+                <select
+                  value={mediaFilters.album}
+                  onChange={(e) => handleMediaFilterChange('album', e.target.value)}
+                  className="px-3 py-1 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-rose-500 focus:border-transparent"
+                >
+                  <option value="all">All Albums</option>
+                  {albums.map((album) => (
+                    <option key={album._id} value={album._id}>{album.name}</option>
+                  ))}
+                </select>
+
+                <select
+                  value={mediaFilters.type}
+                  onChange={(e) => handleMediaFilterChange('type', e.target.value)}
+                  className="px-3 py-1 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-rose-500 focus:border-transparent"
+                >
+                  <option value="all">All Types</option>
+                  <option value="image">Images</option>
+                  <option value="video">Videos</option>
+                </select>
+
+                <select
+                  value={mediaFilters.approved}
+                  onChange={(e) => handleMediaFilterChange('approved', e.target.value)}
+                  className="px-3 py-1 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-rose-500 focus:border-transparent"
+                >
+                  <option value="all">All Status</option>
+                  <option value="true">Approved</option>
+                  <option value="false">Pending</option>
+                </select>
+              </div>
+
+              {/* Media Gallery */}
+              {loadingAllMedia ? (
+                <div className="flex items-center justify-center py-12">
+                  <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-[#cba397]"></div>
+                </div>
+              ) : allMedia.length > 0 ? (
+                <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-4">
+                  {allMedia.map((media) => (
+                    <div 
+                      key={media._id} 
+                      className="relative group cursor-pointer"
+                    >
+                      {media.mediaType === 'image' ? (
+                        <div 
+                          className="w-full rounded-lg overflow-hidden"
+                          style={{ 
+                            aspectRatio: '1/1',
+                            minHeight: '200px',
+                            backgroundColor: '#ffffff',
+                            border: '1px solid #e5e7eb',
+                            position: 'relative'
+                          }}
+                        >
+                          <img
+                            src={getBestDisplayUrl(media.thumbnailUrl || media.url, media.googleDriveFileId, 300)}
+                            alt={media.originalName || 'Media'}
+                            style={{
+                              width: '100%',
+                              height: '100%',
+                              objectFit: 'cover',
+                              display: 'block',
+                              backgroundColor: '#f9fafb',
+                              opacity: '1',
+                              visibility: 'visible'
+                            }}
+                            onError={(e) => {
+                              console.error('Failed to load image:', media.url);
+                              const target = e.currentTarget as HTMLImageElement;
+                              target.style.backgroundColor = '#dc2626';
+                              target.style.border = '2px solid #dc2626';
+                              target.alt = 'Image failed to load';
+                            }}
+                            onLoad={(e) => {
+                              const target = e.currentTarget as HTMLImageElement;
+                              target.style.backgroundColor = 'transparent';
+                            }}
+                          />
+                        </div>
+                      ) : (
+                        <div className="aspect-square w-full bg-gradient-to-br from-blue-600 to-purple-700 flex items-center justify-center rounded-lg relative overflow-hidden">
+                          <div className="w-full h-full relative">
+                            <video
+                              src={media.url}
+                              className="w-full h-full object-cover rounded-lg"
+                              preload="metadata"
+                              muted
+                              playsInline
+                            />
+                            <div className="absolute inset-0 bg-black bg-opacity-20 flex items-center justify-center rounded-lg">
+                              <div className="bg-white bg-opacity-90 rounded-full p-3 shadow-lg">
+                                <svg className="w-6 h-6 text-blue-600" fill="currentColor" viewBox="0 0 20 20">
+                                  <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM9.555 7.168A1 1 0 008 8v4a1 1 0 001.555.832l3-2a1 1 0 000-1.664l-3-2z" clipRule="evenodd" />
+                                </svg>
+                              </div>
+                            </div>
+                          </div>
+                        </div>
+                      )}
+                      
+                      {/* Media Info Overlay */}
+                      <div className="absolute inset-0 bg-transparent bg-opacity-0 group-hover:bg-opacity-40 transition-all duration-300 flex items-end rounded-lg">
+                        <div className="opacity-0 group-hover:opacity-100 transition-opacity duration-300 p-3 w-full">
+                          <div className="bg-black text-white text-xs p-2 rounded">
+                            <p className="font-medium">{media.originalName}</p>
+                            {media.uploadedBy && (
+                              <p className="opacity-75">By {media.uploadedBy}</p>
+                            )}
+                            {media.album?.name && (
+                              <p className="opacity-75">Album: {media.album.name}</p>
+                            )}
+                          </div>
+                        </div>
+                      </div>
+
+                      {/* Action Buttons */}
+                      <div className="absolute top-2 right-2 opacity-0 group-hover:opacity-100 transition-opacity duration-300 flex gap-1">
+                        <button
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            window.open(media.url, '_blank');
+                          }}
+                          className="bg-white bg-opacity-90 text-gray-700 rounded-full p-2 shadow-lg hover:bg-opacity-100 transition-colors"
+                          title="View Full Size"
+                        >
+                          <Eye size={14} />
+                        </button>
+                        <button
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            const downloadUrl = media.googleDriveFileId 
+                              ? `https://drive.google.com/uc?export=download&id=${media.googleDriveFileId}`
+                              : media.url;
+                            const link = document.createElement('a');
+                            link.href = downloadUrl;
+                            link.download = media.originalName || 'download';
+                            link.click();
+                          }}
+                          className="bg-white bg-opacity-90 text-gray-700 rounded-full p-2 shadow-lg hover:bg-opacity-100 transition-colors"
+                          title="Download"
+                        >
+                          <Download size={14} />
+                        </button>
+                        <button
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            handleDeleteMediaFromGallery(media._id);
+                          }}
+                          className="bg-red-500 bg-opacity-90 text-white rounded-full p-2 shadow-lg hover:bg-opacity-100 transition-colors"
+                          title="Delete"
+                        >
+                          <Trash2 size={14} />
+                        </button>
+                      </div>
+
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                <div className="text-center py-12">
+                  <Image className="text-gray-400 mx-auto mb-4" size={64} />
+                  <h3 className="text-xl font-semibold text-gray-700 mb-2">No media found</h3>
+                  <p className="text-gray-500">No photos or videos match your current filters.</p>
+                </div>
+              )}
+
+              {/* Pagination */}
+              {mediaTotalPages > 1 && (
+                <div className="flex items-center justify-center gap-2 mt-6">
+                  <button
+                    onClick={() => setMediaPage(Math.max(1, mediaPage - 1))}
+                    disabled={mediaPage === 1}
+                    className="px-3 py-1 border border-gray-300 rounded-lg text-sm disabled:opacity-50 disabled:cursor-not-allowed hover:bg-gray-50"
+                  >
+                    Previous
+                  </button>
+                  <span className="text-sm text-gray-600">
+                    Page {mediaPage} of {mediaTotalPages}
+                  </span>
+                  <button
+                    onClick={() => setMediaPage(Math.min(mediaTotalPages, mediaPage + 1))}
+                    disabled={mediaPage === mediaTotalPages}
+                    className="px-3 py-1 border border-gray-300 rounded-lg text-sm disabled:opacity-50 disabled:cursor-not-allowed hover:bg-gray-50"
+                  >
+                    Next
+                  </button>
+                </div>
+              )}
+            </div>
+          </div>
+        )}
 
         {/* Invitations Management Tab with RSVP */}
         {activeTab === 'invitations' && (
@@ -1248,33 +1733,6 @@ export default function HostDashboard() {
               </div>
             )}
 
-            {/* Refresh Controls */}
-            <div className="bg-white rounded-xl shadow-lg p-6 mb-6">
-              <div className="flex items-center justify-between">
-                <div className="flex items-center gap-4">
-                  <h3 className="text-lg font-semibold text-gray-800">RSVP Management</h3>
-                </div>
-                
-                <div className="flex items-center gap-3">
-                  <button
-                    onClick={handleManualRefresh}
-                    disabled={isRefreshingRSVP}
-                    title="Refresh RSVP data (Ctrl+R)"
-                    className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-                  >
-                    <RefreshCw className={`w-4 h-4 ${isRefreshingRSVP ? 'animate-spin' : ''}`} />
-                    {isRefreshingRSVP ? 'Refreshing...' : 'Refresh Now'}
-                  </button>
-                </div>
-              </div>
-              
-              {lastRSVPRefresh > 0 && (
-                <div className="mt-3 text-sm text-gray-500">
-                  Last updated: {new Date(lastRSVPRefresh).toLocaleTimeString()}
-                </div>
-              )}
-            </div>
-
             {/* RSVP Filters */}
             <div className="bg-white rounded-xl shadow-lg p-6">
               <div className="flex flex-wrap gap-4 mb-6">
@@ -1308,11 +1766,9 @@ export default function HostDashboard() {
                   className="px-3 py-1 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-rose-500 focus:border-transparent"
                 >
                   <option value="all">All Roles</option>
-                  <option value="Ninong">Ninong</option>
-                  <option value="Ninang">Ninang</option>
-                  <option value="Best Man">Best Man</option>
-                  <option value="Bridesmaid">Bridesmaid</option>
-                  <option value="General Guest">General Guest</option>
+                  {entourageRoles.map((role) => (
+                    <option key={role} value={role}>{role}</option>
+                  ))}
                 </select>
 
                 <input
@@ -1664,9 +2120,97 @@ export default function HostDashboard() {
               </button>
               <button
                 onClick={handleCreateAlbum}
-                className="flex-1 px-3 sm:px-4 py-2 bg-gradient-to-r from-[#667c93] to-[#84a2be] text-white rounded-lg hover:shadow-lg text-sm sm:text-base"
+                disabled={isCreatingAlbum}
+                className={`flex-1 px-3 sm:px-4 py-2 rounded-lg text-white text-sm sm:text-base ${isCreatingAlbum ? 'bg-gray-400 cursor-not-allowed' : 'bg-gradient-to-r from-[#667c93] to-[#84a2be] hover:shadow-lg'}`}
               >
-                Create Album
+                {isCreatingAlbum ? 'Creating...' : 'Create Album'}
+              </button>
+            </div>
+          </motion.div>
+        </div>
+      )}
+
+      {/* Edit Album Modal */}
+      {showEditAlbumModal && editingAlbum && (
+        <div className="fixed inset-0 bg-gray-900 bg-opacity-75 backdrop-blur-sm flex items-center justify-center p-2 sm:p-4 z-50">
+          <motion.div
+            initial={{ scale: 0.9, opacity: 0 }}
+            animate={{ scale: 1, opacity: 1 }}
+            className="bg-white rounded-xl max-w-md w-full p-4 sm:p-6 shadow-2xl border border-gray-200"
+          >
+            <h3 className="text-xl font-bold text-gray-800 mb-4">Edit Album</h3>
+            
+            <div className="space-y-4">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  Album Name *
+                </label>
+                <input
+                  type="text"
+                  value={editAlbumData.name}
+                  onChange={(e) => setEditAlbumData({...editAlbumData, name: e.target.value})}
+                  placeholder="Enter album name"
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#84a2be] focus:border-transparent text-gray-900 font-medium"
+                />
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  Description
+                </label>
+                <textarea
+                  value={editAlbumData.description}
+                  onChange={(e) => setEditAlbumData({...editAlbumData, description: e.target.value})}
+                  placeholder="Enter album description (optional)"
+                  rows={3}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#84a2be] focus:border-transparent text-gray-900 font-medium"
+                />
+              </div>
+
+              <div className="flex items-center justify-between">
+                <div className="flex items-center">
+                  <input
+                    type="checkbox"
+                    id="editIsPublic"
+                    checked={editAlbumData.isPublic}
+                    onChange={(e) => setEditAlbumData({...editAlbumData, isPublic: e.target.checked})}
+                    className="h-4 w-4 text-[#84a2be] focus:ring-[#84a2be] border-gray-300 rounded"
+                  />
+                  <label htmlFor="editIsPublic" className="ml-2 block text-sm text-gray-900">
+                    Public Album
+                  </label>
+                </div>
+                <div className="flex items-center">
+                  <input
+                    type="checkbox"
+                    id="editIsFeatured"
+                    checked={editAlbumData.isFeatured}
+                    onChange={(e) => setEditAlbumData({...editAlbumData, isFeatured: e.target.checked})}
+                    className="h-4 w-4 text-[#84a2be] focus:ring-[#84a2be] border-gray-300 rounded"
+                  />
+                  <label htmlFor="editIsFeatured" className="ml-2 block text-sm text-gray-900">
+                    Featured Album
+                  </label>
+                </div>
+              </div>
+            </div>
+
+            <div className="flex gap-2 sm:gap-3 mt-6">
+              <button
+                onClick={() => {
+                  setShowEditAlbumModal(false);
+                  setEditingAlbum(null);
+                }}
+                className="flex-1 px-3 sm:px-4 py-2 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 text-sm sm:text-base"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={handleUpdateAlbum}
+                disabled={isUpdatingAlbum}
+                className={`flex-1 px-3 sm:px-4 py-2 rounded-lg text-white text-sm sm:text-base ${isUpdatingAlbum ? 'bg-gray-400 cursor-not-allowed' : 'bg-gradient-to-r from-[#667c93] to-[#84a2be] hover:shadow-lg'}`}
+              >
+                {isUpdatingAlbum ? 'Updating...' : 'Update Album'}
               </button>
             </div>
           </motion.div>
@@ -1679,7 +2223,7 @@ export default function HostDashboard() {
           <motion.div
             initial={{ scale: 0.9, opacity: 0 }}
             animate={{ scale: 1, opacity: 1 }}
-            className="bg-white rounded-xl max-w-md w-full p-6 shadow-2xl border border-gray-200"
+            className="bg-white rounded-xl max-w-md w-full p-6 shadow-2xl border border-gray-200 max-h-[90vh] overflow-y-auto"
           >
             <h3 className="text-xl font-bold text-gray-800 mb-4">Create New Invitation</h3>
             
@@ -1722,11 +2266,9 @@ export default function HostDashboard() {
                     onChange={(e) => setNewInvitation({...newInvitation, guestRole: e.target.value})}
                     className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#84a2be] focus:border-transparent text-gray-900 font-medium"
                   >
-                  <option value="General Guest">General Guest</option>
-                  <option value="Ninong">Ninong</option>
-                  <option value="Ninang">Ninang</option>
-                  <option value="Best Man">Best Man</option>
-                  <option value="Bridesmaid">Bridesmaid</option>
+                  {entourageRoles.map((role) => (
+                    <option key={role} value={role}>{role}</option>
+                  ))}
                 </select>
               </div>
 
@@ -1878,6 +2420,7 @@ export default function HostDashboard() {
                           alt={`QR Code for ${selectedInvitation.guestName}`}
                           className="w-full h-full object-contain p-2"
                           onLoad={() => setQrImageLoading(false)}
+                          referrerPolicy="no-referrer"
                         />
                       ) : selectedAlbum?.qrCodeUrl ? (
                         <img 
@@ -2051,20 +2594,21 @@ export default function HostDashboard() {
               )}
 
               {/* Media Content */}
-              <div className="relative max-w-full max-h-full" onClick={(e) => e.stopPropagation()}>
+              <div className="relative w-full h-full flex items-center justify-center" onClick={(e) => e.stopPropagation()}>
                 {selectedMedia.mediaType === 'image' ? (
                   <img
-                    src={selectedMedia.url}
+                    src={getFullSizeDisplayUrl(selectedMedia.url, selectedMedia.googleDriveFileId)}
                     alt={selectedMedia.originalName}
-                    className="max-w-full max-h-full object-contain"
+                    className="max-w-none max-h-none w-auto h-auto object-contain"
+                    style={{ maxWidth: '90vw', maxHeight: '90vh' }}
                   />
                 ) : (
                   <video
                     src={selectedMedia.url}
                     controls
                     autoPlay
-                    className="max-w-full max-h-full"
-                    style={{ maxHeight: '80vh' }}
+                    className="max-w-none max-h-none w-auto h-auto"
+                    style={{ maxWidth: '90vw', maxHeight: '90vh' }}
                   />
                 )}
               </div>

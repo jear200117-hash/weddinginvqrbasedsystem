@@ -45,6 +45,7 @@ interface Logo {
   filename: string;
   url: string;
   name: string;
+  fileId?: string;
 }
 
 export default function QRCodeConfig({ 
@@ -245,6 +246,25 @@ export default function QRCodeConfig({
                 {logos.map((logo) => {
                   const isSelected = config.centerOptions.logoPath === logo.url;
                   
+                  const getLogoViewUrl = (l: Logo) => {
+                    if (l.fileId) {
+                      return `https://lh3.googleusercontent.com/d/${l.fileId}=w200`;
+                    }
+                    try {
+                      if (l.url.startsWith('http')) {
+                        if (l.url.includes('drive.google.com')) {
+                          const u = new URL(l.url);
+                          const id = u.searchParams.get('id');
+                          if (id) return `https://lh3.googleusercontent.com/d/${id}=w200`;
+                        }
+                        return l.url;
+                      }
+                    } catch {}
+                    return `http://localhost:5000${l.url}`;
+                  };
+
+                  const viewUrl = getLogoViewUrl(logo);
+
                   return (
                     <div
                       key={logo.filename}
@@ -258,7 +278,7 @@ export default function QRCodeConfig({
                       }}
                     >
                       <img
-                        src={`/api/proxy-image?url=${encodeURIComponent(`https://backendv2-nasy.onrender.com${logo.url}`)}`}
+                        src={`/api/proxy-image?url=${encodeURIComponent(viewUrl)}`}
                         alt={logo.name}
                         className="w-full h-16 object-contain"
                         onError={(e) => {
@@ -276,7 +296,7 @@ export default function QRCodeConfig({
                       <button
                         onClick={(e) => {
                           e.stopPropagation();
-                          handleDeleteLogo(logo.filename);
+                          handleDeleteLogo(logo.fileId || logo.filename);
                         }}
                         className="absolute -top-2 -right-2 bg-red-500 text-white rounded-full p-1 opacity-0 group-hover:opacity-100 transition-opacity hover:bg-red-600"
                       >

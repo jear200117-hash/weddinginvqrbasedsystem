@@ -1,7 +1,7 @@
 import axios from 'axios';
 import Cookies from 'js-cookie';
 
-const API_BASE_URL = 'https://backendv2-nasy.onrender.com/api';
+const API_BASE_URL = 'http://localhost:5000/api';
 
 // Create axios instance
 const api = axios.create({
@@ -22,12 +22,35 @@ api.interceptors.request.use((config) => {
 api.interceptors.response.use(
   (response) => response,
   (error) => {
-    if (error.response?.status === 401) {
-      // Clear token and redirect to login
+    const status = error.response?.status;
+    const data = error.response?.data;
+
+    const normalized = {
+      statusCode: status || 0,
+      message: data?.message || data?.error || error.message || 'Request failed',
+      error: data?.error || 'request_error',
+    };
+
+    if (status === 401) {
       Cookies.remove('auth_token');
-      window.location.href = '/host/login';
+      if (typeof window !== 'undefined' && !window.location.pathname.startsWith('/host/login')) {
+        window.location.href = '/host/login';
+      }
     }
-    return Promise.reject(error);
+
+    if (status === 429) {
+      normalized.message = 'Too many requests. Please try again shortly.';
+    }
+    if (error.code === 'ECONNABORTED') {
+      normalized.message = 'Request timed out. Check your connection and try again.';
+    }
+
+    // Emit toast for visibility
+    if (typeof window !== 'undefined') {
+      window.dispatchEvent(new CustomEvent('app-toast', { detail: { type: 'error', message: normalized.message } }))
+    }
+
+    return Promise.reject(normalized);
   }
 );
 
@@ -83,7 +106,7 @@ export const invitationsAPI = {
   },
 
   getByQRCode: async (qrCode: string) => {
-    const response = await axios.get(`${API_BASE_URL}/invitations/qr/${qrCode}`);
+    const response = await api.get(`/invitations/qr/${qrCode}`);
     return response.data.invitation; // Return the invitation object directly
   },
 
@@ -142,7 +165,7 @@ export const albumsAPI = {
     limit?: number;
     featured?: boolean;
   }) => {
-    const response = await axios.get(`${API_BASE_URL}/albums`, { params });
+    const response = await api.get('/albums', { params });
     return response.data;
   },
 
@@ -150,7 +173,7 @@ export const albumsAPI = {
     page?: number;
     limit?: number;
   }) => {
-    const response = await axios.get(`${API_BASE_URL}/albums/${id}`, { params });
+    const response = await api.get(`/albums/${id}`, { params });
     return response.data;
   },
 
@@ -257,7 +280,7 @@ export const mediaAPI = {
   },
 
   getById: async (id: string) => {
-    const response = await axios.get(`${API_BASE_URL}/media/${id}`);
+    const response = await api.get(`/media/${id}`);
     return response.data;
   },
 
@@ -324,7 +347,7 @@ export const qrAPI = {
   },
 
   getOptions: async () => {
-    const response = await axios.get(`${API_BASE_URL}/qr/options`);
+    const response = await api.get('/qr/options');
     return response.data;
   }
 };
@@ -338,12 +361,12 @@ export const rsvpAPI = {
     email?: string;
     phone?: string;
   }) => {
-    const response = await axios.post(`${API_BASE_URL}/rsvp/submit/${qrCode}`, rsvpData);
+    const response = await api.post(`/rsvp/submit/${qrCode}`, rsvpData);
     return response.data;
   },
 
   getStatus: async (qrCode: string) => {
-    const response = await axios.get(`${API_BASE_URL}/rsvp/status/${qrCode}`);
+    const response = await api.get(`/rsvp/status/${qrCode}`);
     return response.data;
   },
 
@@ -372,3 +395,20 @@ export const rsvpAPI = {
 };
 
 export default api;
+
+
+// SWR fetcher using axios instance
+export const swrFetcher = async (url: string) => {
+  const res = await api.get(url);
+  return res.data;
+};
+
+// Helper to create a stable SWR key for RSVP list
+export const rsvpAllKey = (params?: { status?: string; role?: string; search?: string }) => {
+  const sp = new URLSearchParams();
+  if (params?.status && params.status !== 'all') sp.set('status', params.status);
+  if (params?.role && params.role !== 'all') sp.set('role', params.role);
+  if (params?.search && params.search.trim()) sp.set('search', params.search.trim());
+  const query = sp.toString();
+  return `/rsvp/all${query ? `?${query}` : ''}`;
+};

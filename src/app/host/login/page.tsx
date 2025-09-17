@@ -61,9 +61,12 @@ export default function HostLoginPage() {
       >
         {/* Header */}
         <div className="text-center mb-8">
-          <div className="flex items-center justify-center gap-3 mb-4">
-            <Heart className="text-[#cba397]" size={40} />
-            <h1 className="text-3xl font-bold text-gray-900">MJ & Erica's Wedding</h1>
+          <div className="w-30 h-30 mx-auto flex items-center justify-center overflow-hidden mb-5">
+            <img 
+              src="/imgs/monogram-flower-black.png" 
+              alt="MJ & Erica Monogram" 
+              className="w-full h-full object-contain"
+            />
           </div>
           <p className="text-gray-600">Host Dashboard Access</p>
         </div>

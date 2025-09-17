@@ -29,7 +29,7 @@ export const DRESS_CODE_CONFIG = {
     },
     guests: {
       title: "GUESTS",
-      description: "Dark Dusty Rose and Light Dusty Rose",
+      description: "Dusty Pink and Light Dusty Pink",
       colors: ["#7C8E9E", "#D1ABA1"]
     }
   },

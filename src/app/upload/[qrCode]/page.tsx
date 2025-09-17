@@ -1,10 +1,11 @@
 'use client';
 
 import { useState, useEffect } from 'react';
+import useSWR from 'swr';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useParams, useRouter } from 'next/navigation';
 import { Upload, Image, Video, X, CheckCircle, AlertCircle, Camera, User } from 'lucide-react';
-import { albumsAPI, mediaAPI } from '@/lib/api';
+import { albumsAPI, mediaAPI, swrFetcher } from '@/lib/api';
 import toast, { Toaster } from 'react-hot-toast';
 
 interface Album {
@@ -31,25 +32,25 @@ export default function GuestUploadPage() {
   const [uploadProgress, setUploadProgress] = useState(0);
   const [uploadedFiles, setUploadedFiles] = useState<string[]>([]);
 
-  useEffect(() => {
-    if (qrCode) {
-      fetchAlbumInfo();
-    }
-  }, [qrCode]);
+  const { data: swrAlbum, error: swrError, isLoading: swrLoading } = useSWR(
+    qrCode ? `/albums/qr/${qrCode}` : null,
+    swrFetcher,
+    { revalidateOnFocus: true, dedupingInterval: 3000 }
+  );
 
-  const fetchAlbumInfo = async () => {
-    try {
-      setLoading(true);
-      const response = await albumsAPI.getByQRCode(qrCode);
-      setAlbum(response.album);
-    } catch (error: any) {
-      console.error('Failed to fetch album:', error);
-      toast.error('Album not found or no longer available');
-      router.push('/');
-    } finally {
+  useEffect(() => {
+    if (swrAlbum?.album) {
+      setAlbum(swrAlbum.album);
       setLoading(false);
     }
-  };
+  }, [swrAlbum]);
+
+  useEffect(() => {
+    if (swrError) {
+      toast.error('Album not found or no longer available');
+      router.push('/');
+    }
+  }, [swrError, router]);
 
   const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
     if (e.target.files) {
@@ -117,7 +118,7 @@ export default function GuestUploadPage() {
     setUploadForm({ ...uploadForm, files: newFiles });
   };
 
-  if (loading) {
+  if (loading || swrLoading) {
     return (
       <div className="min-h-screen bg-gradient-to-br from-[#667c93] to-[#84a2be] flex items-center justify-center">
         <div className="text-center">
@@ -360,7 +361,7 @@ export default function GuestUploadPage() {
             </li>
             <li className="flex items-start gap-2">
               <CheckCircle className="text-green-400 mt-0.5" size={16} />
-              <span>Supported formats: JPG, PNG, GIF, MP4, MOV</span>
+              <span>Supported formats: JPG, PNG, GIF, MP4, MOV, JPEG</span>
             </li>
             <li className="flex items-start gap-2">
               <CheckCircle className="text-green-400 mt-0.5" size={16} />

@@ -1,11 +1,14 @@
 'use client';
 
 import { motion, AnimatePresence } from 'framer-motion';
-import { Heart, Mail, Image, Users, ArrowRight, Calendar, MapPin, Clock, Camera, BookOpen, Gift, Music, Utensils, Home, User, Camera as CameraIcon, Users as UsersIcon, MapPin as MapPinIcon, Clock as ClockIcon, X, Eye, Play, Download, Martini, Mic, Cake, Car} from 'lucide-react';
+import { Heart, Mail, Image, Users, ArrowRight, Calendar, MapPin, Clock, Camera, BookOpen, Gift, Music, Utensils, Home, User, Camera as CameraIcon, Users as UsersIcon, MapPin as MapPinIcon, Clock as ClockIcon, X, Eye, Play, Download, Martini, Mic, Cake, Car, CheckSquare, Square, Check } from 'lucide-react';
 import Link from 'next/link';
-import { useState, useEffect, Suspense } from 'react';
+import { useState, useEffect, useRef, Suspense } from 'react';
+import useSWR from 'swr';
+import { swrFetcher } from '@/lib/api';
 import { useSearchParams } from 'next/navigation';
 import { albumsAPI, mediaAPI } from '@/lib/api';
+import { getBestDisplayUrl, getFullSizeDisplayUrl } from '@/lib/googleDriveUtils';
 import toast, { Toaster } from 'react-hot-toast';
 
 import { useLazyLoadMultipleImages } from '@/hooks/useLazyLoadWithPerformance';
@@ -16,6 +19,7 @@ interface Album {
   name: string;
   description: string;
   coverImage?: string;
+  googleDriveFileId?: string;
   isFeatured: boolean;
   isPublic: boolean;
   mediaCount: number;
@@ -28,6 +32,7 @@ interface Media {
   originalName: string;
   url: string;
   thumbnailUrl?: string;
+  googleDriveFileId?: string;
   mediaType: 'image' | 'video';
   album: string;
   uploadedBy?: string;
@@ -58,6 +63,11 @@ export default function HomePage() {
   const [selectedMedia, setSelectedMedia] = useState<Media | null>(null);
   const [showMobileMenu, setShowMobileMenu] = useState(false);
 
+  // Download functionality state
+  const [selectedMediaIds, setSelectedMediaIds] = useState<Set<string>>(new Set());
+  const [isSelectionMode, setIsSelectionMode] = useState(false);
+  const [isDownloading, setIsDownloading] = useState(false);
+
   // How We Met carousel state
   const [howWeMetImages] = useState([
     'https://res.cloudinary.com/ddjopmdsi/image/upload/w_800,h_600,c_fill,f_auto,q_auto/IMG_7327_afee0e.heic',
@@ -77,8 +87,10 @@ export default function HomePage() {
   ]);
   const [currentSealedWhitYesIndex, setCurrentSealedWhitYesIndex] = useState(0);
   const [currentHowWeMetIndex, setCurrentHowWeMetIndex] = useState(0);
-  const [loadedImages, setLoadedImages] = useState<Set<number>>(new Set([0])); // Pre-load first image
-  const [imageLoading, setImageLoading] = useState(false);
+  const howWeMetCache = useRef<Map<number, string>>(new Map());
+  const sealedYesCache = useRef<Map<number, string>>(new Map());
+  const [isLoadingHowWeMet, setIsLoadingHowWeMet] = useState(false);
+  const [isLoadingSealedYes, setIsLoadingSealedYes] = useState(false);
 
   // Countdown state
   const [countdown, setCountdown] = useState({
@@ -97,85 +109,63 @@ export default function HomePage() {
     setIsClient(true);
   }, []);
 
-  // Preload next image when current changes
-  useEffect(() => {
-    const preloadNextImage = (index: number) => {
-      if (!loadedImages.has(index)) {
-        const img = new window.Image();
-        img.onload = () => {
-          setLoadedImages(prev => new Set([...prev, index]));
-        };
-        img.src = howWeMetImages[index];
-      }
-    };
-
-    // Preload current and next image
-    preloadNextImage(currentHowWeMetIndex);
-    preloadNextImage((currentHowWeMetIndex + 1) % howWeMetImages.length);
-  }, [currentHowWeMetIndex, howWeMetImages, loadedImages]);
-
-  // Preload all images on component mount
-  useEffect(() => {
-    howWeMetImages.forEach((_, index) => {
-      if (!loadedImages.has(index)) {
-        const img = new window.Image();
-        img.onload = () => {
-          setLoadedImages(prev => new Set([...prev, index]));
-        };
-        img.src = howWeMetImages[index];
-      }
-    });
-    sealedWithYes.forEach((_, index) => {
-      if (!loadedImages.has(index)) {
-        const img = new window.Image();
-        img.onload = () => {
-          setLoadedImages(prev => new Set([...prev, index]));
-        };
-        img.src = sealedWithYes[index];
-      }
-    });
-  }, [howWeMetImages, loadedImages, sealedWithYes]);
-
-  // How We Met carousel auto-advance
-  useEffect(() => {
-    const interval = setInterval(() => {
-      setCurrentHowWeMetIndex((prevIndex) => {
-        const nextIndex = (prevIndex + 1) % howWeMetImages.length;
-        // Only advance if next image is loaded
-        if (loadedImages.has(nextIndex)) {
-          return nextIndex;
-        }
-        return prevIndex; // Stay on current if next isn't ready
-      });
-    }, 6000); // Change image every 6 seconds (increased for better UX with smooth transitions)
-
-    return () => clearInterval(interval);
-  }, [howWeMetImages.length, loadedImages]);
-
-  useEffect(() => {
-    const interval = setInterval(() => {
-      setCurrentSealedWhitYesIndex((prevIndex) => {
-        const nextIndex = (prevIndex + 1) % sealedWithYes.length;
-        return nextIndex;
-      });
-    }, 6000);
-    return () => clearInterval(interval);
-  }, [sealedWithYes.length, loadedImages]);
-
-  // Handle image loading
-  const handleImageLoad = () => {
-    setImageLoading(false);
+  // Helper to fetch and cache an image as blob URL
+  const ensureCached = async (index: number, urls: string[], cache: React.MutableRefObject<Map<number, string>>) => {
+    if (cache.current.has(index)) return;
+    const url = urls[index];
+    const res = await fetch(url, { cache: 'force-cache' });
+    const blob = await res.blob();
+    const objectUrl = URL.createObjectURL(blob);
+    cache.current.set(index, objectUrl);
   };
 
-  const handleImageError = (index: number) => {
-    console.error(`Failed to load image ${index}`);
-    setImageLoading(false);
-    // Try next image
-    const nextIndex = (index + 1) % howWeMetImages.length;
-    if (nextIndex !== index) {
-      setCurrentHowWeMetIndex(nextIndex);
+  // Navigation that waits for cache before switching frame
+  const goToHowWeMet = async (targetIndex: number) => {
+    if (targetIndex < 0 || targetIndex >= howWeMetImages.length) return;
+    setIsLoadingHowWeMet(true);
+    try {
+      await ensureCached(targetIndex, howWeMetImages, howWeMetCache);
+      setCurrentHowWeMetIndex(targetIndex);
+    } finally {
+      setIsLoadingHowWeMet(false);
     }
   };
+
+  const goToSealedYes = async (targetIndex: number) => {
+    if (targetIndex < 0 || targetIndex >= sealedWithYes.length) return;
+    setIsLoadingSealedYes(true);
+    try {
+      await ensureCached(targetIndex, sealedWithYes, sealedYesCache);
+      setCurrentSealedWhitYesIndex(targetIndex);
+    } finally {
+      setIsLoadingSealedYes(false);
+    }
+  };
+
+  // Preload all images on mount and cleanup cached object URLs on unmount
+  useEffect(() => {
+    let cancelled = false;
+    const preload = async () => {
+      try {
+        await Promise.all([
+          ...howWeMetImages.map((_, i) => ensureCached(i, howWeMetImages, howWeMetCache)),
+          ...sealedWithYes.map((_, i) => ensureCached(i, sealedWithYes, sealedYesCache))
+        ]);
+      } catch (_) {
+        // ignore
+      }
+    };
+    preload();
+    return () => {
+      cancelled = true;
+      howWeMetCache.current.forEach((objectUrl) => URL.revokeObjectURL(objectUrl));
+      sealedYesCache.current.forEach((objectUrl) => URL.revokeObjectURL(objectUrl));
+      howWeMetCache.current.clear();
+      sealedYesCache.current.clear();
+    };
+  }, [howWeMetImages, sealedWithYes]);
+
+  // Auto-advance removed per request
 
   // Countdown functionality
   useEffect(() => {
@@ -211,12 +201,34 @@ export default function HomePage() {
     return () => clearInterval(interval);
   }, [isClient]);
 
-  // Fetch albums when photos tab becomes active
+  // SWR: Albums list when Photos tab is active
+  const { data: swrAlbums, isLoading: swrAlbumsLoading } = useSWR(
+    activeTab === 'photos' && !selectedAlbum ? '/albums?limit=200' : null,
+    swrFetcher,
+    { revalidateOnFocus: true, dedupingInterval: 3000 }
+  );
+
   useEffect(() => {
-    if (activeTab === 'photos') {
-      fetchAlbums();
+    if (swrAlbums?.albums) {
+      setAlbums(swrAlbums.albums);
     }
-  }, [activeTab]);
+    if (activeTab === 'photos') {
+      setLoading(!!swrAlbumsLoading);
+    }
+  }, [swrAlbums, swrAlbumsLoading, activeTab]);
+
+  // SWR: Album media when an album is selected
+  const { data: swrAlbumDetails, isLoading: swrAlbumLoading } = useSWR(
+    selectedAlbum ? `/albums/${selectedAlbum._id}` : null,
+    swrFetcher,
+    { revalidateOnFocus: true, dedupingInterval: 3000 }
+  );
+
+  useEffect(() => {
+    if (swrAlbumDetails?.media) {
+      setAlbumMedia(swrAlbumDetails.media || []);
+    }
+  }, [swrAlbumDetails]);
 
   // Close mobile menu when clicking outside or scrolling
   useEffect(() => {
@@ -277,6 +289,78 @@ export default function HomePage() {
     setShowViewer(true);
   };
 
+  // Download functionality
+  const toggleSelectionMode = () => {
+    setIsSelectionMode(!isSelectionMode);
+    setSelectedMediaIds(new Set());
+  };
+
+  const toggleMediaSelection = (mediaId: string) => {
+    setSelectedMediaIds(prev => {
+      const newSet = new Set(prev);
+      if (newSet.has(mediaId)) {
+        newSet.delete(mediaId);
+      } else {
+        newSet.add(mediaId);
+      }
+      return newSet;
+    });
+  };
+
+  const selectAllMedia = () => {
+    const allIds = new Set(albumMedia.map(media => media._id));
+    setSelectedMediaIds(allIds);
+  };
+
+  const clearSelection = () => {
+    setSelectedMediaIds(new Set());
+  };
+
+  const handleBulkDownload = async () => {
+    if (selectedMediaIds.size === 0) return;
+
+    setIsDownloading(true);
+    try {
+      const selectedMedia = albumMedia.filter(media => selectedMediaIds.has(media._id));
+
+      // Use a different approach for multiple files - open each in a new tab
+      if (selectedMedia.length === 1) {
+        // Single file - direct download
+        const media = selectedMedia[0];
+        const downloadUrl = media.googleDriveFileId
+          ? `https://drive.google.com/uc?export=download&id=${media.googleDriveFileId}`
+          : media.url;
+
+        const link = document.createElement('a');
+        link.href = downloadUrl;
+        link.download = media.originalName || media.filename || 'download';
+        link.style.display = 'none';
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+      } else {
+        // Multiple files - open each in a new tab to bypass popup blocker
+        selectedMedia.forEach((media, index) => {
+          const downloadUrl = media.googleDriveFileId
+            ? `https://drive.google.com/uc?export=download&id=${media.googleDriveFileId}`
+            : media.url;
+
+          // Open in new tab with a small delay to prevent blocking
+          setTimeout(() => {
+            window.open(downloadUrl, '_blank');
+          }, index * 100);
+        });
+      }
+
+      toast.success(`Downloaded ${selectedMediaIds.size} files`);
+    } catch (error) {
+      console.error('Bulk download error:', error);
+      toast.error('Failed to download some files');
+    } finally {
+      setIsDownloading(false);
+    }
+  };
+
   const tabs = [
     { id: 'home', label: 'Home', icon: Home },
     { id: 'story', label: 'Our Story', icon: BookOpen },
@@ -301,7 +385,7 @@ export default function HomePage() {
                   src="hero.jpg"
                   alt="Wedding Hero"
                   className="w-full h-full object-cover !brightness-50"
-                 
+
                   onLoad={(e) => {
                     console.log('Hero image loaded successfully');
                     const target = e.currentTarget as HTMLImageElement;
@@ -332,7 +416,11 @@ export default function HomePage() {
                       `
                     }}
                   >
-                    MJ + Erica
+                    <img
+                      src="/imgs/monogram-flower-white.png"
+                      alt="MJ & Erica Monogram"
+                      className="mx-auto w-40 md:w-56 h-auto object-contain drop-shadow-[0_2px_4px_rgba(0,0,0,0.4)]"
+                    />
                   </motion.h1>
 
                   <motion.div
@@ -352,7 +440,7 @@ export default function HomePage() {
                       January 16, 2026
                     </p>
                     <p className="text-lg md:text-xl font-light opacity-90">
-                      Balayan, Batangas
+                      Tagaytay City, Cavite
                     </p>
                   </motion.div>
 
@@ -369,7 +457,7 @@ export default function HomePage() {
                       `
                     }}
                   >
-                    Join us as we celebrate our love
+                    Walk with us as we say 'I Do'and step into our forever.
                   </motion.div>
                 </div>
               </div>
@@ -445,85 +533,31 @@ export default function HomePage() {
                 >
                   <div className="aspect-[4/3] rounded-2xl shadow-lg overflow-hidden">
                     <div className="w-full h-full relative">
-                      {/* Loading indicator */}
-                      <AnimatePresence>
-                        {imageLoading && (
-                          <motion.div
-                            initial={{ opacity: 0 }}
-                            animate={{ opacity: 1 }}
-                            exit={{ opacity: 0 }}
-                            transition={{ duration: 0.3, ease: "easeInOut" }}
-                            className="absolute inset-0 bg-gradient-to-br from-[#84a2be] to-[#cba397] flex items-center justify-center z-10"
-                          >
-                            <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-white"></div>
-                          </motion.div>
-                        )}
-                      </AnimatePresence>
-                      
-                      <AnimatePresence mode="wait">
-                        {loadedImages.has(currentHowWeMetIndex) && (
-                          <motion.img
-                            key={currentHowWeMetIndex}
-                            src={howWeMetImages[currentHowWeMetIndex]}
-                            alt={`How We Met - Image ${currentHowWeMetIndex + 1}`}
-                            className="w-full h-full object-cover absolute inset-0"
-                            initial={{ x: "100%", opacity: 0 }}
-                            animate={{ x: 0, opacity: 1 }}
-                            exit={{ x: "-100%", opacity: 0 }}
-                            transition={{ 
-                              duration: 0.8, 
-                              ease: [0.25, 0.46, 0.45, 0.94] // Custom cubic-bezier for smooth ease
-                            }}
-                            onLoad={handleImageLoad}
-                            onError={() => handleImageError(currentHowWeMetIndex)}
-                          />
-                        )}
-                      </AnimatePresence>
-                      
-                      {/* Fallback placeholder */}
-                      {!loadedImages.has(currentHowWeMetIndex) && !imageLoading && (
+                      {/* Image frame from cache or placeholder while loading */}
+                      {howWeMetCache.current.has(currentHowWeMetIndex) ? (
+                        <img
+                          src={howWeMetCache.current.get(currentHowWeMetIndex)!}
+                          alt={`How We Met - Image ${currentHowWeMetIndex + 1}`}
+                          className="w-full h-full object-cover absolute inset-0"
+                        />
+                      ) : (
                         <div className="absolute inset-0 w-full h-full bg-gradient-to-br from-[#84a2be] to-[#cba397] flex items-center justify-center">
                           <Heart className="text-white opacity-30" size={80} />
                         </div>
                       )}
-                      
+
                       <div className="absolute inset-0 bg-gradient-to-t from-black/20 to-transparent"></div>
-                      
-                      {/* Carousel Indicators */}
-                      <div className="absolute bottom-4 left-1/2 transform -translate-x-1/2 flex space-x-2">
-                        {howWeMetImages.map((_, index) => (
-                          <button
-                            key={index}
-                            onClick={() => {
-                              if (!imageLoading && index !== currentHowWeMetIndex && loadedImages.has(index)) {
-                                setImageLoading(true);
-                                setCurrentHowWeMetIndex(index);
-                              }
-                            }}
-                            disabled={imageLoading || !loadedImages.has(index)}
-                            className={`w-2 h-2 rounded-full transition-all duration-500 ease-out ${
-                              index === currentHowWeMetIndex 
-                                ? 'bg-white scale-125' 
-                                : loadedImages.has(index)
-                                ? 'bg-white/50 hover:bg-white/75'
-                                : 'bg-white/20 cursor-not-allowed'
-                            } ${imageLoading ? 'opacity-50 cursor-not-allowed' : ''}`}
-                          />
-                        ))}
-                      </div>
+
+                      {/* Dots removed per request */}
 
                       {/* Navigation Arrows */}
                       <button
-                        onClick={() => {
-                          if (!imageLoading) {
-                            const prevIndex = currentHowWeMetIndex === 0 ? howWeMetImages.length - 1 : currentHowWeMetIndex - 1;
-                            if (loadedImages.has(prevIndex)) {
-                              setImageLoading(true);
-                              setCurrentHowWeMetIndex(prevIndex);
-                            }
-                          }
+                        onClick={async () => {
+                          if (isLoadingHowWeMet) return;
+                          const prevIndex = currentHowWeMetIndex === 0 ? howWeMetImages.length - 1 : currentHowWeMetIndex - 1;
+                          await goToHowWeMet(prevIndex);
                         }}
-                        disabled={imageLoading || !loadedImages.has(currentHowWeMetIndex === 0 ? howWeMetImages.length - 1 : currentHowWeMetIndex - 1)}
+                        disabled={isLoadingHowWeMet}
                         className="absolute left-4 top-1/2 transform -translate-y-1/2 bg-black/30 hover:bg-black/50 text-white p-3 rounded-full opacity-0 group-hover:opacity-100 transition-all duration-500 ease-out disabled:opacity-50 disabled:cursor-not-allowed hover:scale-110 hover:translate-x-1"
                         title="Previous image (slides right)"
                       >
@@ -532,16 +566,12 @@ export default function HomePage() {
                         </svg>
                       </button>
                       <button
-                        onClick={() => {
-                          if (!imageLoading) {
-                            const nextIndex = (currentHowWeMetIndex + 1) % howWeMetImages.length;
-                            if (loadedImages.has(nextIndex)) {
-                              setImageLoading(true);
-                              setCurrentHowWeMetIndex(nextIndex);
-                            }
-                          }
+                        onClick={async () => {
+                          if (isLoadingHowWeMet) return;
+                          const nextIndex = (currentHowWeMetIndex + 1) % howWeMetImages.length;
+                          await goToHowWeMet(nextIndex);
                         }}
-                        disabled={imageLoading || !loadedImages.has((currentHowWeMetIndex + 1) % howWeMetImages.length)}
+                        disabled={isLoadingHowWeMet}
                         className="absolute right-4 top-1/2 transform -translate-y-1/2 bg-black/30 hover:bg-black/50 text-white p-3 rounded-full opacity-0 group-hover:opacity-100 transition-all duration-500 ease-out disabled:opacity-50 disabled:cursor-not-allowed hover:scale-110 hover:-translate-x-1"
                         title="Next image (slides left)"
                       >
@@ -560,7 +590,7 @@ export default function HomePage() {
                   className="space-y-6"
                 >
                   <h3 className="text-3xl font-light text-gray-900 mb-4">
-                    How We Met
+                    When paths crossed
                   </h3>
                   <p className="text-gray-600 leading-relaxed font-light text-lg">
                     MJ, the adventurous soul, loved exploring and planning hikes, while Erica lived a quieter, more sheltered routine of home and school. From being schoolmates,
@@ -583,85 +613,31 @@ export default function HomePage() {
                 >
                   <div className="aspect-[4/3] rounded-2xl shadow-lg overflow-hidden">
                     <div className="w-full h-full relative">
-                      {/* Loading indicator */}
-                      <AnimatePresence>
-                        {imageLoading && (
-                          <motion.div
-                            initial={{ opacity: 0 }}
-                            animate={{ opacity: 1 }}
-                            exit={{ opacity: 0 }}
-                            transition={{ duration: 0.3, ease: "easeInOut" }}
-                            className="absolute inset-0 bg-gradient-to-br from-[#84a2be] to-[#cba397] flex items-center justify-center z-10"
-                          >
-                            <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-white"></div>
-                          </motion.div>
-                        )}
-                      </AnimatePresence>
-                      
-                      <AnimatePresence mode="wait">
-                        {loadedImages.has(currentSealedWhitYesIndex) && (
-                          <motion.img
-                            key={currentSealedWhitYesIndex}
-                            src={sealedWithYes[currentSealedWhitYesIndex]}
-                            alt={`How We Met - Image ${currentSealedWhitYesIndex + 1}`}
-                            className="w-full h-full object-cover absolute inset-0"
-                            initial={{ x: "100%", opacity: 0 }}
-                            animate={{ x: 0, opacity: 1 }}
-                            exit={{ x: "-100%", opacity: 0 }}
-                            transition={{ 
-                              duration: 0.8, 
-                              ease: [0.25, 0.46, 0.45, 0.94] // Custom cubic-bezier for smooth ease
-                            }}
-                            onLoad={handleImageLoad}
-                            onError={() => handleImageError(currentSealedWhitYesIndex)}
-                          />
-                        )}
-                      </AnimatePresence>
-                      
-                      {/* Fallback placeholder */}
-                      {!loadedImages.has(currentSealedWhitYesIndex) && !imageLoading && (
+                      {/* Image frame from cache or placeholder while loading */}
+                      {sealedYesCache.current.has(currentSealedWhitYesIndex) ? (
+                        <img
+                          src={sealedYesCache.current.get(currentSealedWhitYesIndex)!}
+                          alt={`Sealed With a YES - Image ${currentSealedWhitYesIndex + 1}`}
+                          className="w-full h-full object-cover absolute inset-0"
+                        />
+                      ) : (
                         <div className="absolute inset-0 w-full h-full bg-gradient-to-br from-[#84a2be] to-[#cba397] flex items-center justify-center">
                           <Heart className="text-white opacity-30" size={80} />
                         </div>
                       )}
-                      
+
                       <div className="absolute inset-0 bg-gradient-to-t from-black/20 to-transparent"></div>
-                      
-                      {/* Carousel Indicators */}
-                      <div className="absolute bottom-4 left-1/2 transform -translate-x-1/2 flex space-x-2">
-                        {sealedWithYes.map((_, index) => (
-                          <button
-                            key={index}
-                            onClick={() => {
-                              if (!imageLoading && index !== currentSealedWhitYesIndex && loadedImages.has(index)) {
-                                setImageLoading(true);
-                                setCurrentSealedWhitYesIndex(index);
-                              }
-                            }}
-                            disabled={imageLoading || !loadedImages.has(index)}
-                            className={`w-2 h-2 rounded-full transition-all duration-500 ease-out ${
-                              index === currentSealedWhitYesIndex 
-                                ? 'bg-white scale-125' 
-                                : loadedImages.has(index)
-                                ? 'bg-white/50 hover:bg-white/75'
-                                : 'bg-white/20 cursor-not-allowed'
-                            } ${imageLoading ? 'opacity-50 cursor-not-allowed' : ''}`}
-                          />
-                        ))}
-                      </div>
+
+                      {/* Dots removed per request */}
 
                       {/* Navigation Arrows */}
                       <button
-                        onClick={() => {
-                          if (!imageLoading) {
-                            const prevIndex = currentSealedWhitYesIndex === 0 ? sealedWithYes.length - 1 : currentSealedWhitYesIndex - 1;
-                            if (loadedImages.has(prevIndex)) {
-                              setImageLoading(true);
-                              setCurrentSealedWhitYesIndex(prevIndex);
-                            }
-                          }
+                        onClick={async () => {
+                          if (isLoadingSealedYes) return;
+                          const prevIndex = currentSealedWhitYesIndex === 0 ? sealedWithYes.length - 1 : currentSealedWhitYesIndex - 1;
+                          await goToSealedYes(prevIndex);
                         }}
-                        disabled={imageLoading || !loadedImages.has(currentSealedWhitYesIndex === 0 ? sealedWithYes.length - 1 : currentSealedWhitYesIndex - 1)}
+                        disabled={isLoadingSealedYes}
                         className="absolute left-4 top-1/2 transform -translate-y-1/2 bg-black/30 hover:bg-black/50 text-white p-3 rounded-full opacity-0 group-hover:opacity-100 transition-all duration-500 ease-out disabled:opacity-50 disabled:cursor-not-allowed hover:scale-110 hover:translate-x-1"
                         title="Previous image (slides right)"
                       >
@@ -670,16 +646,12 @@ export default function HomePage() {
                         </svg>
                       </button>
                       <button
-                        onClick={() => {
-                          if (!imageLoading) {
-                            const nextIndex = (currentSealedWhitYesIndex + 1) % sealedWithYes.length;
-                            if (loadedImages.has(nextIndex)) {
-                              setImageLoading(true);
-                              setCurrentSealedWhitYesIndex(nextIndex);
-                            }
-                          }
+                        onClick={async () => {
+                          if (isLoadingSealedYes) return;
+                          const nextIndex = (currentSealedWhitYesIndex + 1) % sealedWithYes.length;
+                          await goToSealedYes(nextIndex);
                         }}
-                        disabled={imageLoading || !loadedImages.has((currentSealedWhitYesIndex + 1) % sealedWithYes.length)}
+                        disabled={isLoadingSealedYes}
                         className="absolute right-4 top-1/2 transform -translate-y-1/2 bg-black/30 hover:bg-black/50 text-white p-3 rounded-full opacity-0 group-hover:opacity-100 transition-all duration-500 ease-out disabled:opacity-50 disabled:cursor-not-allowed hover:scale-110 hover:-translate-x-1"
                         title="Next image (slides left)"
                       >
@@ -759,7 +731,7 @@ export default function HomePage() {
                         <div className="h-48 bg-gradient-to-br from-[#84a2be] from-opacity-20 to-[#cba397] to-opacity-20 flex items-center justify-center">
                           {album.coverImage ? (
                             <img
-                              src={album.coverImage}
+                              src={getBestDisplayUrl(album.coverImage, album.googleDriveFileId, 400)}
                               alt={album.name}
                               className="w-full h-full object-cover"
                             />
@@ -794,15 +766,70 @@ export default function HomePage() {
               // Album Media View
               <>
                 <div className="mb-8">
-                  <button
-                    onClick={() => setSelectedAlbum(null)}
-                    className="text-[#84a2be] hover:text-[#667c93] mb-2 flex items-center gap-2"
-                  >
-                    ← Back to Albums
-                  </button>
+                  <div className="flex items-center justify-between mb-4">
+                    <button
+                      onClick={() => setSelectedAlbum(null)}
+                      className="text-[#84a2be] hover:text-[#667c93] flex items-center gap-2"
+                    >
+                      ← Back to Albums
+                    </button>
+
+                    {/* Selection Controls */}
+                    {albumMedia.length > 0 && (
+                      <div className="flex items-center gap-2">
+                        <button
+                          onClick={toggleSelectionMode}
+                          className={`px-4 py-2 rounded-lg transition-colors flex items-center gap-2 ${isSelectionMode
+                              ? 'bg-blue-600 text-white hover:bg-blue-700'
+                              : 'bg-gray-200 text-gray-700 hover:bg-gray-300'
+                            }`}
+                        >
+                          {isSelectionMode ? <CheckSquare size={16} /> : <Square size={16} />}
+                          {isSelectionMode ? 'Exit Selection' : 'Select Photos'}
+                        </button>
+
+                        {isSelectionMode && (
+                          <>
+                            <button
+                              onClick={selectAllMedia}
+                              className="px-3 py-2 bg-gray-200 text-gray-700 rounded-lg hover:bg-gray-300 transition-colors text-sm"
+                            >
+                              Select All
+                            </button>
+                            <button
+                              onClick={clearSelection}
+                              className="px-3 py-2 bg-gray-200 text-gray-700 rounded-lg hover:bg-gray-300 transition-colors text-sm"
+                            >
+                              Clear
+                            </button>
+                          </>
+                        )}
+                      </div>
+                    )}
+                  </div>
+
                   <h2 className="text-3xl font-bold text-gray-900">{selectedAlbum.name}</h2>
                   <p className="text-gray-600">{selectedAlbum.description}</p>
                 </div>
+
+                {/* Download Action Controls */}
+                {isSelectionMode && selectedMediaIds.size > 0 && (
+                  <div className="bg-gray-50 rounded-lg p-4 mb-6">
+                    <div className="flex items-center justify-between">
+                      <span className="text-sm text-gray-600">
+                        {selectedMediaIds.size} photos selected
+                      </span>
+                      <button
+                        onClick={handleBulkDownload}
+                        disabled={isDownloading}
+                        className="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors flex items-center gap-2 disabled:opacity-50"
+                      >
+                        <Download size={16} />
+                        Download
+                      </button>
+                    </div>
+                  </div>
+                )}
 
                 {albumMedia.length > 0 ? (
                   <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
@@ -812,8 +839,8 @@ export default function HomePage() {
                         initial={{ opacity: 0, scale: 0.9 }}
                         animate={{ opacity: 1, scale: 1 }}
                         whileHover={{ scale: 1.05 }}
-                        className="relative group cursor-pointer"
-                        onClick={() => openViewer(media)}
+                        className={`relative group ${isSelectionMode ? 'cursor-default' : 'cursor-pointer'}`}
+                        onClick={() => isSelectionMode ? toggleMediaSelection(media._id) : openViewer(media)}
                       >
                         {media.mediaType === 'image' ? (
                           <div
@@ -827,7 +854,7 @@ export default function HomePage() {
                             }}
                           >
                             <img
-                              src={media.thumbnailUrl || media.url}
+                              src={getBestDisplayUrl(media.thumbnailUrl || media.url, media.googleDriveFileId, 300)}
                               alt={media.originalName}
                               style={{
                                 width: '100%',
@@ -875,6 +902,18 @@ export default function HomePage() {
                           </div>
                         )}
 
+                        {/* Selection Checkbox */}
+                        {isSelectionMode && (
+                          <div className="absolute top-2 left-2 z-10">
+                            <div className={`w-6 h-6 rounded border-2 flex items-center justify-center ${selectedMediaIds.has(media._id)
+                                ? 'bg-blue-600 border-blue-600 text-white'
+                                : 'bg-white border-gray-300'
+                              }`}>
+                              {selectedMediaIds.has(media._id) && <Check size={16} />}
+                            </div>
+                          </div>
+                        )}
+
                         <div className="absolute inset-0 bg-black bg-opacity-0 group-hover:bg-opacity-20 transition-all duration-300 flex items-center justify-center">
                           <div className="opacity-0 group-hover:opacity-100 transition-opacity duration-300">
                             <Eye className="text-white" size={24} />
@@ -914,53 +953,53 @@ export default function HomePage() {
             </div>
 
             <div className="flex items-center justify-center">
-                    <div className="space-y-2">
-                      {[
-                        { time: "11:00 AM", label: "Ceremony", icon: <Heart className="w-6 h-6 stroke-[1.5]" />, description: "Our Lady of Lourdes Parish" },
-                        { time: "12:30 PM", label: "Cocktails", icon: <Martini className="w-6 h-6 stroke-[1.5]" />, description: "Welcome Reception" },
-                        { time: "1:00 PM", label: "Photos", icon: <Camera className="w-6 h-6 stroke-[1.5]" />, description: "Wedding Portraits" },
-                        { time: "2:00 PM", label: "Reception", icon: <Utensils className="w-6 h-6 stroke-[1.5]" />, description: "AQUILA Crystal Palace" },
-                        { time: "2:30 PM", label: "Speeches", icon: <Mic className="w-6 h-6 stroke-[1.5]" />, description: "Toasts & Well Wishes" },
-                        { time: "3:00 PM", label: "Cake Cutting", icon: <Cake className="w-6 h-6 stroke-[1.5]" />, description: "Sweet Celebration" },
-                        { time: "4:00 PM", label: "First Dance", icon: <Music className="w-6 h-6 stroke-[1.5]" />, description: "Our Special Moment" },
-                        { time: "6:00 PM", label: "Send Off", icon: <Car className="w-6 h-6 stroke-[1.5]" />, description: "Farewell & Thanks" },
-                      ].map((item, idx) => (
-                        <motion.div
-                          key={idx}
-                          className="flex items-center gap-8 p-6 rounded-2xl hover:bg-sage-green/5 transition-colors"
-                          initial={{ opacity: 0, x: -30 }}
-                          whileInView={{ opacity: 1, x: 0 }}
-                          transition={{ duration: 0.6, delay: idx * 0.1 }}
-                          viewport={{ once: true }}
-                        >
-                          {/* Time */}
-                          <div className="w-24 text-right">
-                            <div className="text-lg md:text-xl font-geist-sans text-sage-green font-semibold">
-                              {item.time}
-                            </div>
-                          </div>
-
-                          {/* Icon */}
-                          <div className="w-18 h-18 bg-gradient-to-br from-sage-green/20 to-dusty-rose/20 rounded-full flex items-center justify-center">
-                            <span className="text-sage-green">{item.icon}</span>
-                          </div>
-
-                          {/* Content */}
-                          <div className="flex-1">
-                            <h3 className="text-xl md:text-2xl font-geist-sans text-slate-blue mb-1">
-                              {item.label}
-                            </h3>
-                            <p className="text-slate-blue/70 text-md md:text-xl">
-                              {item.description}
-                            </p>
-                          </div>
-
-                          {/* Decorative Line */}
-                          <div className="hidden md:block w-16 h-px bg-gradient-to-r from-sage-green/30 to-transparent"></div>
-                        </motion.div>
-                      ))}
+              <div className="space-y-2">
+                {[
+                  { time: "11:00 AM", label: "Ceremony", icon: <Heart className="w-6 h-6 stroke-[1.5]" />, description: "Our Lady of Lourdes Parish" },
+                  { time: "12:30 PM", label: "Cocktails", icon: <Martini className="w-6 h-6 stroke-[1.5]" />, description: "Welcome Reception" },
+                  { time: "1:00 PM", label: "Photos", icon: <Camera className="w-6 h-6 stroke-[1.5]" />, description: "Wedding Portraits" },
+                  { time: "2:00 PM", label: "Reception", icon: <Utensils className="w-6 h-6 stroke-[1.5]" />, description: "AQUILA Crystal Palace" },
+                  { time: "2:30 PM", label: "Speeches", icon: <Mic className="w-6 h-6 stroke-[1.5]" />, description: "Toasts & Well Wishes" },
+                  { time: "3:00 PM", label: "Cake Cutting", icon: <Cake className="w-6 h-6 stroke-[1.5]" />, description: "Sweet Celebration" },
+                  { time: "4:00 PM", label: "First Dance", icon: <Music className="w-6 h-6 stroke-[1.5]" />, description: "Our Special Moment" },
+                  { time: "6:00 PM", label: "Send Off", icon: <Car className="w-6 h-6 stroke-[1.5]" />, description: "Farewell & Thanks" },
+                ].map((item, idx) => (
+                  <motion.div
+                    key={idx}
+                    className="flex items-center gap-8 p-6 rounded-2xl hover:bg-sage-green/5 transition-colors"
+                    initial={{ opacity: 0, x: -30 }}
+                    whileInView={{ opacity: 1, x: 0 }}
+                    transition={{ duration: 0.6, delay: idx * 0.1 }}
+                    viewport={{ once: true }}
+                  >
+                    {/* Time */}
+                    <div className="w-24 text-right">
+                      <div className="text-lg md:text-xl font-geist-sans text-sage-green font-semibold">
+                        {item.time}
+                      </div>
                     </div>
-                  </div>
+
+                    {/* Icon */}
+                    <div className="w-18 h-18 bg-gradient-to-br from-sage-green/20 to-dusty-rose/20 rounded-full flex items-center justify-center">
+                      <span className="text-sage-green">{item.icon}</span>
+                    </div>
+
+                    {/* Content */}
+                    <div className="flex-1">
+                      <h3 className="text-xl md:text-2xl font-geist-sans text-slate-blue mb-1">
+                        {item.label}
+                      </h3>
+                      <p className="text-slate-blue/70 text-md md:text-xl">
+                        {item.description}
+                      </p>
+                    </div>
+
+                    {/* Decorative Line */}
+                    <div className="hidden md:block w-16 h-px bg-gradient-to-r from-sage-green/30 to-transparent"></div>
+                  </motion.div>
+                ))}
+              </div>
+            </div>
           </motion.div>
         );
 
@@ -1076,7 +1115,7 @@ export default function HomePage() {
               className="fixed inset-0 bg-black bg-opacity-90 flex items-center justify-center p-4 z-50"
               onClick={() => setShowViewer(false)}
             >
-              <div className="relative max-w-4xl max-h-full">
+              <div className="relative w-full h-full flex items-center justify-center">
                 <button
                   onClick={() => setShowViewer(false)}
                   className="absolute top-4 right-4 text-white hover:text-gray-300 z-10"
@@ -1086,15 +1125,17 @@ export default function HomePage() {
 
                 {selectedMedia.mediaType === 'image' ? (
                   <img
-                    src={selectedMedia.url}
+                    src={getFullSizeDisplayUrl(selectedMedia.url, selectedMedia.googleDriveFileId)}
                     alt={selectedMedia.originalName}
-                    className="max-w-full max-h-full object-contain"
+                    className="max-w-none max-h-none w-auto h-auto object-contain"
+                    style={{ maxWidth: '90vw', maxHeight: '90vh' }}
                   />
                 ) : (
                   <video
                     src={selectedMedia.url}
                     controls
-                    className="max-w-full max-h-full"
+                    className="max-w-none max-h-none w-auto h-auto"
+                    style={{ maxWidth: '90vw', maxHeight: '90vh' }}
                     autoPlay
                   />
                 )}

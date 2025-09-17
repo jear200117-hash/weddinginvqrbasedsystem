@@ -9,15 +9,33 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ error: 'URL parameter is required' }, { status: 400 });
     }
 
-    // Validate that the URL is from our backend server
-    if (!imageUrl.startsWith('https://backendv2-nasy.onrender.com/uploads/')) {
+    // Allow our backend uploads and Google Drive CDN URLs
+    const allowed = [
+      'http://localhost:5000/uploads/',
+      'https://drive.google.com/',
+      'https://lh3.googleusercontent.com/'
+    ];
+    if (!allowed.some(prefix => imageUrl.startsWith(prefix))) {
       return NextResponse.json({ error: 'Invalid URL' }, { status: 400 });
     }
 
-    // Fetch the image from the backend
-    const response = await fetch(imageUrl);
+    // Fetch with simple retry (handles 429 burst limits)
+    const maxAttempts = 3;
+    const baseDelayMs = 250;
+    let response: Response | null = null;
+    for (let attempt = 1; attempt <= maxAttempts; attempt++) {
+      response = await fetch(imageUrl, { cache: 'no-store' });
+      if (response.ok) break;
+      // Retry on 429/5xx
+      if (response.status === 429 || (response.status >= 500 && response.status < 600)) {
+        const delay = baseDelayMs * Math.pow(2, attempt - 1);
+        await new Promise(r => setTimeout(r, delay));
+        continue;
+      }
+      break;
+    }
     
-    if (!response.ok) {
+    if (!response || !response.ok) {
       return NextResponse.json({ error: 'Image not found' }, { status: 404 });
     }
 
@@ -30,7 +48,8 @@ export async function GET(request: NextRequest) {
       status: 200,
       headers: {
         'Content-Type': contentType,
-        'Cache-Control': 'public, max-age=31536000', // Cache for 1 year
+        // Cache in CDN/browser to reduce repeated hits to Drive
+        'Cache-Control': 'public, max-age=86400, s-maxage=86400',
       },
     });
   } catch (error) {

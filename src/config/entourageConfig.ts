@@ -75,7 +75,7 @@ export const ENTOURAGE_CONFIG = {
       title: "Candle (in)",
       members: [
         { name: "John Erick Pineda", role: "Male" },
-        { name: "Jyn Abellar", role: "Female" }
+        { name: "Jyn Sheeren Abellar", role: "Female" }
       ]
     },
     veil: {
@@ -89,28 +89,28 @@ export const ENTOURAGE_CONFIG = {
       title: "Cord",
       members: [
         { name: "Jason Quinag", role: "Male" },
-        { name: "Ruth Vera", role: "Female" }
+        { name: "Ruth Anne Vera", role: "Female" }
       ]
     },
     candleOut: {
       title: "Candle (out)",
       members: [
-        { name: "Chris De La Rea", role: "Male" },
-        { name: "Shaira Marquez", role: "Female" }
+        { name: "Gene Mari Christopher De La Rea", role: "Male" },
+        { name: "Shaira Ann Marquez", role: "Female" }
       ]
     },
     veil2: {
       title: "Veil",
       members: [
-        { name: "Aljon Catitir", role: "Male" },
+        { name: "Aljhon Gabriel Catitir", role: "Male" },
         { name: "Eries Veroya", role: "Female" }
       ]
     },
     cord2: {
       title: "Cord",
       members: [
-        { name: "Morice Buisan", role: "Male" },
-        { name: "Rica Cayanan", role: "Female" }
+        { name: "Morice James Buisan", role: "Male" },
+        { name: "Rica Ella Cayanan", role: "Female" }
       ]
     }
   },
@@ -121,17 +121,17 @@ export const ENTOURAGE_CONFIG = {
     groomsmen: {
       title: "Groomsmen",
       members: [
-        { name: "Paul Aguda", number: 1 },
-        { name: "Lukcy De La Rea", number: 2 },
-        { name: "Matthew Benig", number: 3 }
+        { name: "Paul Melchor Aguda", number: 1 },
+        { name: "Alexis De La Rea", number: 2 },
+        { name: "John Matthew Benig", number: 3 }
       ]
     },
     bridesmaids: {
       title: "Bridesmaids",
       members: [
         { name: "Danica De La Rea", number: 1 },
-        { name: "Eva Rose Marco", number: 2 },
-        { name: "Alliya Tañafranca", number: 3 }
+        { name: "Evarose Marco", number: 2 },
+        { name: "Alliyah Tañafranca", number: 3 }
       ]
     }
   },
