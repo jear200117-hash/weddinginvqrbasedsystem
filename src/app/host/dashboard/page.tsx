@@ -1472,13 +1472,15 @@ export default function HostDashboard() {
                         )}
                         
                         {/* Action buttons positioned at bottom right of cover image */}
-                        <div className="absolute bottom-3 right-3 z-20">
+                        <div className="absolute bottom-3 right-3 z-30" style={{ pointerEvents: 'auto' }}>
                           {/* Mobile: Always visible menu button */}
                           <div className="sm:hidden">
                             <button
-                              onClick={(e) => {
+                              onPointerDown={(e) => {
+                                console.log('Settings button pointer down on mobile');
                                 e.preventDefault();
                                 e.stopPropagation();
+                                
                                 const button = e.currentTarget;
                                 const menu = button.nextElementSibling as HTMLElement;
                                 const isHidden = menu.classList.contains('hidden');
@@ -1493,12 +1495,25 @@ export default function HostDashboard() {
                                 // Toggle current menu
                                 if (isHidden) {
                                   menu.classList.remove('hidden');
+                                  console.log('Menu opened');
                                 } else {
                                   menu.classList.add('hidden');
+                                  console.log('Menu closed');
                                 }
                               }}
-                              className="bg-white/95 backdrop-blur-sm text-slate-700 rounded-full p-2.5 shadow-lg hover:bg-white hover:shadow-xl transition-all duration-200 border border-white/50"
+                              onClick={(e) => {
+                                e.preventDefault();
+                                e.stopPropagation();
+                              }}
+                              className="bg-white/95 backdrop-blur-sm text-slate-700 rounded-full p-3 shadow-lg hover:bg-white hover:shadow-xl transition-all duration-200 border border-white/50 touch-manipulation"
                               title="Album Actions"
+                              style={{ 
+                                minWidth: '44px', 
+                                minHeight: '44px',
+                                display: 'flex',
+                                alignItems: 'center',
+                                justifyContent: 'center'
+                              }}
                             >
                               <Settings size={18} />
                             </button>
