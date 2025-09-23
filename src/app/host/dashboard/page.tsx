@@ -1472,25 +1472,33 @@ export default function HostDashboard() {
                         )}
                         
                         {/* Mobile-friendly action buttons */}
-                        <div className="absolute top-3 right-3">
+                        <div className="absolute top-3 right-3 z-10">
                           {/* Mobile: Always visible menu button */}
-                          <div className="sm:hidden">
+                          <div className="sm:hidden relative">
                             <button
                               onClick={(e) => {
                                 e.stopPropagation();
                                 const menu = e.currentTarget.nextElementSibling as HTMLElement;
                                 menu.classList.toggle('hidden');
+                                // Close other open menus
+                                document.querySelectorAll('.dropdown-menu').forEach(dropdown => {
+                                  if (dropdown !== menu) {
+                                    dropdown.classList.add('hidden');
+                                  }
+                                });
                               }}
                               className="bg-white/90 backdrop-blur-sm text-slate-700 rounded-lg p-2 shadow-lg hover:bg-white transition-colors"
                               title="Album Actions"
                             >
                               <Settings size={16} />
                             </button>
-                            <div className="dropdown-menu hidden absolute top-10 right-0 bg-white rounded-xl shadow-2xl border border-slate-200 py-2 z-20 min-w-[160px]">
+                            <div className="dropdown-menu hidden absolute top-10 right-0 bg-white rounded-xl shadow-2xl border border-slate-200 py-2 z-30 min-w-[160px]">
                               <button
                                 onClick={(e) => {
                                   e.stopPropagation();
                                   handleViewAlbumQR(album);
+                                  // Close menu after action
+                                  e.currentTarget.closest('.dropdown-menu')?.classList.add('hidden');
                                 }}
                                 className="w-full text-left px-4 py-2 text-sm text-slate-700 hover:bg-slate-100 flex items-center gap-2"
                               >
@@ -1501,6 +1509,7 @@ export default function HostDashboard() {
                                 onClick={(e) => {
                                   e.stopPropagation();
                                   handleUploadToAlbum(album);
+                                  e.currentTarget.closest('.dropdown-menu')?.classList.add('hidden');
                                 }}
                                 className="w-full text-left px-4 py-2 text-sm text-slate-700 hover:bg-slate-100 flex items-center gap-2"
                               >
@@ -1511,6 +1520,7 @@ export default function HostDashboard() {
                                 onClick={(e) => {
                                   e.stopPropagation();
                                   handleEditAlbum(album);
+                                  e.currentTarget.closest('.dropdown-menu')?.classList.add('hidden');
                                 }}
                                 className="w-full text-left px-4 py-2 text-sm text-slate-700 hover:bg-slate-100 flex items-center gap-2"
                               >
@@ -1521,6 +1531,7 @@ export default function HostDashboard() {
                                 onClick={(e) => {
                                   e.stopPropagation();
                                   handleDeleteAlbum(album.id);
+                                  e.currentTarget.closest('.dropdown-menu')?.classList.add('hidden');
                                 }}
                                 className="w-full text-left px-4 py-2 text-sm text-red-600 hover:bg-red-50 flex items-center gap-2"
                               >
@@ -1529,41 +1540,41 @@ export default function HostDashboard() {
                               </button>
                             </div>
                           </div>
-                          
-                          {/* Desktop: Hover overlay with action buttons */}
-                          <div className="hidden sm:block absolute inset-0 bg-transparent bg-opacity-0 group-hover:bg-opacity-20 transition-all duration-300 flex items-end justify-end p-3 -top-3 -right-3">
-                            <div className="opacity-0 group-hover:opacity-100 transition-opacity duration-300 flex gap-2">
-                              <button
-                                onClick={(e) => {
-                                  e.stopPropagation();
-                                  handleViewAlbumQR(album);
-                                }}
-                                className="bg-white/90 text-purple-600 p-2 rounded-lg hover:bg-white transition-colors shadow-lg"
-                                title="View QR Code"
-                              >
-                                <QrCode size={16} />
-                              </button>
-                              <button
-                                onClick={(e) => {
-                                  e.stopPropagation();
-                                  handleEditAlbum(album);
-                                }}
-                                className="bg-white/90 text-blue-600 p-2 rounded-lg hover:bg-white transition-colors shadow-lg"
-                                title="Edit Album"
-                              >
-                                <Edit size={16} />
-                              </button>
-                              <button
-                                onClick={(e) => {
-                                  e.stopPropagation();
-                                  handleDeleteAlbum(album.id);
-                                }}
-                                className="bg-white/90 text-red-600 p-2 rounded-lg hover:bg-white transition-colors shadow-lg"
-                                title="Delete Album"
-                              >
-                                <Trash2 size={16} />
-                              </button>
-                            </div>
+                        </div>
+
+                        {/* Desktop: Hover overlay with action buttons */}
+                        <div className="hidden sm:block absolute inset-0 bg-black/0 group-hover:bg-black/20 transition-all duration-300 flex items-end justify-end p-3">
+                          <div className="opacity-0 group-hover:opacity-100 transition-opacity duration-300 flex gap-2">
+                            <button
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                handleViewAlbumQR(album);
+                              }}
+                              className="bg-white/90 text-purple-600 p-2 rounded-lg hover:bg-white transition-colors shadow-lg"
+                              title="View QR Code"
+                            >
+                              <QrCode size={16} />
+                            </button>
+                            <button
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                handleEditAlbum(album);
+                              }}
+                              className="bg-white/90 text-blue-600 p-2 rounded-lg hover:bg-white transition-colors shadow-lg"
+                              title="Edit Album"
+                            >
+                              <Edit size={16} />
+                            </button>
+                            <button
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                handleDeleteAlbum(album.id);
+                              }}
+                              className="bg-white/90 text-red-600 p-2 rounded-lg hover:bg-white transition-colors shadow-lg"
+                              title="Delete Album"
+                            >
+                              <Trash2 size={16} />
+                            </button>
                           </div>
                         </div>
                         
@@ -1845,25 +1856,32 @@ export default function HostDashboard() {
 
                           {/* Mobile-friendly action buttons */}
                           {!isSelectionMode && (
-                            <div className="absolute top-3 right-3">
+                            <div className="absolute top-3 right-3 z-10">
                               {/* Mobile: Always visible action button */}
-                              <div className="sm:hidden">
+                              <div className="sm:hidden relative">
                                 <button
                                   onClick={(e) => {
                                     e.stopPropagation();
                                     const menu = e.currentTarget.nextElementSibling as HTMLElement;
                                     menu.classList.toggle('hidden');
+                                    // Close other open menus
+                                    document.querySelectorAll('.dropdown-menu').forEach(dropdown => {
+                                      if (dropdown !== menu) {
+                                        dropdown.classList.add('hidden');
+                                      }
+                                    });
                                   }}
                                   className="bg-white/90 backdrop-blur-sm text-slate-700 rounded-lg p-2 shadow-lg hover:bg-white transition-colors"
                                   title="Media Actions"
                                 >
                                   <Settings size={16} />
                                 </button>
-                                <div className="dropdown-menu hidden absolute top-10 right-0 bg-white rounded-xl shadow-2xl border border-slate-200 py-2 z-20 min-w-[140px]">
+                                <div className="dropdown-menu hidden absolute top-10 right-0 bg-white rounded-xl shadow-2xl border border-slate-200 py-2 z-30 min-w-[140px]">
                                   <button
                                     onClick={(e) => {
                                       e.stopPropagation();
                                       handleMediaClick(media, index);
+                                      e.currentTarget.closest('.dropdown-menu')?.classList.add('hidden');
                                     }}
                                     className="w-full text-left px-4 py-2 text-sm text-slate-700 hover:bg-slate-100 flex items-center gap-2"
                                   >
@@ -1880,6 +1898,7 @@ export default function HostDashboard() {
                                       link.href = downloadUrl;
                                       link.download = media.originalName || 'download';
                                       link.click();
+                                      e.currentTarget.closest('.dropdown-menu')?.classList.add('hidden');
                                     }}
                                     className="w-full text-left px-4 py-2 text-sm text-slate-700 hover:bg-slate-100 flex items-center gap-2"
                                   >
@@ -2178,25 +2197,32 @@ export default function HostDashboard() {
                       </div>
 
                       {/* Mobile-friendly Action Buttons */}
-                      <div className="absolute top-3 right-3">
+                      <div className="absolute top-3 right-3 z-10">
                         {/* Mobile: Always visible menu button */}
-                        <div className="sm:hidden">
+                        <div className="sm:hidden relative">
                           <button
                             onClick={(e) => {
                               e.stopPropagation();
                               const menu = e.currentTarget.nextElementSibling as HTMLElement;
                               menu.classList.toggle('hidden');
+                              // Close other open menus
+                              document.querySelectorAll('.dropdown-menu').forEach(dropdown => {
+                                if (dropdown !== menu) {
+                                  dropdown.classList.add('hidden');
+                                }
+                              });
                             }}
                             className="bg-white/90 backdrop-blur-sm text-slate-700 rounded-lg p-2 shadow-lg hover:bg-white transition-colors"
                             title="Media Actions"
                           >
                             <Settings size={16} />
                           </button>
-                          <div className="hidden absolute top-10 right-0 bg-white rounded-xl shadow-2xl border border-slate-200 py-2 z-20 min-w-[140px]">
+                          <div className="dropdown-menu hidden absolute top-10 right-0 bg-white rounded-xl shadow-2xl border border-slate-200 py-2 z-30 min-w-[140px]">
                             <button
                               onClick={(e) => {
                                 e.stopPropagation();
                                 window.open(media.url, '_blank');
+                                e.currentTarget.closest('.dropdown-menu')?.classList.add('hidden');
                               }}
                               className="w-full text-left px-4 py-2 text-sm text-slate-700 hover:bg-slate-100 flex items-center gap-2"
                             >
@@ -2213,6 +2239,7 @@ export default function HostDashboard() {
                                 link.href = downloadUrl;
                                 link.download = media.originalName || 'download';
                                 link.click();
+                                e.currentTarget.closest('.dropdown-menu')?.classList.add('hidden');
                               }}
                               className="w-full text-left px-4 py-2 text-sm text-slate-700 hover:bg-slate-100 flex items-center gap-2"
                             >
@@ -2223,6 +2250,7 @@ export default function HostDashboard() {
                               onClick={(e) => {
                                 e.stopPropagation();
                                 handleDeleteMediaFromGallery(media.id);
+                                e.currentTarget.closest('.dropdown-menu')?.classList.add('hidden');
                               }}
                               className="w-full text-left px-4 py-2 text-sm text-red-600 hover:bg-red-50 flex items-center gap-2"
                             >
