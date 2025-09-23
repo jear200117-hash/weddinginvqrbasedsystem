@@ -470,11 +470,44 @@ export default function HostDashboard() {
     if (!confirm('Delete this media item? This cannot be undone.')) return;
     try {
       await mediaAPI.delete(mediaId);
-      setAlbumMedia(prev => prev.filter(m => m.id !== mediaId));
-      toast.success('Media deleted');
+      setAllMedia(prev => prev.filter(m => m.id !== mediaId));
+      toast.success('Media deleted successfully');
     } catch (error: any) {
-      console.error('Delete media error:', error);
       toast.error('Failed to delete media');
+    }
+  };
+
+  // Bulk selection handlers for media
+  const toggleMediaSelectionMode = () => {
+    setIsSelectionMode(!isSelectionMode);
+    setSelectedMediaIds(new Set());
+  };
+
+  const handleBulkDeleteMedia = async () => {
+    if (selectedMediaIds.size === 0) return;
+    
+    if (!confirm(`Delete ${selectedMediaIds.size} selected media item(s)? This cannot be undone.`)) return;
+    
+    setIsBulkOperationLoading(true);
+    try {
+      const selectedMedia = allMedia.filter(media => selectedMediaIds.has(media.id || media._id));
+      
+      // Delete each selected media item
+      for (const media of selectedMedia) {
+        await mediaAPI.delete(media.id || media._id);
+      }
+      
+      // Update local state
+      setAllMedia(prev => prev.filter(media => !selectedMediaIds.has(media.id || media._id)));
+      setSelectedMediaIds(new Set());
+      setIsSelectionMode(false);
+      
+      toast.success(`Successfully deleted ${selectedMedia.length} media item(s)`);
+    } catch (error: any) {
+      console.error('Bulk delete error:', error);
+      toast.error('Failed to delete some media items');
+    } finally {
+      setIsBulkOperationLoading(false);
     }
   };
 
@@ -775,7 +808,9 @@ export default function HostDashboard() {
   };
 
   const selectAllMedia = () => {
-    const allIds = new Set(albumMedia.map(media => media.id));
+    // Use allMedia for media gallery, albumMedia for album detail view
+    const mediaList = activeTab === 'media' ? allMedia : albumMedia;
+    const allIds = new Set(mediaList.map(media => media.id || media._id));
     setSelectedMediaIds(allIds);
   };
 
@@ -962,6 +997,24 @@ export default function HostDashboard() {
       setIsCreatingInvitation(false);
     }
   };
+
+  const handleDeleteInvitation = async (invitationId: string, guestName: string) => {
+    if (!confirm(`Are you sure you want to delete the invitation for ${guestName}? This action cannot be undone.`)) {
+      return;
+    }
+
+    try {
+      await invitationsAPI.delete(invitationId);
+      toast.success(`Invitation for ${guestName} deleted successfully!`);
+      
+      // Firebase real-time listeners will automatically update the UI
+      // No need to manually update local state
+    } catch (error: any) {
+      console.error('Delete invitation error:', error);
+      toast.error(error.response?.data?.error || 'Failed to delete invitation');
+    }
+  };
+
 
   const handleLogout = async () => {
     try {
@@ -1795,6 +1848,19 @@ export default function HostDashboard() {
                   <span className="text-sm font-medium text-slate-700">{allMedia.length}</span>
                   <span className="text-xs text-slate-500 ml-1">items</span>
                 </div>
+                {allMedia.length > 0 && (
+                  <button
+                    onClick={toggleMediaSelectionMode}
+                    className={`px-4 py-2 rounded-xl transition-all duration-200 flex items-center gap-2 font-medium ${
+                      isSelectionMode
+                        ? 'bg-blue-600 text-white hover:bg-blue-700 shadow-md'
+                        : 'bg-white text-slate-700 hover:bg-slate-50 border border-slate-200'
+                    }`}
+                  >
+                    {isSelectionMode ? <CheckSquare size={16} /> : <Square size={16} />}
+                    <span className="hidden sm:inline">{isSelectionMode ? 'Exit Selection' : 'Select Items'}</span>
+                  </button>
+                )}
               </div>
             </div>
 
@@ -1849,6 +1915,53 @@ export default function HostDashboard() {
                 </div>
               </div>
 
+              {/* Bulk Action Controls */}
+              {isSelectionMode && selectedMediaIds.size > 0 && (
+                <motion.div 
+                  initial={{ opacity: 0, y: -20 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  className="bg-gradient-to-r from-blue-600 to-indigo-600 rounded-2xl p-4 mb-6"
+                >
+                  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+                    <div className="flex items-center gap-4">
+                      <div className="text-white">
+                        <span className="font-semibold">{selectedMediaIds.size}</span>
+                        <span className="ml-1">item{selectedMediaIds.size !== 1 ? 's' : ''} selected</span>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <button
+                          onClick={selectAllMedia}
+                          className="px-3 py-1 bg-white/20 text-white rounded-lg hover:bg-white/30 transition-colors text-sm font-medium"
+                        >
+                          Select All
+                        </button>
+                        <button
+                          onClick={clearSelection}
+                          className="px-3 py-1 bg-white/20 text-white rounded-lg hover:bg-white/30 transition-colors text-sm font-medium"
+                        >
+                          Clear
+                        </button>
+                      </div>
+                    </div>
+                    
+                    <div className="flex items-center gap-2">
+                      <button
+                        onClick={handleBulkDeleteMedia}
+                        disabled={isBulkOperationLoading}
+                        className="bg-red-500 hover:bg-red-600 text-white px-4 py-2 rounded-xl font-medium flex items-center gap-2 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                      >
+                        {isBulkOperationLoading ? (
+                          <div className="animate-spin rounded-full h-4 w-4 border-2 border-white border-t-transparent" />
+                        ) : (
+                          <Trash2 size={16} />
+                        )}
+                        <span>Delete Selected</span>
+                      </button>
+                    </div>
+                  </div>
+                </motion.div>
+              )}
+
               {/* Modern Media Gallery */}
               {loadingAllMedia ? (
                 <div className="flex items-center justify-center py-16">
@@ -1865,8 +1978,28 @@ export default function HostDashboard() {
                       initial={{ opacity: 0, scale: 0.9 }}
                       animate={{ opacity: 1, scale: 1 }}
                       transition={{ delay: index * 0.05 }}
-                      className="relative group cursor-pointer bg-white rounded-2xl shadow-lg border border-slate-200 overflow-hidden hover:shadow-xl transition-all duration-300"
+                      className={`relative group cursor-pointer bg-white rounded-2xl shadow-lg border overflow-hidden hover:shadow-xl transition-all duration-300 ${
+                        selectedMediaIds.has(media.id || media._id) 
+                          ? 'border-blue-500 ring-2 ring-blue-200' 
+                          : 'border-slate-200'
+                      }`}
                     >
+                      {/* Selection Checkbox */}
+                      {isSelectionMode && (
+                        <div className="absolute top-3 left-3 z-10">
+                          <button
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              toggleMediaSelection(media.id || media._id);
+                            }}
+                            className="w-6 h-6 rounded-lg bg-white/90 backdrop-blur-sm border-2 border-slate-300 flex items-center justify-center hover:bg-white transition-colors"
+                          >
+                            {selectedMediaIds.has(media.id || media._id) && (
+                              <Check size={14} className="text-blue-600" />
+                            )}
+                          </button>
+                        </div>
+                      )}
                       {media.mediaType === 'image' ? (
                         <div className="aspect-square w-full bg-slate-100 relative overflow-hidden">
                           <img
@@ -2253,6 +2386,13 @@ export default function HostDashboard() {
                                 title="Open Invitation"
                               >
                                 <ExternalLink size={16} />
+                              </button>
+                              <button
+                                onClick={() => handleDeleteInvitation(invitation.id, invitation.guestName)}
+                                className="p-2 text-red-600 hover:bg-red-100 rounded-lg transition-colors"
+                                title="Delete Invitation"
+                              >
+                                <Trash2 size={16} />
                               </button>
                             </>
                           )}
