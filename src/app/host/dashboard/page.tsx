@@ -271,7 +271,7 @@ export default function HostDashboard() {
   // Close all dropdown menus when clicking outside
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
-      const dropdowns = document.querySelectorAll('.dropdown-menu');
+      const dropdowns = document.querySelectorAll('.dropdown-menu, .album-dropdown-menu');
       dropdowns.forEach(dropdown => {
         if (!dropdown.contains(event.target as Node)) {
           dropdown.classList.add('hidden');
@@ -1471,86 +1471,98 @@ export default function HostDashboard() {
                           </div>
                         )}
                         
-                        {/* Mobile-friendly action buttons */}
-                        <div className="absolute top-3 right-3 z-10">
+                        {/* Action buttons positioned at bottom right of cover image */}
+                        <div className="absolute bottom-3 right-3 z-20">
                           {/* Mobile: Always visible menu button */}
-                          <div className="sm:hidden relative">
+                          <div className="sm:hidden">
                             <button
                               onClick={(e) => {
+                                e.preventDefault();
                                 e.stopPropagation();
-                                const menu = e.currentTarget.nextElementSibling as HTMLElement;
-                                menu.classList.toggle('hidden');
-                                // Close other open menus
-                                document.querySelectorAll('.dropdown-menu').forEach(dropdown => {
+                                const button = e.currentTarget;
+                                const menu = button.nextElementSibling as HTMLElement;
+                                const isHidden = menu.classList.contains('hidden');
+                                
+                                // Close all other menus first
+                                document.querySelectorAll('.album-dropdown-menu').forEach(dropdown => {
                                   if (dropdown !== menu) {
                                     dropdown.classList.add('hidden');
                                   }
                                 });
+                                
+                                // Toggle current menu
+                                if (isHidden) {
+                                  menu.classList.remove('hidden');
+                                } else {
+                                  menu.classList.add('hidden');
+                                }
                               }}
-                              className="bg-white/90 backdrop-blur-sm text-slate-700 rounded-lg p-2 shadow-lg hover:bg-white transition-colors"
+                              className="bg-white/95 backdrop-blur-sm text-slate-700 rounded-full p-2.5 shadow-lg hover:bg-white hover:shadow-xl transition-all duration-200 border border-white/50"
                               title="Album Actions"
                             >
-                              <Settings size={16} />
+                              <Settings size={18} />
                             </button>
-                            <div className="dropdown-menu hidden absolute top-10 right-0 bg-white rounded-xl shadow-2xl border border-slate-200 py-2 z-30 min-w-[160px]">
+                            <div className="album-dropdown-menu hidden absolute bottom-12 right-0 bg-white rounded-xl shadow-2xl border border-slate-200 py-2 z-50 min-w-[160px] backdrop-blur-sm">
                               <button
                                 onClick={(e) => {
+                                  e.preventDefault();
                                   e.stopPropagation();
                                   handleViewAlbumQR(album);
-                                  // Close menu after action
-                                  e.currentTarget.closest('.dropdown-menu')?.classList.add('hidden');
+                                  (e.currentTarget.closest('.album-dropdown-menu') as HTMLElement)?.classList.add('hidden');
                                 }}
-                                className="w-full text-left px-4 py-2 text-sm text-slate-700 hover:bg-slate-100 flex items-center gap-2"
+                                className="w-full text-left px-4 py-3 text-sm text-slate-700 hover:bg-slate-100 flex items-center gap-3 transition-colors"
                               >
                                 <QrCode size={16} />
                                 View QR Code
                               </button>
                               <button
                                 onClick={(e) => {
+                                  e.preventDefault();
                                   e.stopPropagation();
                                   handleUploadToAlbum(album);
-                                  e.currentTarget.closest('.dropdown-menu')?.classList.add('hidden');
+                                  (e.currentTarget.closest('.album-dropdown-menu') as HTMLElement)?.classList.add('hidden');
                                 }}
-                                className="w-full text-left px-4 py-2 text-sm text-slate-700 hover:bg-slate-100 flex items-center gap-2"
+                                className="w-full text-left px-4 py-3 text-sm text-slate-700 hover:bg-slate-100 flex items-center gap-3 transition-colors"
                               >
                                 <Upload size={16} />
                                 Upload Photos
                               </button>
                               <button
                                 onClick={(e) => {
+                                  e.preventDefault();
                                   e.stopPropagation();
                                   handleEditAlbum(album);
-                                  e.currentTarget.closest('.dropdown-menu')?.classList.add('hidden');
+                                  (e.currentTarget.closest('.album-dropdown-menu') as HTMLElement)?.classList.add('hidden');
                                 }}
-                                className="w-full text-left px-4 py-2 text-sm text-slate-700 hover:bg-slate-100 flex items-center gap-2"
+                                className="w-full text-left px-4 py-3 text-sm text-slate-700 hover:bg-slate-100 flex items-center gap-3 transition-colors"
                               >
                                 <Edit size={16} />
                                 Edit Album
                               </button>
+                              <div className="border-t border-slate-200 my-1"></div>
                               <button
                                 onClick={(e) => {
+                                  e.preventDefault();
                                   e.stopPropagation();
                                   handleDeleteAlbum(album.id);
-                                  e.currentTarget.closest('.dropdown-menu')?.classList.add('hidden');
+                                  (e.currentTarget.closest('.album-dropdown-menu') as HTMLElement)?.classList.add('hidden');
                                 }}
-                                className="w-full text-left px-4 py-2 text-sm text-red-600 hover:bg-red-50 flex items-center gap-2"
+                                className="w-full text-left px-4 py-3 text-sm text-red-600 hover:bg-red-50 flex items-center gap-3 transition-colors"
                               >
                                 <Trash2 size={16} />
                                 Delete Album
                               </button>
                             </div>
                           </div>
-                        </div>
 
-                        {/* Desktop: Hover overlay with action buttons */}
-                        <div className="hidden sm:block absolute inset-0 bg-black/0 group-hover:bg-black/20 transition-all duration-300 flex items-end justify-end p-3">
-                          <div className="opacity-0 group-hover:opacity-100 transition-opacity duration-300 flex gap-2">
+                          {/* Desktop: Hover action buttons */}
+                          <div className="hidden sm:flex opacity-0 group-hover:opacity-100 transition-all duration-300 gap-2">
                             <button
                               onClick={(e) => {
                                 e.stopPropagation();
                                 handleViewAlbumQR(album);
                               }}
-                              className="bg-white/90 text-purple-600 p-2 rounded-lg hover:bg-white transition-colors shadow-lg"
+                              className="bg-white/95 text-purple-600 p-2 rounded-lg hover:bg-white transition-colors shadow-lg hover:shadow-xl border border-white/50"
                               title="View QR Code"
                             >
                               <QrCode size={16} />
@@ -1560,7 +1572,7 @@ export default function HostDashboard() {
                                 e.stopPropagation();
                                 handleEditAlbum(album);
                               }}
-                              className="bg-white/90 text-blue-600 p-2 rounded-lg hover:bg-white transition-colors shadow-lg"
+                              className="bg-white/95 text-blue-600 p-2 rounded-lg hover:bg-white transition-colors shadow-lg hover:shadow-xl border border-white/50"
                               title="Edit Album"
                             >
                               <Edit size={16} />
@@ -1570,7 +1582,7 @@ export default function HostDashboard() {
                                 e.stopPropagation();
                                 handleDeleteAlbum(album.id);
                               }}
-                              className="bg-white/90 text-red-600 p-2 rounded-lg hover:bg-white transition-colors shadow-lg"
+                              className="bg-white/95 text-red-600 p-2 rounded-lg hover:bg-white transition-colors shadow-lg hover:shadow-xl border border-white/50"
                               title="Delete Album"
                             >
                               <Trash2 size={16} />
