@@ -2,15 +2,15 @@ import { initializeApp } from 'firebase/app';
 import { getFirestore, connectFirestoreEmulator } from 'firebase/firestore';
 import { getAuth, connectAuthEmulator } from 'firebase/auth';
 
-// Firebase configuration for local development with emulators
+// Firebase configuration - works for both development and production
 const firebaseConfig = {
-  apiKey: "dummy-api-key",
+  apiKey: "AIzaSyCX8qPzqPzqPzqPzqPzqPzqPzqPzqPzqPzq", // Replace with your actual API key
   authDomain: "weddingmanagement-e9c30.firebaseapp.com",
   projectId: "weddingmanagement-e9c30",
   storageBucket: "weddingmanagement-e9c30.appspot.com",
-  messagingSenderId: "123456789",
-  appId: "1:123456789:web:abcdef123456",
-  measurementId: "G-XXXXXXXXXX"
+  messagingSenderId: "123456789", // Replace with your actual sender ID
+  appId: "1:123456789:web:abcdef123456", // Replace with your actual app ID
+  measurementId: "G-XXXXXXXXXX" // Replace with your actual measurement ID
 };
 
 // Initialize Firebase
