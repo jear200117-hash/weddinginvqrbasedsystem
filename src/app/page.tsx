@@ -4,11 +4,10 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { Heart, Mail, Image, Users, ArrowRight, Calendar, MapPin, Clock, Camera, BookOpen, Gift, Music, Utensils, Home, User, Camera as CameraIcon, Users as UsersIcon, MapPin as MapPinIcon, Clock as ClockIcon, X, Eye, Play, Download, Martini, Mic, Cake, Car, CheckSquare, Square, Check } from 'lucide-react';
 import Link from 'next/link';
 import { useState, useEffect, useRef, Suspense } from 'react';
-import useSWR, { mutate } from 'swr';
-import { swrFetcher, swrConfig } from '@/lib/api';
 import { useSearchParams } from 'next/navigation';
-import { albumsAPI, mediaAPI, cacheUtils } from '@/lib/api';
-import { getSocket } from '@/lib/socket';
+import { albumsAPI, mediaAPI } from '@/lib/api';
+import { usePublicAlbumsWithRealtime } from '@/lib/swrFirebase';
+import { useMediaByAlbum } from '@/hooks/useFirebaseRealtime';
 import { getBestDisplayUrl, getFullSizeDisplayUrl } from '@/lib/googleDriveUtils';
 import toast, { Toaster } from 'react-hot-toast';
 
@@ -16,29 +15,28 @@ import { useLazyLoadMultipleImages } from '@/hooks/useLazyLoadWithPerformance';
 import { PerformanceMonitor } from '@/components/PerformanceMonitor';
 
 interface Album {
-  _id: string;
+  id: string;
   name: string;
-  description: string;
-  coverImage?: string;
-  googleDriveFileId?: string;
-  isFeatured: boolean;
+  description?: string;
   isPublic: boolean;
-  mediaCount: number;
-  lastUpdated: string;
+  isFeatured: boolean;
+  coverImage?: string;
+  qrCode: string;
+  createdAt: any;
+  updatedAt: any;
 }
 
 interface Media {
-  _id: string;
-  filename: string;
-  originalName: string;
-  url: string;
+  id: string;
+  albumId: string;
+  fileName: string;
+  fileType: string;
+  fileSize: number;
+  fileUrl: string;
   thumbnailUrl?: string;
-  googleDriveFileId?: string;
-  mediaType: 'image' | 'video';
-  album: string;
-  uploadedBy?: string;
+  uploadedBy: string;
   isApproved: boolean;
-  createdAt: string;
+  createdAt: any;
 }
 
 function TabInitializer({ onInit }: { onInit: (tab: string) => void }) {
@@ -58,7 +56,7 @@ export default function HomePage() {
   // Album functionality state (display-only)
   const [albums, setAlbums] = useState<Album[]>([]);
   const [selectedAlbum, setSelectedAlbum] = useState<Album | null>(null);
-  const [albumMedia, setAlbumMedia] = useState<Media[]>([]);
+  // albumMedia is now handled by Firebase real-time hook
   const [loading, setLoading] = useState(false);
   const [showViewer, setShowViewer] = useState(false);
   const [selectedMedia, setSelectedMedia] = useState<Media | null>(null);
@@ -109,6 +107,10 @@ export default function HomePage() {
   useEffect(() => {
     setIsClient(true);
   }, []);
+
+  // Firebase real-time data
+  const publicAlbums = usePublicAlbumsWithRealtime();
+  const albumMedia = useMediaByAlbum(selectedAlbum?.id || '');
 
   // Helper to fetch and cache an image as blob URL
   const ensureCached = async (index: number, urls: string[], cache: React.MutableRefObject<Map<number, string>>) => {
@@ -202,69 +204,20 @@ export default function HomePage() {
     return () => clearInterval(interval);
   }, [isClient]);
 
-  // SWR: Albums list when Photos tab is active with optimized caching
-  const { data: swrAlbums, isLoading: swrAlbumsLoading } = useSWR(
-    activeTab === 'photos' && !selectedAlbum ? '/albums?limit=200' : null,
-    swrFetcher,
-    swrConfig
-  );
-
+  // Firebase real-time albums data
   useEffect(() => {
-    if (swrAlbums?.albums) {
-      setAlbums(swrAlbums.albums);
+    if (publicAlbums.data && activeTab === 'photos' && !selectedAlbum) {
+      setAlbums(publicAlbums.data);
     }
     if (activeTab === 'photos') {
-      setLoading(!!swrAlbumsLoading);
+      setLoading(publicAlbums.loading);
     }
-  }, [swrAlbums, swrAlbumsLoading, activeTab]);
+  }, [publicAlbums.data, publicAlbums.loading, activeTab, selectedAlbum]);
 
-  // SWR: Album media when an album is selected with optimized caching
-  const { data: swrAlbumDetails, isLoading: swrAlbumLoading } = useSWR(
-    selectedAlbum ? `/albums/${selectedAlbum._id}` : null,
-    swrFetcher,
-    swrConfig
-  );
+  // Firebase real-time album media data is handled by the useMediaByAlbum hook
 
-  useEffect(() => {
-    if (swrAlbumDetails?.media) {
-      setAlbumMedia(swrAlbumDetails.media || []);
-    }
-  }, [swrAlbumDetails]);
-
-  // Realtime subscriptions for guest pages (albums/media)
-  useEffect(() => {
-    const socket = getSocket();
-
-    const handleAlbumsChange = () => {
-      if (activeTab === 'photos' && !selectedAlbum) {
-        cacheUtils.clearAlbums();
-        mutate('/albums?limit=200');
-      }
-    };
-
-    const handleMediaChange = () => {
-      if (selectedAlbum) {
-        cacheUtils.clearPattern('/albums/');
-        mutate(`/albums/${selectedAlbum._id}`);
-      }
-    };
-
-    socket.on('albums:created', handleAlbumsChange);
-    socket.on('albums:updated', handleAlbumsChange);
-    socket.on('albums:deleted', handleAlbumsChange);
-    socket.on('media:uploaded', handleMediaChange);
-    socket.on('media:approved', handleMediaChange);
-    socket.on('media:deleted', handleMediaChange);
-
-    return () => {
-      socket.off('albums:created', handleAlbumsChange);
-      socket.off('albums:updated', handleAlbumsChange);
-      socket.off('albums:deleted', handleAlbumsChange);
-      socket.off('media:uploaded', handleMediaChange);
-      socket.off('media:approved', handleMediaChange);
-      socket.off('media:deleted', handleMediaChange);
-    };
-  }, [activeTab, selectedAlbum]);
+  // Firebase real-time listeners are handled by the hooks above
+  // No need for Socket.IO subscriptions since we're using Firebase real-time
 
   // Close mobile menu when clicking outside or scrolling
   useEffect(() => {
@@ -308,7 +261,7 @@ export default function HomePage() {
     try {
       const response = await albumsAPI.getById(albumId, {});
       console.log('Album media response:', response);
-      setAlbumMedia(response.media || []);
+      // Media is now handled by Firebase real-time hook
     } catch (error: any) {
       toast.error('Failed to load album media');
     }
@@ -316,7 +269,7 @@ export default function HomePage() {
 
   const handleAlbumSelect = (album: Album) => {
     setSelectedAlbum(album);
-    fetchAlbumMedia(album._id);
+    fetchAlbumMedia(album.id);
   };
 
 
@@ -344,7 +297,7 @@ export default function HomePage() {
   };
 
   const selectAllMedia = () => {
-    const allIds = new Set(albumMedia.map(media => media._id));
+    const allIds = new Set(albumMedia.data.map(media => media.id));
     setSelectedMediaIds(allIds);
   };
 
@@ -357,19 +310,17 @@ export default function HomePage() {
 
     setIsDownloading(true);
     try {
-      const selectedMedia = albumMedia.filter(media => selectedMediaIds.has(media._id));
+      const selectedMedia = albumMedia.data.filter(media => selectedMediaIds.has(media.id));
 
       // Use a different approach for multiple files - open each in a new tab
       if (selectedMedia.length === 1) {
         // Single file - direct download
         const media = selectedMedia[0];
-        const downloadUrl = media.googleDriveFileId
-          ? `https://drive.google.com/uc?export=download&id=${media.googleDriveFileId}`
-          : media.url;
+        const downloadUrl = media.fileUrl;
 
         const link = document.createElement('a');
         link.href = downloadUrl;
-        link.download = media.originalName || media.filename || 'download';
+        link.download = media.fileName || 'download';
         link.style.display = 'none';
         document.body.appendChild(link);
         link.click();
@@ -377,9 +328,7 @@ export default function HomePage() {
       } else {
         // Multiple files - open each in a new tab to bypass popup blocker
         selectedMedia.forEach((media, index) => {
-          const downloadUrl = media.googleDriveFileId
-            ? `https://drive.google.com/uc?export=download&id=${media.googleDriveFileId}`
-            : media.url;
+          const downloadUrl = media.fileUrl;
 
           // Open in new tab with a small delay to prevent blocking
           setTimeout(() => {
@@ -754,7 +703,7 @@ export default function HomePage() {
                   <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
                     {albums.map((album) => (
                       <motion.div
-                        key={album._id}
+                        key={album.id}
                         initial={{ opacity: 0, y: 20 }}
                         animate={{ opacity: 1, y: 0 }}
                         whileHover={{ y: -5 }}
@@ -764,7 +713,7 @@ export default function HomePage() {
                         <div className="h-48 bg-gradient-to-br from-[#84a2be] from-opacity-20 to-[#cba397] to-opacity-20 flex items-center justify-center">
                           {album.coverImage ? (
                             <img
-                              src={getBestDisplayUrl(album.coverImage, album.googleDriveFileId, 400)}
+                              src={getBestDisplayUrl(album.coverImage, undefined, 400)}
                               alt={album.name}
                               className="w-full h-full object-cover"
                             />
@@ -776,7 +725,7 @@ export default function HomePage() {
                           <h3 className="text-xl font-semibold text-gray-900 mb-2">{album.name}</h3>
                           <p className="text-gray-600 text-sm mb-4">{album.description}</p>
                           <div className="flex items-center justify-between">
-                            <span className="text-sm text-gray-500">{album.mediaCount} {album.mediaCount === 1 ? 'item' : 'items'}</span>
+                            <span className="text-sm text-gray-500">Items</span>
                             {album.isFeatured && (
                               <span className="bg-[#cba397] bg-opacity-20 text-[#667c93] px-2 py-1 rounded-full text-xs">
                                 Featured
@@ -808,7 +757,7 @@ export default function HomePage() {
                     </button>
 
                     {/* Selection Controls */}
-                    {albumMedia.length > 0 && (
+                    {albumMedia.data.length > 0 && (
                       <div className="flex items-center gap-2">
                         <button
                           onClick={toggleSelectionMode}
@@ -864,18 +813,18 @@ export default function HomePage() {
                   </div>
                 )}
 
-                {albumMedia.length > 0 ? (
+                {albumMedia.data.length > 0 ? (
                   <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
-                    {albumMedia.map((media) => (
+                    {albumMedia.data.map((media) => (
                       <motion.div
-                        key={media._id}
+                        key={media.id}
                         initial={{ opacity: 0, scale: 0.9 }}
                         animate={{ opacity: 1, scale: 1 }}
                         whileHover={{ scale: 1.05 }}
                         className={`relative group ${isSelectionMode ? 'cursor-default' : 'cursor-pointer'}`}
-                        onClick={() => isSelectionMode ? toggleMediaSelection(media._id) : openViewer(media)}
+                        onClick={() => isSelectionMode ? toggleMediaSelection(media.id) : openViewer(media)}
                       >
-                        {media.mediaType === 'image' ? (
+                        {media.fileType.startsWith('image/') ? (
                           <div
                             className="w-full rounded-lg overflow-hidden"
                             style={{
@@ -887,8 +836,8 @@ export default function HomePage() {
                             }}
                           >
                             <img
-                              src={getBestDisplayUrl(media.thumbnailUrl || media.url, media.googleDriveFileId, 300)}
-                              alt={media.originalName}
+                              src={getBestDisplayUrl(media.thumbnailUrl || media.fileUrl, undefined, 300)}
+                              alt={media.fileName}
                               style={{
                                 width: '100%',
                                 height: '100%',
@@ -903,14 +852,14 @@ export default function HomePage() {
                                 zIndex: 1
                               }}
                               onError={(e) => {
-                                console.error('Failed to load image:', media.url);
+                                console.error('Failed to load image:', media.fileUrl);
                                 const target = e.currentTarget as HTMLImageElement;
                                 target.style.backgroundColor = '#dc2626';
                                 target.style.border = '2px solid #dc2626';
                                 target.alt = 'Image failed to load';
                               }}
                               onLoad={(e) => {
-                                console.log('Image loaded successfully:', media.originalName);
+                                console.log('Image loaded successfully:', media.fileName);
                                 const target = e.currentTarget as HTMLImageElement;
                                 target.style.backgroundColor = 'transparent';
                               }}
@@ -920,7 +869,7 @@ export default function HomePage() {
                           <div className="aspect-square w-full h-full bg-gradient-to-br from-blue-600 to-purple-700 flex items-center justify-center rounded-lg relative overflow-hidden">
                             <div className="w-full h-full relative">
                               <video
-                                src={media.url}
+                                src={media.fileUrl}
                                 className="w-full h-full object-cover rounded-lg"
                                 preload="metadata"
                                 muted
@@ -938,11 +887,11 @@ export default function HomePage() {
                         {/* Selection Checkbox */}
                         {isSelectionMode && (
                           <div className="absolute top-2 left-2 z-10">
-                            <div className={`w-6 h-6 rounded border-2 flex items-center justify-center ${selectedMediaIds.has(media._id)
+                            <div className={`w-6 h-6 rounded border-2 flex items-center justify-center ${selectedMediaIds.has(media.id)
                                 ? 'bg-blue-600 border-blue-600 text-white'
                                 : 'bg-white border-gray-300'
                               }`}>
-                              {selectedMediaIds.has(media._id) && <Check size={16} />}
+                              {selectedMediaIds.has(media.id) && <Check size={16} />}
                             </div>
                           </div>
                         )}
@@ -1156,16 +1105,16 @@ export default function HomePage() {
                   <X size={32} />
                 </button>
 
-                {selectedMedia.mediaType === 'image' ? (
+                {selectedMedia.fileType.startsWith('image/') ? (
                   <img
-                    src={getFullSizeDisplayUrl(selectedMedia.url, selectedMedia.googleDriveFileId)}
-                    alt={selectedMedia.originalName}
+                    src={getFullSizeDisplayUrl(selectedMedia.fileUrl, undefined)}
+                    alt={selectedMedia.fileName}
                     className="max-w-none max-h-none w-auto h-auto object-contain"
                     style={{ maxWidth: '90vw', maxHeight: '90vh' }}
                   />
                 ) : (
                   <video
-                    src={selectedMedia.url}
+                    src={selectedMedia.fileUrl}
                     controls
                     className="max-w-none max-h-none w-auto h-auto"
                     style={{ maxWidth: '90vw', maxHeight: '90vh' }}
@@ -1174,7 +1123,7 @@ export default function HomePage() {
                 )}
 
                 <div className="absolute bottom-4 left-4 text-white">
-                  <p className="text-sm">{selectedMedia.originalName}</p>
+                  <p className="text-sm">{selectedMedia.fileName}</p>
                   {selectedMedia.uploadedBy && (
                     <p className="text-xs text-gray-300">By {selectedMedia.uploadedBy}</p>
                   )}

@@ -9,9 +9,9 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ error: 'URL parameter is required' }, { status: 400 });
     }
 
-    // Allow our backend uploads and Google Drive CDN URLs
+    // Allow Firebase Functions uploads and Google Drive CDN URLs
     const allowed = [
-      'https://backendv2-nasy.onrender.com/uploads/',
+      'https://api-rpahsncjpa-as.a.run.app/uploads/',
       'https://drive.google.com/',
       'https://lh3.googleusercontent.com/'
     ];

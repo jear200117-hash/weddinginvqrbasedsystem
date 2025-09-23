@@ -1,11 +1,19 @@
 'use client';
 
 import { useState, useEffect, useMemo } from 'react';
-import useSWR, { mutate } from 'swr';
 import { motion, AnimatePresence } from 'framer-motion';
-import { invitationsAPI, albumsAPI, mediaAPI, authAPI, rsvpAPI, swrFetcher, rsvpAllKey, swrConfig, realtimeConfig, cacheUtils } from '@/lib/api';
-import { getSocket } from '@/lib/socket';
-import { getBestDisplayUrl, getFullSizeDisplayUrl } from '@/lib/googleDriveUtils';
+import { invitationsAPI, albumsAPI, mediaAPI, authAPI, rsvpAPI, createRSVPQuery } from '@/lib/api';
+import { validateGuestName, validateInvitationMessage, validateAlbumName, validateAlbumDescription, validateFiles, FILE_VALIDATION_CONSTANTS, ValidationResult } from '@/lib/validation';
+import ValidationFeedback, { FieldValidation } from '@/components/ValidationFeedback';
+import { 
+  useInvitations, 
+  useAlbums, 
+  useRSVPs, 
+  useStats,
+  useAllMedia,
+  useMediaByAlbum
+} from '@/hooks/useFirebaseRealtime';
+import { getBestDisplayUrl, getFullSizeDisplayUrl, getVideoPlaybackUrl, getVideoDownloadUrl } from '@/lib/googleDriveUtils';
 import toast, { Toaster } from 'react-hot-toast';
 import {
   Users,
@@ -37,7 +45,8 @@ import {
   Copy,
   ExternalLink,
   Palette,
-  QrCodeIcon
+  QrCodeIcon,
+  Play
 } from 'lucide-react';
 import Cookies from 'js-cookie';
 import { useRouter } from 'next/navigation';
@@ -65,42 +74,55 @@ interface Stats {
 }
 
 interface Invitation {
-  _id: string;
+  id: string;
   guestName: string;
   guestRole: string;
   customMessage: string;
+  invitationType: string;
   qrCode: string;
-  qrCodePath?: string;
   isActive: boolean;
-  isOpened: boolean;
-  openedAt?: string;
-  createdAt: string;
+  rsvp: {
+    status: 'pending' | 'attending' | 'not_attending';
+    attendeeCount?: number;
+    guestNames?: string[];
+    email?: string;
+    phone?: string;
+    submittedAt?: any;
+    ipAddress?: string;
+    userAgent?: string;
+  };
+  openedAt?: any;
+  createdAt: any;
+  updatedAt: any;
 }
 
 interface Album {
-  _id: string;
+  id: string;
   name: string;
-  description: string;
-  coverImage?: string;
-  googleDriveFileId?: string;
-  mediaCount: number;
+  description?: string;
   isPublic: boolean;
-  isFeatured?: boolean;
-  qrCode?: string;
+  isFeatured: boolean;
+  coverImage?: string;
+  qrCode: string;
   qrCodeUrl?: string;
+  createdAt: any;
+  updatedAt: any;
   uploadUrl?: string;
   createdBy?: {
     _id: string;
     email: string;
   };
-  createdAt: string;
 }
 
 export default function HostDashboard() {
-  const [stats, setStats] = useState<Stats | null>(null);
-  const [invitations, setInvitations] = useState<Invitation[]>([]);
   const [loading, setLoading] = useState(true);
   const [activeTab, setActiveTab] = useState<'overview' | 'invitations' | 'albums' | 'media'>('overview');
+  
+  // Firebase real-time data
+  const invitationsData = useInvitations();
+  const albumsData = useAlbums();
+  const rsvpsData = useRSVPs();
+  const statsData = useStats();
   const [albumViewMode, setAlbumViewMode] = useState<'grid' | 'detail'>('grid');
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [showCreateAlbumModal, setShowCreateAlbumModal] = useState(false);
@@ -116,6 +138,31 @@ export default function HostDashboard() {
   });
   const [isCreatingInvitation, setIsCreatingInvitation] = useState(false);
   const [isCreatingAlbum, setIsCreatingAlbum] = useState(false);
+  
+  // Validation states
+  const [invitationValidation, setInvitationValidation] = useState<{
+    guestName: ValidationResult;
+    customMessage: ValidationResult;
+  }>({
+    guestName: { isValid: true, errors: [] },
+    customMessage: { isValid: true, errors: [] }
+  });
+  const [albumValidation, setAlbumValidation] = useState<{
+    name: ValidationResult;
+    description: ValidationResult;
+  }>({
+    name: { isValid: true, errors: [] },
+    description: { isValid: true, errors: [] }
+  });
+  const [showInvitationValidation, setShowInvitationValidation] = useState(false);
+  const [showAlbumValidation, setShowAlbumValidation] = useState(false);
+
+  // Keep local albums state in sync with Firebase real-time data
+  useEffect(() => {
+    if (albumsData?.data) {
+      setAlbums(albumsData.data as Album[]);
+    }
+  }, [albumsData?.data]);
 
   // Build unique entourage roles list from ENTOURAGE_CONFIG
   const entourageRoles = useMemo(() => {
@@ -199,6 +246,7 @@ export default function HostDashboard() {
   const [showMediaViewer, setShowMediaViewer] = useState(false);
   const [selectedMedia, setSelectedMedia] = useState<any | null>(null);
   const [currentMediaIndex, setCurrentMediaIndex] = useState(0);
+  const [showVideoPlayer, setShowVideoPlayer] = useState(false);
 
   // Bulk operations state
   const [selectedMediaIds, setSelectedMediaIds] = useState<Set<string>>(new Set());
@@ -215,6 +263,8 @@ export default function HostDashboard() {
   });
   const [mediaPage, setMediaPage] = useState(1);
   const [mediaTotalPages, setMediaTotalPages] = useState(1);
+  const realtimeAllMedia = useAllMedia();
+  const realtimeAlbumMedia = useMediaByAlbum((selectedAlbum && selectedAlbum.id) || '');
 
   const router = useRouter();
 
@@ -227,6 +277,10 @@ export default function HostDashboard() {
   });
   const [currentPage, setCurrentPage] = useState(1);
   const [itemsPerPage] = useState(10);
+  
+  // Recent Invitations pagination
+  const [recentInvitationsPage, setRecentInvitationsPage] = useState(1);
+  const [recentInvitationsPerPage] = useState(5);
   const [selectedInvitation, setSelectedInvitation] = useState<any>(null);
   const [qrImageLoading, setQrImageLoading] = useState(false);
   const [qrConfig, setQrConfig] = useState({
@@ -248,32 +302,68 @@ export default function HostDashboard() {
     }
   });
   const [showQRConfig, setShowQRConfig] = useState(false);
+  const [isQRLoading, setIsQRLoading] = useState(false);
 
   // SWR for RSVP data with real-time configuration (critical data)
-  const rsvpKey = rsvpAllKey(rsvpFilters);
-  const { data: swrRsvpData, isLoading: swrRsvpLoading } = useSWR(rsvpKey, swrFetcher, realtimeConfig);
+  // Firebase real-time invitation data with RSVP filtering
   useEffect(() => {
-    if (swrRsvpData) {
-      setRsvpData(swrRsvpData);
+    if (invitationsData.data) {
+      // Apply filters to invitation data
+      let filteredData = invitationsData.data;
+      
+      if (rsvpFilters.status !== 'all') {
+        filteredData = filteredData.filter(invitation => invitation.rsvp?.status === rsvpFilters.status);
+      }
+      
+      if (rsvpFilters.role !== 'all') {
+        filteredData = filteredData.filter(invitation => invitation.guestRole === rsvpFilters.role);
+      }
+      
+      if (rsvpFilters.search) {
+        const searchLower = rsvpFilters.search.toLowerCase();
+        filteredData = filteredData.filter(invitation => 
+          invitation.guestName.toLowerCase().includes(searchLower) ||
+          invitation.rsvp?.guestNames?.some(name => name.toLowerCase().includes(searchLower)) ||
+          invitation.rsvp?.email?.toLowerCase().includes(searchLower)
+        );
+      }
+      
+      // Calculate stats from invitation data
+      const stats = {
+        total: invitationsData.data.length,
+        attending: invitationsData.data.filter(inv => inv.rsvp?.status === 'attending').length,
+        notAttending: invitationsData.data.filter(inv => inv.rsvp?.status === 'not_attending').length,
+        pending: invitationsData.data.filter(inv => inv.rsvp?.status === 'pending').length
+      };
+      
+      setRsvpData({ invitations: filteredData, stats });
       setCurrentPage(1);
     }
-  }, [swrRsvpData]);
+  }, [invitationsData.data, rsvpFilters]);
 
-  // SWR for invitations list (socket-backed, no polling/no focus revalidate)
-  const { data: swrInvites } = useSWR('/invitations?limit=10', swrFetcher, realtimeConfig);
+  // Firebase real-time invitations data
   useEffect(() => {
-    if (swrInvites?.invitations) {
-      setInvitations(swrInvites.invitations);
+    if (invitationsData.data) {
+      // invitationsData.data is already the array, no need to set state
+      // The data is available directly from the hook
     }
-  }, [swrInvites]);
+  }, [invitationsData.data]);
 
-  // SWR for host albums list with optimized caching
-  const { data: swrHostAlbums } = useSWR('/albums/host', swrFetcher, swrConfig);
+  // Firebase real-time albums data
   useEffect(() => {
-    if (swrHostAlbums?.albums) {
-      setAlbums(swrHostAlbums.albums);
+    if (albumsData.data) {
+      // albumsData.data is already the array, no need to set state
+      // The data is available directly from the hook
     }
-  }, [swrHostAlbums]);
+  }, [albumsData.data]);
+
+  // Firebase real-time stats data
+  useEffect(() => {
+    if (statsData.stats) {
+      // statsData.stats is already the stats object, no need to set state
+      // The data is available directly from the hook
+    }
+  }, [statsData.stats]);
 
   useEffect(() => {
     // Check if user is authenticated
@@ -283,54 +373,12 @@ export default function HostDashboard() {
       return;
     }
 
-    fetchDashboardData();
+    // No need to fetch data - Firebase real-time hooks handle this
+    setLoading(false);
   }, []);
 
-  // Realtime subscriptions (Socket.IO)
-  useEffect(() => {
-    const socket = getSocket();
-    const handleRSVP = () => {
-      cacheUtils.clearRSVP();
-      mutate(rsvpKey);
-    };
-    const handleInvChange = () => {
-      cacheUtils.clearInvitations();
-      mutate('/invitations?limit=10');
-    };
-    const handleAlbumsChange = () => {
-      cacheUtils.clearAlbums();
-      mutate('/albums/host');
-    };
-    const handleMediaChange = (payload?: any) => {
-      // Invalidate album details if we have an album id
-      cacheUtils.clearPattern('/albums/');
-      mutate((key: string) => key?.startsWith('/albums/'));
-    };
-
-    socket.on('rsvp:updated', handleRSVP);
-    socket.on('invitations:created', handleInvChange);
-    socket.on('invitations:updated', handleInvChange);
-    socket.on('invitations:deleted', handleInvChange);
-    socket.on('albums:created', handleAlbumsChange);
-    socket.on('albums:updated', handleAlbumsChange);
-    socket.on('albums:deleted', handleAlbumsChange);
-    socket.on('media:uploaded', handleMediaChange);
-    socket.on('media:approved', handleMediaChange);
-    socket.on('media:deleted', handleMediaChange);
-
-    return () => {
-      socket.off('rsvp:updated', handleRSVP);
-      socket.off('invitations:created', handleInvChange);
-      socket.off('invitations:updated', handleInvChange);
-      socket.off('invitations:deleted', handleInvChange);
-      socket.off('albums:created', handleAlbumsChange);
-      socket.off('albums:updated', handleAlbumsChange);
-      socket.off('albums:deleted', handleAlbumsChange);
-      socket.off('media:uploaded', handleMediaChange);
-      socket.off('media:approved', handleMediaChange);
-      socket.off('media:deleted', handleMediaChange);
-    };
-  }, [rsvpKey]);
+  // Firebase real-time listeners are handled by the hooks above
+  // No need for Socket.IO subscriptions since we're using Firebase real-time
 
 
 
@@ -351,30 +399,66 @@ export default function HostDashboard() {
     if (activeTab === 'media') {
       fetchAllMedia();
     }
-  }, [activeTab, mediaFilters, mediaPage]);
+  }, [activeTab, mediaFilters, mediaPage, realtimeAllMedia.data, realtimeAllMedia.loading]);
 
   const fetchAllMedia = async () => {
     setLoadingAllMedia(true);
     try {
-      const params: any = {
-        page: mediaPage,
-        limit: 20
-      };
+      if (realtimeAllMedia.loading) return;
+      const source = (realtimeAllMedia.data as any[]) || [];
 
-      if (mediaFilters.album !== 'all') params.album = mediaFilters.album;
-      if (mediaFilters.type !== 'all') params.type = mediaFilters.type;
-      if (mediaFilters.approved !== 'all') params.approved = mediaFilters.approved === 'true';
+      // Normalize fields for filters and rendering
+      const normalized = source.map((m: any) => ({
+        ...m,
+        album: m.album || m.albumId,
+        url: m.url || m.fileUrl,
+        mediaType: m.mediaType || (m.fileType?.startsWith('image/') ? 'image' : 'video')
+      }));
 
-      const response = await mediaAPI.getAll(params);
-      setAllMedia(response.media || []);
-      setMediaTotalPages(response.totalPages || 1);
+      // Apply filters
+      let filtered = normalized;
+      if (mediaFilters.album !== 'all') filtered = filtered.filter(m => m.album === mediaFilters.album);
+      if (mediaFilters.type !== 'all') filtered = filtered.filter(m => m.mediaType === mediaFilters.type);
+      if (mediaFilters.approved !== 'all') filtered = filtered.filter(m => String(m.isApproved) === mediaFilters.approved);
+
+      // Sort by createdAt desc if available
+      filtered.sort((a, b) => {
+        const da = new Date(a.createdAt || 0).getTime();
+        const db = new Date(b.createdAt || 0).getTime();
+        return db - da;
+      });
+
+      // Pagination (20 per page)
+      const pageSize = 20;
+      const totalPages = Math.max(1, Math.ceil(filtered.length / pageSize));
+      const start = (mediaPage - 1) * pageSize;
+      const pageItems = filtered.slice(start, start + pageSize);
+
+      setAllMedia(pageItems);
+      setMediaTotalPages(totalPages);
     } catch (error: any) {
-      console.error('Fetch media error:', error);
+      console.error('Fetch media (realtime) error:', error);
       toast.error('Failed to load media');
     } finally {
       setLoadingAllMedia(false);
     }
   };
+
+  // Realtime album media for Album Detail view
+  useEffect(() => {
+    if (!selectedAlbum || albumViewMode !== 'detail') return;
+    if (realtimeAlbumMedia.loading) return;
+
+    const source = (realtimeAlbumMedia.data as any[]) || [];
+    const normalized = source.map((m: any) => ({
+      ...m,
+      id: m.id || m._id,
+      album: m.album || m.albumId,
+      url: m.url || m.fileUrl,
+      mediaType: m.mediaType || (m.fileType?.startsWith('image/') ? 'image' : 'video')
+    }));
+    setAlbumMedia(normalized);
+  }, [selectedAlbum?.id, albumViewMode, realtimeAlbumMedia.data, realtimeAlbumMedia.loading]);
 
   const handleMediaFilterChange = (filterType: string, value: string) => {
     const newFilters = { ...mediaFilters, [filterType]: value };
@@ -383,61 +467,23 @@ export default function HostDashboard() {
   };
 
   const handleDeleteMediaFromGallery = async (mediaId: string) => {
-    if (!confirm('Are you sure you want to delete this photo? This action cannot be undone.')) {
-      return;
-    }
-
+    if (!confirm('Delete this media item? This cannot be undone.')) return;
     try {
       await mediaAPI.delete(mediaId);
-      setAllMedia(prev => prev.filter(media => media._id !== mediaId));
-      toast.success('Photo deleted successfully!');
-
-      // Refresh stats
-      fetchDashboardData();
+      setAlbumMedia(prev => prev.filter(m => m.id !== mediaId));
+      toast.success('Media deleted');
     } catch (error: any) {
       console.error('Delete media error:', error);
-      toast.error(error.message || 'Failed to delete photo');
+      toast.error('Failed to delete media');
     }
   };
 
-  const fetchDashboardData = async () => {
-    try {
-      console.log('Fetching fresh dashboard data...');
-      const [invitationStats, albumStats, mediaStats, invitationsData, albumsData, rsvpDataResponse] = await Promise.all([
-        invitationsAPI.getStats(),
-        albumsAPI.getStats(),
-        mediaAPI.getStats(),
-        invitationsAPI.getAll({ limit: 10 }),
-        albumsAPI.getHostAlbums(),
-        Promise.resolve(null)
-      ]);
+  // fetchDashboardData function removed - using Firebase real-time hooks instead
 
-      setStats({
-        invitations: invitationStats.stats,
-        albums: albumStats.stats,
-        media: mediaStats.stats
-      });
-
-      setInvitations(invitationsData.invitations);
-      setAlbums(albumsData.albums || []);
-      if (rsvpDataResponse) setRsvpData(rsvpDataResponse);
-    } catch (error: any) {
-      toast.error('Failed to load dashboard data');
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const fetchRSVPData = async (filters = rsvpFilters) => {
-    try {
-      await mutate(rsvpAllKey(filters));
-    } catch (error: any) {
-      toast.error('Failed to load RSVP data');
-    }
-  };
+  // RSVP data is now handled by Firebase real-time listeners
 
   const handleManualRefresh = async () => {
-    await fetchRSVPData();
+    // RSVP data is automatically refreshed by Firebase real-time listeners
     toast.success('RSVP data refreshed');
   };
 
@@ -498,19 +544,34 @@ export default function HostDashboard() {
   };
 
   // Pagination helpers
-  const totalPages = Math.ceil((rsvpData?.invitations?.length || 0) / itemsPerPage);
+  const totalPages = Math.ceil(((rsvpData?.invitations?.length) || 0) / itemsPerPage);
   const startIndex = (currentPage - 1) * itemsPerPage;
   const endIndex = startIndex + itemsPerPage;
-  const currentInvitations = rsvpData?.invitations?.slice(startIndex, endIndex) || [];
+  const currentInvitations = (rsvpData?.invitations || []).slice(startIndex, endIndex);
 
   const handlePageChange = (page: number) => {
     setCurrentPage(page);
   };
 
+  const validateAlbumForm = () => {
+    const nameValidation = validateAlbumName(newAlbum.name);
+    const descriptionValidation = validateAlbumDescription(newAlbum.description);
+    
+    setAlbumValidation({
+      name: nameValidation,
+      description: descriptionValidation
+    });
+    
+    setShowAlbumValidation(true);
+    
+    return nameValidation.isValid && descriptionValidation.isValid;
+  };
+
   const handleCreateAlbum = async () => {
     if (isCreatingAlbum) return;
-    if (!newAlbum.name.trim()) {
-      toast.error('Please enter an album name');
+    
+    if (!validateAlbumForm()) {
+      toast.error('Please fix the validation errors before creating the album');
       return;
     }
 
@@ -534,6 +595,11 @@ export default function HostDashboard() {
       // Close modal and reset form
       setShowCreateAlbumModal(false);
       setNewAlbum({ name: '', description: '', isPublic: true, coverImage: undefined });
+      setShowAlbumValidation(false);
+      setAlbumValidation({
+        name: { isValid: true, errors: [] },
+        description: { isValid: true, errors: [] }
+      });
 
     } catch (error: any) {
       console.error('Album creation error:', error);
@@ -556,14 +622,18 @@ export default function HostDashboard() {
 
   const handleUpdateAlbum = async () => {
     if (isUpdatingAlbum || !editingAlbum) return;
-    if (!editAlbumData.name.trim()) {
-      toast.error('Please enter an album name');
+    
+    const nameValidation = validateAlbumName(editAlbumData.name);
+    const descriptionValidation = validateAlbumDescription(editAlbumData.description);
+    
+    if (!nameValidation.isValid || !descriptionValidation.isValid) {
+      toast.error('Please fix the validation errors before updating the album');
       return;
     }
 
     setIsUpdatingAlbum(true);
     try {
-      const response = await albumsAPI.update(editingAlbum._id, {
+      const response = await albumsAPI.update(editingAlbum.id, {
         name: editAlbumData.name.trim(),
         description: editAlbumData.description.trim(),
         isPublic: editAlbumData.isPublic,
@@ -572,7 +642,7 @@ export default function HostDashboard() {
 
       // Update local state
       setAlbums(prev => prev.map(album =>
-        album._id === editingAlbum._id
+        album.id === editingAlbum.id
           ? { ...album, ...editAlbumData }
           : album
       ));
@@ -581,8 +651,7 @@ export default function HostDashboard() {
       setShowEditAlbumModal(false);
       setEditingAlbum(null);
 
-      // Refresh data
-      mutate('/albums/host');
+      // Data will be refreshed automatically by Firebase real-time listeners
     } catch (error: any) {
       console.error('Update album error:', error);
       toast.error(error.message || 'Failed to update album');
@@ -592,8 +661,61 @@ export default function HostDashboard() {
   };
 
   const handleUploadToAlbum = (album: Album) => {
-    // TODO: Implement upload functionality
-    toast.success(`Upload functionality for ${album.name} coming soon!`);
+    try {
+      const input = document.createElement('input');
+      input.type = 'file';
+      input.multiple = true;
+      input.accept = 'image/*,video/*';
+      input.onchange = async (e: any) => {
+        const files: FileList | null = e.target?.files;
+        if (!files || files.length === 0) return;
+
+        // Convert FileList to File array for validation
+        const filesArray = Array.from(files);
+        
+        // Validate files before upload
+        const fileValidation = validateFiles(filesArray, {
+          maxFiles: FILE_VALIDATION_CONSTANTS.MAX_HOST_PHOTOS,
+          maxFileSize: FILE_VALIDATION_CONSTANTS.MAX_FILE_SIZE,
+          allowedTypes: [...FILE_VALIDATION_CONSTANTS.ALLOWED_IMAGE_TYPES, ...FILE_VALIDATION_CONSTANTS.ALLOWED_VIDEO_TYPES]
+        });
+        
+        if (!fileValidation.isValid) {
+          // Show detailed error messages
+          fileValidation.errors.forEach(error => {
+            toast.error(error, { duration: 6000 });
+          });
+          return;
+        }
+        
+        // Show warnings if any
+        if (fileValidation.warnings && fileValidation.warnings.length > 0) {
+          fileValidation.warnings.forEach(warning => {
+            toast(warning, {
+              icon: '⚠️',
+              duration: 4000,
+            });
+          });
+        }
+
+        toast.loading(`Uploading ${filesArray.length} file(s)...`, { id: 'host-upload' });
+        try {
+          await mediaAPI.uploadHost(album.id, files);
+          toast.success(`Successfully uploaded ${filesArray.length} file(s)!`, { id: 'host-upload' });
+          // Refresh current album media if viewing detail
+          if (selectedAlbum && albumViewMode === 'detail') {
+            fetchAllMedia();
+          }
+        } catch (error: any) {
+          console.error('Host upload error:', error);
+          toast.error(error?.response?.data?.error || 'Failed to upload media', { id: 'host-upload' });
+        }
+      };
+      input.click();
+    } catch (err) {
+      console.error('Failed to open file picker:', err);
+      toast.error('Could not open file picker');
+    }
   };
 
   const handleViewAlbum = (album: Album) => {
@@ -601,20 +723,8 @@ export default function HostDashboard() {
     setAlbumViewMode('detail');
   };
 
-  const { data: swrDashboardAlbum, isLoading: swrDashAlbumLoading } = useSWR(
-    selectedAlbum && albumViewMode === 'detail' ? `/albums/${selectedAlbum._id}` : null,
-    swrFetcher,
-    { revalidateOnFocus: true, dedupingInterval: 3000 }
-  );
-
-  useEffect(() => {
-    if (swrDashboardAlbum?.media) {
-      setAlbumMedia(swrDashboardAlbum.media || []);
-      setLoadingMedia(false);
-    } else if (selectedAlbum && albumViewMode === 'detail') {
-      setLoadingMedia(swrDashAlbumLoading);
-    }
-  }, [swrDashboardAlbum, swrDashAlbumLoading, selectedAlbum, albumViewMode]);
+  // Firebase real-time album media data is handled by the Firebase hooks above
+  // No need for additional SWR calls
 
   const handleBackToAlbums = () => {
     setAlbumViewMode('grid');
@@ -631,6 +741,7 @@ export default function HostDashboard() {
   const handleCloseMediaViewer = () => {
     setShowMediaViewer(false);
     setSelectedMedia(null);
+    setShowVideoPlayer(false);
   };
 
   const handlePreviousMedia = () => {
@@ -657,18 +768,14 @@ export default function HostDashboard() {
 
   const toggleMediaSelection = (mediaId: string) => {
     setSelectedMediaIds(prev => {
-      const newSet = new Set(prev);
-      if (newSet.has(mediaId)) {
-        newSet.delete(mediaId);
-      } else {
-        newSet.add(mediaId);
-      }
-      return newSet;
+      const next = new Set(prev);
+      if (next.has(mediaId)) next.delete(mediaId); else next.add(mediaId);
+      return next;
     });
   };
 
   const selectAllMedia = () => {
-    const allIds = new Set(albumMedia.map(media => media._id));
+    const allIds = new Set(albumMedia.map(media => media.id));
     setSelectedMediaIds(allIds);
   };
 
@@ -681,7 +788,7 @@ export default function HostDashboard() {
 
     setIsBulkOperationLoading(true);
     try {
-      const selectedMedia = albumMedia.filter(media => selectedMediaIds.has(media._id));
+      const selectedMedia = albumMedia.filter(media => selectedMediaIds.has(media.id));
 
       // Use a different approach for multiple files - open each in a new tab
       if (selectedMedia.length === 1) {
@@ -723,30 +830,19 @@ export default function HostDashboard() {
 
   const handleBulkDelete = async () => {
     if (selectedMediaIds.size === 0) return;
-
-    if (!confirm(`Are you sure you want to delete ${selectedMediaIds.size} selected photos? This action cannot be undone.`)) {
-      return;
-    }
-
+    if (!confirm(`Delete ${selectedMediaIds.size} selected item(s)? This cannot be undone.`)) return;
     setIsBulkOperationLoading(true);
     try {
-      const selectedMedia = albumMedia.filter(media => selectedMediaIds.has(media._id));
-
-      // Delete each selected media file
-      for (const media of selectedMedia) {
-        await mediaAPI.delete(media._id);
+      const selected = albumMedia.filter(media => selectedMediaIds.has(media.id));
+      for (const media of selected) {
+        await mediaAPI.delete(media.id);
       }
-
-      // Update local state
-      setAlbumMedia(prev => prev.filter(media => !selectedMediaIds.has(media._id)));
-
-      // Clear selection
+      setAlbumMedia(prev => prev.filter(media => !selectedMediaIds.has(media.id)));
       setSelectedMediaIds(new Set());
-
-      toast.success(`Deleted ${selectedMediaIds.size} photos`);
-    } catch (error) {
+      toast.success('Selected media deleted');
+    } catch (error: any) {
       console.error('Bulk delete error:', error);
-      toast.error('Failed to delete some photos');
+      toast.error('Failed to delete selected media');
     } finally {
       setIsBulkOperationLoading(false);
     }
@@ -780,32 +876,14 @@ export default function HostDashboard() {
         await albumsAPI.delete(albumId);
 
         // Immediately remove the album from local state
-        setAlbums(prev => prev.filter(album => album._id !== albumId));
+        setAlbums(prev => prev.filter(album => album.id !== albumId));
 
-        // Update stats immediately
-        setStats(prev => {
-          if (!prev) return prev;
-
-          const deletedAlbum = albums.find(album => album._id === albumId);
-          if (!deletedAlbum) return prev;
-
-          return {
-            ...prev,
-            albums: {
-              ...prev.albums,
-              totalAlbums: Math.max(0, (prev.albums.totalAlbums || 0) - 1),
-              publicAlbums: Math.max(0, prev.albums.publicAlbums - (deletedAlbum.isPublic ? 1 : 0)),
-              totalMedia: Math.max(0, (prev.albums.totalMedia || 0) - (deletedAlbum.mediaCount || 0))
-            }
-          };
-        });
+        // Stats are now handled by Firebase real-time hooks
+        // No need to update state manually
 
         toast.success('Album deleted successfully!');
 
-        // Refresh data in background to ensure consistency
-        setTimeout(() => {
-          fetchDashboardData();
-        }, 1000);
+        // Data is handled by Firebase real-time hooks
 
       } catch (error: any) {
         toast.error(error.response?.data?.error || 'Failed to delete album');
@@ -814,9 +892,23 @@ export default function HostDashboard() {
   };
 
 
+  const validateInvitationForm = () => {
+    const nameValidation = validateGuestName(newInvitation.guestName);
+    const messageValidation = validateInvitationMessage(newInvitation.customMessage);
+    
+    setInvitationValidation({
+      guestName: nameValidation,
+      customMessage: messageValidation
+    });
+    
+    setShowInvitationValidation(true);
+    
+    return nameValidation.isValid && messageValidation.isValid;
+  };
+
   const handleCreateInvitation = async () => {
-    if (!newInvitation.guestName.trim() || !newInvitation.customMessage.trim()) {
-      toast.error('Please fill in all required fields');
+    if (!validateInvitationForm()) {
+      toast.error('Please fix the validation errors before creating the invitation');
       return;
     }
 
@@ -830,8 +922,7 @@ export default function HostDashboard() {
       };
       const response = await invitationsAPI.create(invitationData);
 
-      // Clear cache for invitations
-      cacheUtils.clearInvitations();
+      // Firebase real-time listeners will automatically update the UI
 
       // Immediately add the new invitation to the local state
       if (response.invitation) {
@@ -843,42 +934,8 @@ export default function HostDashboard() {
           status: 'active'
         };
 
-        // Update invitations list immediately
-        setInvitations(prev => [newInvitationWithId, ...prev]);
-
-        // Update stats immediately
-        setStats(prev => {
-          if (!prev) {
-            // If no stats exist, create default stats
-            return {
-              invitations: {
-                total: 1,
-                active: 1,
-                opened: 0
-              },
-              albums: {
-                totalAlbums: 0,
-                publicAlbums: 0,
-                featuredAlbums: 0,
-                totalMedia: 0
-              },
-              media: {
-                totalMedia: 0,
-                imageCount: 0,
-                videoCount: 0
-              }
-            };
-          }
-
-          return {
-            ...prev,
-            invitations: {
-              ...prev.invitations,
-              total: (prev.invitations.total || 0) + 1,
-              active: (prev.invitations.active || 0) + 1
-            }
-          };
-        });
+        // Data is now handled by Firebase real-time hooks
+        // No need to update state manually
 
         console.log('New invitation added to state immediately:', newInvitationWithId);
       }
@@ -891,11 +948,13 @@ export default function HostDashboard() {
         customMessage: '',
         invitationType: 'personalized'
       });
+      setShowInvitationValidation(false);
+      setInvitationValidation({
+        guestName: { isValid: true, errors: [] },
+        customMessage: { isValid: true, errors: [] }
+      });
 
-      // Refresh data in background to ensure consistency
-      setTimeout(() => {
-        fetchDashboardData();
-      }, 1000);
+      // Data is handled by Firebase real-time hooks
 
     } catch (error: any) {
       toast.error(error.response?.data?.error || 'Failed to create invitation');
@@ -918,12 +977,18 @@ export default function HostDashboard() {
     try {
       // Create download link for QR code
       const link = document.createElement('a');
-      link.href = `${process.env.NEXT_PUBLIC_API_URL || 'https://backendv2-nasy.onrender.com'}/uploads/qr-${qrCode}.png`;
+      link.href = `https://api-rpahsncjpa-as.a.run.app/uploads/qr-${qrCode}.png`;
       link.download = `${guestName.replace(/\s+/g, '_')}_invitation_qr.png`;
       link.click();
     } catch (error) {
       toast.error('Failed to download QR code');
     }
+  };
+
+  const handleSaveQRSettings = async () => {
+    // Placeholder save; integrate backend if available
+    await new Promise((r) => setTimeout(r, 500));
+    toast.success('QR settings saved');
   };
 
   if (loading) {
@@ -935,44 +1000,73 @@ export default function HostDashboard() {
   }
 
   return (
-    <div className="min-h-screen bg-gray-100">
+    <div className="min-h-screen bg-gradient-to-br from-slate-50 via-blue-50 to-indigo-50">
       <Toaster position="top-center" />
 
-      {/* Header */}
-      <div className="bg-white shadow-sm">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 py-4">
-          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
-            <div className="w-14 h-14 items-center overflow-hidden">
-              <img
-                src="/imgs/monogram-flower-black.png"
-                alt="MJ & Erica Monogram"
-                className="w-full h-full object-contain"
-              />
+      {/* Modern Header */}
+      <div className="bg-gradient-to-r from-slate-50 to-blue-50 shadow-lg border-b border-slate-200">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4">
+          <div className="flex items-center justify-between">
+            {/* Logo and Title */}
+            <div className="flex items-center gap-4">
+              <div className="w-12 h-12 sm:w-14 sm:h-14 rounded-full bg-white shadow-md p-2 overflow-hidden">
+                <img
+                  src="/imgs/monogram-flower-black.png"
+                  alt="MJ & Erica Monogram"
+                  className="w-full h-full object-contain"
+                />
+              </div>
+              <div className="hidden sm:block">
+                <h1 className="text-xl font-bold text-slate-800">Wedding Dashboard</h1>
+                <p className="text-sm text-slate-600">Manage your special day</p>
+              </div>
             </div>
+
+            {/* Header Actions */}
             <div className="flex items-center gap-2 sm:gap-4">
+              {/* Quick Stats - Desktop Only */}
+              <div className="hidden lg:flex items-center gap-6 mr-4">
+                {statsData.stats && (
+                  <>
+                    <div className="text-center">
+                      <div className="text-lg font-bold text-slate-800">{statsData.stats?.invitations?.total || 0}</div>
+                      <div className="text-xs text-slate-600">Invites</div>
+                    </div>
+                    <div className="text-center">
+                      <div className="text-lg font-bold text-slate-800">{statsData.stats?.albums?.totalAlbums || 0}</div>
+                      <div className="text-xs text-slate-600">Albums</div>
+                    </div>
+                    <div className="text-center">
+                      <div className="text-lg font-bold text-slate-800">{statsData.stats?.media?.totalMedia || 0}</div>
+                      <div className="text-xs text-slate-600">Media</div>
+                    </div>
+                  </>
+                )}
+              </div>
+
+              {/* Action Buttons */}
               <button
                 onClick={() => setShowQRConfig(true)}
-                className="bg-gradient-to-r from-[#667c93] to-[#84a2be] text-white px-3 sm:px-4 py-2 rounded-lg font-semibold flex items-center gap-2 hover:shadow-lg transition-all duration-300 text-sm sm:text-base"
+                className="bg-white text-slate-700 px-3 py-2 rounded-lg font-medium flex items-center gap-2 hover:bg-slate-50 transition-all duration-200 shadow-sm border border-slate-200 text-sm"
               >
-                <QrCodeIcon size={18} className="sm:w-5" />
+                <QrCodeIcon size={16} />
                 <span className="hidden sm:inline">QR Settings</span>
-                <span className="sm:hidden">QR</span>
               </button>
+              
               <button
                 onClick={() => setShowCreateModal(true)}
-                className="bg-gradient-to-r from-[#667c93] to-[#84a2be] text-white px-3 sm:px-4 py-2 rounded-lg font-semibold flex items-center gap-2 hover:shadow-lg transition-all duration-300 text-sm sm:text-base"
+                className="bg-gradient-to-r from-blue-600 to-indigo-600 text-white px-3 py-2 rounded-lg font-medium flex items-center gap-2 hover:from-blue-700 hover:to-indigo-700 transition-all duration-200 shadow-md text-sm"
               >
-                <Plus size={18} className="sm:w-5" />
-                <span className="hidden sm:inline">New Invitation</span>
-                <span className="sm:hidden">Invite</span>
+                <Plus size={16} />
+                <span className="hidden sm:inline">New Invite</span>
               </button>
+
               <button
                 onClick={handleLogout}
-                className="text-gray-600 hover:text-gray-800 flex items-center gap-2 px-3 py-2 rounded-lg hover:bg-gray-100"
+                className="text-slate-600 hover:text-slate-800 flex items-center gap-2 px-3 py-2 rounded-lg hover:bg-white/50 transition-all duration-200 text-sm"
               >
-                <Settings size={18} className="sm:w-5" />
+                <Settings size={16} />
                 <span className="hidden sm:inline">Logout</span>
-                <span className="sm:hidden">Exit</span>
               </button>
             </div>
           </div>
@@ -980,54 +1074,85 @@ export default function HostDashboard() {
       </div>
 
       <div className="max-w-7xl mx-auto px-4 sm:px-6 py-4 sm:py-8">
-        {/* Navigation Tabs */}
+        {/* Modern Navigation Tabs - Mobile Optimized */}
         <div className="mb-6 sm:mb-8">
-          <div className="border-b border-gray-200 overflow-x-auto">
-            <nav className="-mb-px flex space-x-4 sm:space-x-8 min-w-max">
-              {[
-                { id: 'overview', label: 'Overview', icon: BarChart3 },
-                { id: 'invitations', label: 'Invitations', icon: Mail },
-                { id: 'albums', label: 'Albums', icon: Image },
-                { id: 'media', label: 'Media', icon: Users },
-              ].map((tab) => (
-                <button
-                  key={tab.id}
-                  onClick={() => setActiveTab(tab.id as any)}
-                  className={`flex items-center gap-1 sm:gap-2 py-2 px-2 sm:px-1 border-b-2 font-medium text-xs sm:text-sm whitespace-nowrap ${activeTab === tab.id
-                    ? 'border-rose-500 text-rose-600'
-                    : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
-                    }`}
-                >
-                  <tab.icon size={16} className="sm:w-[18px]" />
-                  <span className="hidden xs:inline">{tab.label}</span>
-                  <span className="xs:hidden sm:inline">{tab.id === 'overview' ? 'Overview' : tab.id === 'invitations' ? 'Invites' : tab.id === 'albums' ? 'Albums' : tab.id === 'pending-albums' ? 'Pending' : 'Media'}</span>
-                </button>
-              ))}
-            </nav>
+          {/* Mobile Dropdown Navigation */}
+          <div className="block sm:hidden">
+            <div className="bg-white rounded-xl shadow-sm border border-slate-200 p-1">
+              <select
+                value={activeTab}
+                onChange={(e) => setActiveTab(e.target.value as any)}
+                className="w-full px-4 py-3 bg-transparent border-none text-slate-800 font-medium focus:outline-none focus:ring-0 appearance-none cursor-pointer"
+                style={{
+                  backgroundImage: `url("data:image/svg+xml,%3csvg xmlns='http://www.w3.org/2000/svg' fill='none' viewBox='0 0 20 20'%3e%3cpath stroke='%236b7280' stroke-linecap='round' stroke-linejoin='round' stroke-width='1.5' d='m6 8 4 4 4-4'/%3e%3c/svg%3e")`,
+                  backgroundPosition: 'right 12px center',
+                  backgroundRepeat: 'no-repeat',
+                  backgroundSize: '16px',
+                  paddingRight: '40px'
+                }}
+              >
+                <option value="overview">📊 Overview</option>
+                <option value="invitations">✉️ Invitations</option>
+                <option value="albums">🖼️ Albums</option>
+                <option value="media">👥 Media</option>
+              </select>
+            </div>
+          </div>
+
+          {/* Desktop Horizontal Tabs */}
+          <div className="hidden sm:block">
+            <div className="bg-white rounded-xl shadow-sm border border-slate-200 p-1">
+              <nav className="flex space-x-1">
+                {[
+                  { id: 'overview', label: 'Overview', icon: BarChart3 },
+                  { id: 'invitations', label: 'Invitations', icon: Mail },
+                  { id: 'albums', label: 'Albums', icon: Image },
+                  { id: 'media', label: 'Media', icon: Users },
+                ].map((tab) => (
+                  <button
+                    key={tab.id}
+                    onClick={() => setActiveTab(tab.id as any)}
+                    className={`flex items-center gap-2 py-3 px-4 rounded-lg font-medium text-sm whitespace-nowrap transition-all duration-200 flex-1 justify-center ${activeTab === tab.id
+                      ? 'bg-gradient-to-r from-blue-600 to-indigo-600 text-white shadow-md'
+                      : 'text-slate-600 hover:text-slate-800 hover:bg-slate-50'
+                      }`}
+                  >
+                    <tab.icon size={18} />
+                    <span>{tab.label}</span>
+                  </button>
+                ))}
+              </nav>
+            </div>
           </div>
         </div>
 
+
         {/* Content based on active tab */}
-        {activeTab === 'overview' && stats && (
+        {activeTab === 'overview' && statsData.stats && (
           <div className="space-y-6 sm:space-y-8">
-            {/* Stats Cards */}
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 sm:gap-6">
+            {/* Modern Stats Cards - 2x2 on Mobile, Single Row on Desktop */}
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 sm:gap-6">
               <motion.div
                 initial={{ opacity: 0, y: 20 }}
                 animate={{ opacity: 1, y: 0 }}
-                className="bg-white p-4 sm:p-6 rounded-xl shadow-lg"
+                className="bg-white p-6 rounded-2xl shadow-lg border border-slate-200 hover:shadow-xl transition-all duration-300 group"
               >
-                <div className="flex items-center justify-between">
-                  <div>
-                    <p className="text-gray-600 text-xs sm:text-sm">Total Invitations</p>
-                    <p className="text-2xl sm:text-3xl font-bold text-gray-900">{stats.invitations.total}</p>
+                <div className="flex items-center justify-between mb-4">
+                  <div className="p-3 bg-gradient-to-br from-blue-500 to-indigo-600 rounded-xl text-white group-hover:scale-110 transition-transform duration-300">
+                    <Mail size={24} />
                   </div>
-                  <Mail className="text-[#cba397] sm:w-8" size={24} />
+                  <div className="text-right">
+                    <p className="text-3xl font-bold text-slate-800">{statsData.stats?.invitations?.total || 0}</p>
+                    <p className="text-sm text-slate-600">Total Invitations</p>
+                  </div>
                 </div>
-                <div className="mt-3 sm:mt-4">
-                  <p className="text-xs sm:text-sm text-gray-600">
-                    {stats.invitations.opened} opened ({Math.round((stats.invitations.opened / stats.invitations.total) * 100) || 0}%)
-                  </p>
+                <div className="flex items-center justify-between">
+                  <div className="text-sm text-slate-600">
+                    <span className="font-medium text-green-600">{statsData.stats?.invitations?.opened || 0}</span> opened
+                  </div>
+                  <div className="text-xs text-slate-500">
+                    {Math.round(((statsData.stats?.invitations?.opened || 0) / (statsData.stats?.invitations?.total || 1)) * 100)}% rate
+                  </div>
                 </div>
               </motion.div>
 
@@ -1035,19 +1160,24 @@ export default function HostDashboard() {
                 initial={{ opacity: 0, y: 20 }}
                 animate={{ opacity: 1, y: 0 }}
                 transition={{ delay: 0.1 }}
-                className="bg-white p-4 sm:p-6 rounded-xl shadow-lg"
+                className="bg-white p-6 rounded-2xl shadow-lg border border-slate-200 hover:shadow-xl transition-all duration-300 group"
               >
-                <div className="flex items-center justify-between">
-                  <div>
-                    <p className="text-gray-600 text-xs sm:text-sm">Albums</p>
-                    <p className="text-2xl sm:text-3xl font-bold text-gray-900">{stats.albums.totalAlbums}</p>
+                <div className="flex items-center justify-between mb-4">
+                  <div className="p-3 bg-gradient-to-br from-purple-500 to-pink-600 rounded-xl text-white group-hover:scale-110 transition-transform duration-300">
+                    <Image size={24} />
                   </div>
-                  <Image className="text-blue-500 sm:w-8" size={24} />
+                  <div className="text-right">
+                    <p className="text-3xl font-bold text-slate-800">{statsData.stats?.albums?.totalAlbums || 0}</p>
+                    <p className="text-sm text-slate-600">Albums</p>
+                  </div>
                 </div>
-                <div className="mt-3 sm:mt-4">
-                  <p className="text-xs sm:text-sm text-gray-600">
-                    {stats.albums.publicAlbums} public, {stats.albums.featuredAlbums} featured
-                  </p>
+                <div className="flex items-center justify-between">
+                  <div className="text-sm text-slate-600">
+                    <span className="font-medium text-blue-600">{statsData.stats?.albums?.publicAlbums || 0}</span> public
+                  </div>
+                  <div className="text-xs text-slate-500">
+                    {statsData.stats?.albums?.featuredAlbums || 0} featured
+                  </div>
                 </div>
               </motion.div>
 
@@ -1055,197 +1185,294 @@ export default function HostDashboard() {
                 initial={{ opacity: 0, y: 20 }}
                 animate={{ opacity: 1, y: 0 }}
                 transition={{ delay: 0.2 }}
-                className="bg-white p-4 sm:p-6 rounded-xl shadow-lg"
+                className="bg-white p-6 rounded-2xl shadow-lg border border-slate-200 hover:shadow-xl transition-all duration-300 group"
               >
-                <div className="flex items-center justify-between">
-                  <div>
-                    <p className="text-gray-600 text-xs sm:text-sm">Total Media</p>
-                    <p className="text-2xl sm:text-3xl font-bold text-gray-900">{stats.media.totalMedia}</p>
+                <div className="flex items-center justify-between mb-4">
+                  <div className="p-3 bg-gradient-to-br from-emerald-500 to-teal-600 rounded-xl text-white group-hover:scale-110 transition-transform duration-300">
+                    <Users size={24} />
                   </div>
-                  <Users className="text-green-500 sm:w-8" size={24} />
+                  <div className="text-right">
+                    <p className="text-3xl font-bold text-slate-800">{statsData.stats?.media?.totalMedia || 0}</p>
+                    <p className="text-sm text-slate-600">Total Media</p>
+                  </div>
                 </div>
-                <div className="mt-3 sm:mt-4">
-                  <p className="text-sm text-gray-600">
-                    {stats.media.imageCount} photos, {stats.media.videoCount} videos
-                  </p>
+                <div className="flex items-center justify-between">
+                  <div className="text-sm text-slate-600">
+                    <span className="font-medium text-emerald-600">{statsData.stats?.media?.imageCount || 0}</span> photos
+                  </div>
+                  <div className="text-xs text-slate-500">
+                    {statsData.stats?.media?.videoCount || 0} videos
+                  </div>
                 </div>
               </motion.div>
 
+              {/* RSVP Stats Card */}
+              <motion.div
+                initial={{ opacity: 0, y: 20 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ delay: 0.3 }}
+                className="bg-white p-6 rounded-2xl shadow-lg border border-slate-200 hover:shadow-xl transition-all duration-300 group"
+              >
+                <div className="flex items-center justify-between mb-4">
+                  <div className="p-3 bg-gradient-to-br from-amber-500 to-orange-600 rounded-xl text-white group-hover:scale-110 transition-transform duration-300">
+                    <Heart size={24} />
+                  </div>
+                  <div className="text-right">
+                    <p className="text-3xl font-bold text-slate-800">{rsvpData?.stats?.attending || 0}</p>
+                    <p className="text-sm text-slate-600">Attending</p>
+                  </div>
+                </div>
+                <div className="flex items-center justify-between">
+                  <div className="text-sm text-slate-600">
+                    <span className="font-medium text-red-600">{rsvpData?.stats?.notAttending || 0}</span> declined
+                  </div>
+                  <div className="text-xs text-slate-500">
+                    {rsvpData?.stats?.pending || 0} pending
+                  </div>
+                </div>
+              </motion.div>
             </div>
 
-            {/* Recent Invitations */}
-            <div className="bg-white rounded-xl shadow-lg p-6">
-              <h3 className="text-xl font-bold text-gray-900 mb-4">Recent Invitations</h3>
-              <div className="overflow-x-auto">
-                <table className="w-full">
-                  <thead>
-                    <tr className="border-b border-gray-200">
-                      <th className="text-left py-3 px-4 font-semibold text-gray-700">Guest</th>
-                      <th className="text-left py-3 px-4 font-semibold text-gray-700">Role</th>
-                      <th className="text-left py-3 px-4 font-semibold text-gray-700">Status</th>
-                      <th className="text-left py-3 px-4 font-semibold text-gray-700">Created</th>
-                      <th className="text-left py-3 px-4 font-semibold text-gray-700">QR Actions</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {invitations.slice(0, 5).map((invitation) => (
-                      <tr key={invitation._id} className="border-b border-gray-100">
-                        <td className="py-3 px-4 text-gray-900 font-medium">{invitation.guestName}</td>
-                        <td className="py-3 px-4">
-                          <span className="bg-gray-100 text-gray-700 px-2 py-1 rounded-full text-xs font-medium">
-                            {invitation.guestRole}
-                          </span>
-                        </td>
-                        <td className="py-3 px-4">
-                          <span className={`px-2 py-1 rounded-full text-xs font-medium ${invitation.isOpened
-                            ? 'bg-green-100 text-green-700'
-                            : 'bg-yellow-100 text-yellow-700'
+            {/* Recent Invitations - Modern Card Layout */}
+            <div className="bg-white rounded-2xl shadow-lg border border-slate-200 p-6">
+              <div className="flex items-center justify-between mb-6">
+                <h3 className="text-2xl font-bold text-slate-800">Recent Invitations</h3>
+                <button
+                  onClick={() => setActiveTab('invitations')}
+                  className="text-blue-600 hover:text-blue-700 font-medium text-sm flex items-center gap-1 hover:underline"
+                >
+                  View All <ExternalLink size={14} />
+                </button>
+              </div>
+              
+              {/* Mobile-First Card Layout */}
+              <div className="space-y-4">
+                {invitationsData.data?.slice(
+                  (recentInvitationsPage - 1) * recentInvitationsPerPage,
+                  recentInvitationsPage * recentInvitationsPerPage
+                ).map((invitation: any) => (
+                  <motion.div
+                    key={invitation.id}
+                    initial={{ opacity: 0, y: 10 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    className="bg-slate-50 rounded-xl p-4 hover:bg-slate-100 transition-all duration-200 border border-slate-200"
+                  >
+                    <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                      <div className="flex items-center gap-3">
+                        <div className="w-10 h-10 bg-gradient-to-br from-blue-500 to-indigo-600 rounded-full flex items-center justify-center text-white font-bold text-sm">
+                          {invitation.guestName.charAt(0).toUpperCase()}
+                        </div>
+                        <div>
+                          <h4 className="font-semibold text-slate-800">{invitation.guestName}</h4>
+                          <div className="flex items-center gap-2 mt-1">
+                            <span className="bg-white text-slate-700 px-2 py-1 rounded-lg text-xs font-medium border border-slate-200">
+                              {invitation.guestRole}
+                            </span>
+                            <span className={`px-2 py-1 rounded-lg text-xs font-medium ${
+                              invitation.openedAt
+                                ? 'bg-green-100 text-green-700 border border-green-200'
+                                : 'bg-amber-100 text-amber-700 border border-amber-200'
                             }`}>
-                            {invitation.isOpened ? 'Opened' : 'Sent'}
-                          </span>
-                        </td>
-                        <td className="py-3 px-4 text-gray-700 text-sm font-medium">
-                          {new Date(invitation.createdAt).toLocaleDateString()}
-                        </td>
-                        <td className="py-3 px-4">
-                          <div className="flex items-center gap-1">
-                            {invitation.qrCode && (
-                              <>
-                                <button
-                                  onClick={() => handleViewQR(invitation)}
-                                  className="p-1.5 text-blue-600 hover:bg-blue-50 rounded transition-colors"
-                                  title="View QR Code"
-                                >
-                                  <QrCode className="w-3.5 h-3.5" />
-                                </button>
-
-                                <button
-                                  onClick={() => handleCopyLink(invitation.qrCode)}
-                                  className="p-1.5 text-green-600 hover:bg-green-50 rounded transition-colors"
-                                  title="Copy Invitation Link"
-                                >
-                                  <Copy className="w-3.5 h-3.5" />
-                                </button>
-
-                                <button
-                                  onClick={() => handleOpenInvitation(invitation.qrCode)}
-                                  className="p-1.5 text-purple-600 hover:bg-purple-50 rounded transition-colors"
-                                  title="Open Invitation"
-                                >
-                                  <ExternalLink className="w-3.5 h-3.5" />
-                                </button>
-
-                                {invitation.qrCodePath && (
-                                  <button
-                                    onClick={() => handleViewQR(invitation)}
-                                    className="p-1.5 text-orange-600 hover:bg-orange-50 rounded transition-colors"
-                                    title="Show QR Code"
-                                  >
-                                    <Download className="w-3.5 h-3.5" />
-                                  </button>
-                                )}
-                              </>
-                            )}
+                              {invitation.openedAt ? '✓ Opened' : '⏳ Pending'}
+                            </span>
                           </div>
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
+                        </div>
+                      </div>
+                      
+                      <div className="flex items-center gap-2">
+                        <div className="text-xs text-slate-500 hidden sm:block">
+                          {(() => {
+                            try {
+                              const date = invitation.createdAt?.toDate ? invitation.createdAt.toDate() : new Date(invitation.createdAt);
+                              return date.toLocaleDateString();
+                            } catch (error) {
+                              return 'Invalid Date';
+                            }
+                          })()}
+                        </div>
+                        
+                        {invitation.qrCode && (
+                          <div className="flex items-center gap-1">
+                            <button
+                              onClick={() => handleViewQR(invitation)}
+                              className="p-2 text-blue-600 hover:bg-blue-100 rounded-lg transition-colors"
+                              title="View QR Code"
+                            >
+                              <QrCode size={16} />
+                            </button>
+                            <button
+                              onClick={() => handleCopyLink(invitation.qrCode)}
+                              className="p-2 text-emerald-600 hover:bg-emerald-100 rounded-lg transition-colors"
+                              title="Copy Link"
+                            >
+                              <Copy size={16} />
+                            </button>
+                            <button
+                              onClick={() => handleOpenInvitation(invitation.qrCode)}
+                              className="p-2 text-purple-600 hover:bg-purple-100 rounded-lg transition-colors"
+                              title="Open Invitation"
+                            >
+                              <ExternalLink size={16} />
+                            </button>
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  </motion.div>
+                ))}
+                
+                {/* Modern Pagination */}
+                {invitationsData.data && invitationsData.data.length > recentInvitationsPerPage && (
+                  <div className="flex items-center justify-between mt-6 pt-4 border-t border-slate-200">
+                    <div className="text-sm text-slate-600">
+                      Showing {((recentInvitationsPage - 1) * recentInvitationsPerPage) + 1} to {Math.min(recentInvitationsPage * recentInvitationsPerPage, invitationsData.data.length)} of {invitationsData.data.length} invitations
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <button
+                        onClick={() => setRecentInvitationsPage(prev => Math.max(1, prev - 1))}
+                        disabled={recentInvitationsPage === 1}
+                        className="px-4 py-2 text-sm bg-white border border-slate-300 rounded-lg hover:bg-slate-50 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                      >
+                        Previous
+                      </button>
+                      <span className="px-4 py-2 text-sm text-slate-700 bg-slate-100 rounded-lg">
+                        {recentInvitationsPage} of {Math.ceil(invitationsData.data.length / recentInvitationsPerPage)}
+                      </span>
+                      <button
+                        onClick={() => setRecentInvitationsPage(prev => Math.min(Math.ceil(invitationsData.data.length / recentInvitationsPerPage), prev + 1))}
+                        disabled={recentInvitationsPage >= Math.ceil(invitationsData.data.length / recentInvitationsPerPage)}
+                        className="px-4 py-2 text-sm bg-white border border-slate-300 rounded-lg hover:bg-slate-50 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                      >
+                        Next
+                      </button>
+                    </div>
+                  </div>
+                )}
               </div>
             </div>
           </div>
         )}
 
-        {/* Albums Management Tab */}
+        {/* Modern Albums Management Tab */}
         {activeTab === 'albums' && (
           <div className="space-y-6">
             {albumViewMode === 'grid' ? (
-              // Albums Grid View
+              // Modern Albums Grid View
               <>
-                <div className="flex items-center justify-between">
-                  <h3 className="text-2xl font-bold text-gray-900">Albums Management</h3>
-                  <div className="flex gap-2">
-                    <button
-                      onClick={() => setShowCreateAlbumModal(true)}
-                      className="bg-gradient-to-r from-[#667c93] to-[#84a2be] text-white px-4 py-2 rounded-lg font-semibold hover:shadow-lg transition-all duration-300 flex items-center gap-2"
-                    >
-                      <Plus size={20} />
-                      Create Album
-                    </button>
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-6">
+                  <div>
+                    <h3 className="text-2xl font-bold text-slate-800">Wedding Albums</h3>
+                    <p className="text-slate-600 mt-1">Organize and manage your wedding photo collections</p>
                   </div>
+                  <button
+                    onClick={() => setShowCreateAlbumModal(true)}
+                    className="bg-gradient-to-r from-blue-600 to-indigo-600 text-white px-6 py-3 rounded-xl font-semibold hover:from-blue-700 hover:to-indigo-700 transition-all duration-300 flex items-center gap-2 shadow-lg hover:shadow-xl"
+                  >
+                    <Plus size={20} />
+                    <span>Create Album</span>
+                  </button>
                 </div>
 
-                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 sm:gap-6">
-                  {albums.map((album) => (
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
+                  {albums.map((album, index) => (
                     <motion.div
-                      key={album._id}
+                      key={album.id}
                       initial={{ opacity: 0, y: 20 }}
                       animate={{ opacity: 1, y: 0 }}
-                      className="bg-white rounded-xl shadow-lg overflow-hidden cursor-pointer hover:shadow-xl transition-all duration-300"
+                      transition={{ delay: index * 0.1 }}
+                      className="bg-white rounded-2xl shadow-lg border border-slate-200 overflow-hidden cursor-pointer hover:shadow-xl hover:scale-105 transition-all duration-300 group"
                       onClick={() => handleViewAlbum(album)}
                     >
-                      <div className="h-32 sm:h-48 bg-gradient-to-br from-rose-100 to-pink-100 flex items-center justify-center">
+                      {/* Album Cover */}
+                      <div className="h-48 bg-gradient-to-br from-blue-100 via-purple-50 to-pink-100 flex items-center justify-center relative overflow-hidden">
                         {album.coverImage ? (
                           <img
-                            src={getBestDisplayUrl(album.coverImage, album.googleDriveFileId, 400)}
+                            src={getBestDisplayUrl(album.coverImage, undefined, 400)}
                             alt={album.name}
-                            className="w-full h-full object-cover"
-                            style={{
-                              display: 'block',
-                              backgroundColor: '#f9fafb',
-                              opacity: '1',
-                              visibility: 'visible'
-                            }}
+                            className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-500"
                             onError={(e) => {
                               console.error('Failed to load album cover:', album.coverImage);
                               const target = e.currentTarget as HTMLImageElement;
                               target.style.display = 'none';
                             }}
-                            onLoad={() => {
-                              console.log('Album cover loaded successfully:', album.name);
-                            }}
                           />
                         ) : (
-                          <Image className="text-rose-400 sm:w-16" size={32} />
+                          <div className="text-center">
+                            <Image className="text-slate-400 mx-auto mb-2" size={48} />
+                            <p className="text-slate-500 text-sm">No cover image</p>
+                          </div>
                         )}
-                      </div>
-                      <div className="p-4 sm:p-6">
-                        <h3 className="text-lg sm:text-xl font-semibold text-gray-900 mb-2">{album.name}</h3>
-                        <p className="text-gray-600 text-xs sm:text-sm mb-3 sm:mb-4 line-clamp-2">{album.description}</p>
-                        <div className="flex items-center justify-between">
-                          <span className="text-xs sm:text-sm text-gray-500">{album.mediaCount} photos</span>
-                          <div className="flex gap-1 sm:gap-2">
+                        
+                        {/* Overlay with action buttons */}
+                        <div className="absolute inset-0 bg-transparent bg-opacity-0 group-hover:bg-opacity-20 transition-all duration-300 flex items-end justify-end p-3">
+                          <div className="opacity-0 group-hover:opacity-100 transition-opacity duration-300 flex gap-2">
                             <button
                               onClick={(e) => {
                                 e.stopPropagation();
                                 handleViewAlbumQR(album);
                               }}
-                              className="text-purple-600 hover:text-purple-800 p-1 rounded hover:bg-purple-50"
+                              className="bg-white/90 text-purple-600 p-2 rounded-lg hover:bg-white transition-colors shadow-lg"
                               title="View QR Code"
                             >
-                              <QrCode size={14} className="sm:w-4" />
+                              <QrCode size={16} />
                             </button>
                             <button
                               onClick={(e) => {
                                 e.stopPropagation();
                                 handleEditAlbum(album);
                               }}
-                              className="text-blue-600 hover:text-blue-800 p-1 rounded hover:bg-blue-50"
+                              className="bg-white/90 text-blue-600 p-2 rounded-lg hover:bg-white transition-colors shadow-lg"
                               title="Edit Album"
                             >
-                              <Edit size={14} className="sm:w-4" />
+                              <Edit size={16} />
                             </button>
                             <button
                               onClick={(e) => {
                                 e.stopPropagation();
-                                handleDeleteAlbum(album._id);
+                                handleDeleteAlbum(album.id);
                               }}
-                              className="text-red-600 hover:text-red-800 p-1 rounded hover:bg-red-50"
+                              className="bg-white/90 text-red-600 p-2 rounded-lg hover:bg-white transition-colors shadow-lg"
                               title="Delete Album"
                             >
-                              <Trash2 size={14} className="sm:w-4" />
+                              <Trash2 size={16} />
                             </button>
+                          </div>
+                        </div>
+                        
+                        {/* Status badges */}
+                        <div className="absolute top-3 left-3 flex gap-2">
+                          {album.isPublic && (
+                            <span className="bg-green-500 text-white px-2 py-1 rounded-lg text-xs font-medium">
+                              Public
+                            </span>
+                          )}
+                          {album.isFeatured && (
+                            <span className="bg-amber-500 text-white px-2 py-1 rounded-lg text-xs font-medium">
+                              Featured
+                            </span>
+                          )}
+                        </div>
+                      </div>
+                      
+                      {/* Album Info */}
+                      <div className="p-6">
+                        <h3 className="text-xl font-bold text-slate-800 mb-2 group-hover:text-blue-600 transition-colors">{album.name}</h3>
+                        <p className="text-slate-600 text-sm mb-4 line-clamp-2">{album.description || 'No description provided'}</p>
+                        
+                        <div className="flex items-center justify-between">
+                          <div className="flex items-center gap-2 text-sm text-slate-500">
+                            <Image size={16} />
+                            <span>Album</span>
+                          </div>
+                          <div className="text-xs text-slate-400">
+                            {(() => {
+                              try {
+                                const date = album.createdAt?.toDate ? album.createdAt.toDate() : new Date(album.createdAt);
+                                return date.toLocaleDateString();
+                              } catch (error) {
+                                return 'Recent';
+                              }
+                            })()}
                           </div>
                         </div>
                       </div>
@@ -1254,17 +1481,25 @@ export default function HostDashboard() {
                 </div>
 
                 {albums.length === 0 && (
-                  <div className="text-center py-12">
-                    <Image className="text-gray-400 mx-auto mb-4" size={64} />
-                    <h3 className="text-xl font-semibold text-gray-700 mb-2">No albums yet</h3>
-                    <p className="text-gray-500 mb-6">Create your first album to start organizing wedding memories!</p>
-                    <button
-                      onClick={() => setShowCreateAlbumModal(true)}
-                      className="bg-gradient-to-r from-[#667c93] to-[#84a2be] text-white px-6 py-3 rounded-lg font-semibold hover:shadow-lg transition-all duration-300"
-                    >
-                      Create First Album
-                    </button>
-                  </div>
+                  <motion.div 
+                    initial={{ opacity: 0, y: 20 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    className="text-center py-16"
+                  >
+                    <div className="bg-white rounded-2xl shadow-lg border border-slate-200 p-12 max-w-md mx-auto">
+                      <div className="w-20 h-20 bg-gradient-to-br from-blue-100 to-purple-100 rounded-full flex items-center justify-center mx-auto mb-6">
+                        <Image className="text-slate-400" size={40} />
+                      </div>
+                      <h3 className="text-2xl font-bold text-slate-800 mb-3">No albums yet</h3>
+                      <p className="text-slate-600 mb-8 leading-relaxed">Create your first album to start organizing and sharing your beautiful wedding memories with guests!</p>
+                      <button
+                        onClick={() => setShowCreateAlbumModal(true)}
+                        className="bg-gradient-to-r from-blue-600 to-indigo-600 text-white px-8 py-4 rounded-xl font-semibold hover:from-blue-700 hover:to-indigo-700 transition-all duration-300 shadow-lg hover:shadow-xl"
+                      >
+                        Create Your First Album
+                      </button>
+                    </div>
+                  </motion.div>
                 )}
               </>
             ) : (
@@ -1275,236 +1510,270 @@ export default function HostDashboard() {
                   animate={{ opacity: 1, x: 0 }}
                   transition={{ duration: 0.3 }}
                 >
-                  {/* Album Header */}
-                  <div className="flex items-center justify-between mb-6">
-                    <div className="flex items-center gap-4">
-                      <button
-                        onClick={handleBackToAlbums}
-                        className="text-blue-600 hover:text-blue-800 flex items-center gap-2 px-3 py-2 rounded-lg hover:bg-blue-50 transition-colors"
-                      >
-                        ← Back to Albums
-                      </button>
-                      <div>
-                        <h3 className="text-2xl font-bold text-gray-900">{selectedAlbum.name}</h3>
-                        <p className="text-gray-600">{selectedAlbum.description}</p>
-                        <div className="flex items-center gap-4 mt-2 text-sm text-gray-500">
-                          <span>{selectedAlbum.mediaCount} items</span>
-                          <span>Public: {selectedAlbum.isPublic ? 'Yes' : 'No'}</span>
+                  {/* Modern Album Header */}
+                  <div className="bg-white rounded-2xl shadow-lg border border-slate-200 p-6 mb-6">
+                    <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4">
+                      <div className="flex items-center gap-4">
+                        <button
+                          onClick={handleBackToAlbums}
+                          className="bg-slate-100 text-slate-700 hover:bg-slate-200 gap-2 px-4 py-2 rounded-xl transition-colors font-medium"
+                        >
+                          <ChevronLeft size={16} />
+                        </button>
+                        <div>
+                          <h3 className="text-3xl font-bold text-slate-800">{selectedAlbum.name}</h3>
+                          <p className="text-slate-600 mt-1">{selectedAlbum.description || 'No description'}</p>
+                          <div className="flex items-center gap-4 mt-3">
+                            <div className="flex items-center gap-2 text-sm">
+                              <div className="w-2 h-2 bg-blue-500 rounded-full"></div>
+                              <span className="text-slate-600">{albumMedia.length} items</span>
+                            </div>
+                            <div className="flex items-center gap-2 text-sm">
+                              <div className={`w-2 h-2 rounded-full ${selectedAlbum.isPublic ? 'bg-green-500' : 'bg-amber-500'}`}></div>
+                              <span className="text-slate-600">{selectedAlbum.isPublic ? 'Public' : 'Private'}</span>
+                            </div>
+                            {selectedAlbum.isFeatured && (
+                              <div className="flex items-center gap-2 text-sm">
+                                <div className="w-2 h-2 bg-amber-500 rounded-full"></div>
+                                <span className="text-slate-600">Featured</span>
+                              </div>
+                            )}
+                          </div>
                         </div>
                       </div>
-                    </div>
-                    <div className="flex gap-2">
-                      {/* Selection Controls */}
-                      {albumMedia.length > 0 && (
-                        <div className="flex items-center gap-2">
-                          <button
-                            onClick={toggleSelectionMode}
-                            className={`px-4 py-2 rounded-lg transition-colors flex items-center gap-2 ${isSelectionMode
-                              ? 'bg-blue-600 text-white hover:bg-blue-700'
-                              : 'bg-gray-200 text-gray-700 hover:bg-gray-300'
-                              }`}
-                          >
-                            {isSelectionMode ? <CheckSquare size={16} /> : <Square size={16} />}
-                            {isSelectionMode ? 'Exit Selection' : 'Select Photos'}
-                          </button>
+                      
+                      <div className="flex flex-wrap gap-2">
+                        {/* Selection Controls */}
+                        {albumMedia.length > 0 && (
+                          <div className="flex items-center gap-2">
+                            <button
+                              onClick={toggleSelectionMode}
+                              className={`px-4 py-2 rounded-xl transition-all duration-200 flex items-center gap-2 font-medium ${isSelectionMode
+                                ? 'bg-blue-600 text-white hover:bg-blue-700 shadow-md'
+                                : 'bg-slate-100 text-slate-700 hover:bg-slate-200'
+                                }`}
+                            >
+                              {isSelectionMode ? <CheckSquare size={16} /> : <Square size={16} />}
+                              <span className="hidden sm:inline">{isSelectionMode ? 'Exit Selection' : 'Select Photos'}</span>
+                            </button>
 
-                          {isSelectionMode && (
-                            <>
-                              <button
-                                onClick={selectAllMedia}
-                                className="px-3 py-2 bg-gray-200 text-gray-700 rounded-lg hover:bg-gray-300 transition-colors text-sm"
-                              >
-                                Select All
-                              </button>
-                              <button
-                                onClick={clearSelection}
-                                className="px-3 py-2 bg-gray-200 text-gray-700 rounded-lg hover:bg-gray-300 transition-colors text-sm"
-                              >
-                                Clear
-                              </button>
-                            </>
-                          )}
-                        </div>
-                      )}
+                            {isSelectionMode && (
+                              <>
+                                <button
+                                  onClick={selectAllMedia}
+                                  className="px-3 py-2 bg-slate-100 text-slate-700 rounded-xl hover:bg-slate-200 transition-colors text-sm font-medium"
+                                >
+                                  All
+                                </button>
+                                <button
+                                  onClick={clearSelection}
+                                  className="px-3 py-2 bg-slate-100 text-slate-700 rounded-xl hover:bg-slate-200 transition-colors text-sm font-medium"
+                                >
+                                  Clear
+                                </button>
+                              </>
+                            )}
+                          </div>
+                        )}
 
-                      <button
-                        onClick={() => handleUploadToAlbum(selectedAlbum)}
-                        className="bg-green-600 text-white px-4 py-2 rounded-lg hover:bg-green-700 transition-colors flex items-center gap-2"
-                      >
-                        <Upload size={16} />
-                        Upload Media
-                      </button>
-                      <button
-                        onClick={() => handleEditAlbum(selectedAlbum)}
-                        className="bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 transition-colors flex items-center gap-2"
-                      >
-                        <Edit size={16} />
-                        Edit
-                      </button>
+                        <button
+                          onClick={() => handleUploadToAlbum(selectedAlbum)}
+                          className="bg-gradient-to-r from-emerald-600 to-teal-600 text-white px-4 py-2 rounded-xl hover:from-emerald-700 hover:to-teal-700 transition-all duration-200 flex items-center gap-2 font-medium shadow-md"
+                        >
+                          <Upload size={16} />
+                          <span className="hidden sm:inline">Upload</span>
+                        </button>
+                        <button
+                          onClick={() => handleEditAlbum(selectedAlbum)}
+                          className="bg-gradient-to-r from-blue-600 to-indigo-600 text-white px-4 py-2 rounded-xl hover:from-blue-700 hover:to-indigo-700 transition-all duration-200 flex items-center gap-2 font-medium shadow-md"
+                        >
+                          <Edit size={16} />
+                          <span className="hidden sm:inline">Edit</span>
+                        </button>
+                      </div>
                     </div>
                   </div>
 
-                  {/* Bulk Action Controls */}
+                  {/* Modern Bulk Action Controls */}
                   {isSelectionMode && selectedMediaIds.size > 0 && (
-                    <div className="bg-gray-50 rounded-lg p-4 mb-6">
-                      <div className="flex items-center justify-between">
-                        <span className="text-sm text-gray-600">
-                          {selectedMediaIds.size} photos selected
-                        </span>
+                    <motion.div 
+                      initial={{ opacity: 0, y: -10 }}
+                      animate={{ opacity: 1, y: 0 }}
+                      className="bg-gradient-to-r from-blue-50 to-indigo-50 border border-blue-200 rounded-2xl p-4 mb-6"
+                    >
+                      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                        <div className="flex items-center gap-3">
+                          <div className="w-8 h-8 bg-blue-600 rounded-full flex items-center justify-center text-white font-bold text-sm">
+                            {selectedMediaIds.size}
+                          </div>
+                          <span className="font-medium text-slate-700">
+                            {selectedMediaIds.size} item{selectedMediaIds.size !== 1 ? 's' : ''} selected
+                          </span>
+                        </div>
                         <div className="flex items-center gap-2">
                           <button
                             onClick={handleBulkDownload}
                             disabled={isBulkOperationLoading}
-                            className="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors flex items-center gap-2 disabled:opacity-50"
+                            className="px-4 py-2 bg-emerald-600 text-white rounded-xl hover:bg-emerald-700 transition-colors flex items-center gap-2 disabled:opacity-50 font-medium shadow-md"
                           >
                             <Download size={16} />
-                            Download
+                            <span>Download</span>
                           </button>
                           <button
                             onClick={handleBulkDelete}
                             disabled={isBulkOperationLoading}
-                            className="px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors flex items-center gap-2 disabled:opacity-50"
+                            className="px-4 py-2 bg-red-600 text-white rounded-xl hover:bg-red-700 transition-colors flex items-center gap-2 disabled:opacity-50 font-medium shadow-md"
                           >
                             <Trash2 size={16} />
-                            Delete
+                            <span>Delete</span>
                           </button>
                         </div>
                       </div>
-                    </div>
+                    </motion.div>
                   )}
 
-                  {/* Album Content */}
+                  {/* Modern Album Content */}
                   {loadingMedia ? (
-                    <div className="flex items-center justify-center py-12">
-                      <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-[#cba397]"></div>
+                    <div className="flex items-center justify-center py-16">
+                      <div className="text-center">
+                        <div className="animate-spin rounded-full h-12 w-12 border-4 border-blue-200 border-t-blue-600 mx-auto mb-4"></div>
+                        <p className="text-slate-600">Loading media...</p>
+                      </div>
                     </div>
                   ) : albumMedia.length > 0 ? (
-                    <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
+                    <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-4">
                       {albumMedia.map((media, index) => (
-                        <div
-                          key={media._id || index}
-                          className={`relative group ${isSelectionMode ? 'cursor-default' : 'cursor-pointer'}`}
-                          onClick={() => isSelectionMode ? toggleMediaSelection(media._id) : handleMediaClick(media, index)}
+                        <motion.div
+                          key={media.id || index}
+                          initial={{ opacity: 0, scale: 0.9 }}
+                          animate={{ opacity: 1, scale: 1 }}
+                          transition={{ delay: index * 0.05 }}
+                          className={`relative group ${isSelectionMode ? 'cursor-default' : 'cursor-pointer'} bg-white rounded-2xl shadow-lg border border-slate-200 overflow-hidden hover:shadow-xl transition-all duration-300`}
+                          onClick={() => isSelectionMode ? toggleMediaSelection(media.id) : handleMediaClick(media, index)}
                         >
                           {media.mediaType === 'image' ? (
-                            <div
-                              className="w-full rounded-lg overflow-hidden"
-                              style={{
-                                aspectRatio: '1/1',
-                                minHeight: '200px',
-                                backgroundColor: '#ffffff',
-                                border: '1px solid #e5e7eb',
-                                position: 'relative'
-                              }}
-                            >
+                            <div className="aspect-square w-full bg-slate-100 relative overflow-hidden">
                               <img
-                                src={getBestDisplayUrl(media.thumbnailUrl || media.url, media.googleDriveFileId, 300)}
-                                alt={media.originalName || 'Album media'}
-                                style={{
-                                  width: '100%',
-                                  height: '100%',
-                                  objectFit: 'cover',
-                                  display: 'block',
-                                  backgroundColor: '#f9fafb',
-                                  opacity: '1',
-                                  visibility: 'visible',
-                                  filter: 'none',
-                                  transform: 'none',
-                                  position: 'relative',
-                                  zIndex: 1
-                                }}
+                                src={getBestDisplayUrl(media.thumbnailUrl || media.url, media.googleDriveFileId, 300, media.mediaType)}
+                                alt={media.originalName}
+                                className="w-full h-full object-cover"
+                                loading="lazy"
                                 onError={(e) => {
                                   console.error('Failed to load image:', media.url);
                                   const target = e.currentTarget as HTMLImageElement;
-                                  target.style.backgroundColor = '#dc2626';
-                                  target.style.border = '2px solid #dc2626';
-                                  target.alt = 'Image failed to load';
-                                }}
-                                onLoad={(e) => {
-                                  console.log('Image loaded successfully:', media.originalName);
-                                  const target = e.currentTarget as HTMLImageElement;
-                                  target.style.backgroundColor = 'transparent';
+                                  target.className = 'w-full h-full object-cover bg-red-100 border-2 border-red-300';
                                 }}
                               />
                             </div>
                           ) : (
-                            <div className="aspect-square w-full h-full bg-gradient-to-br from-blue-600 to-purple-700 flex items-center justify-center rounded-lg relative overflow-hidden">
-                              <div className="w-full h-full relative">
-                                <video
-                                  src={media.url}
-                                  className="w-full h-full object-cover rounded-lg"
-                                  preload="metadata"
-                                  muted
-                                  playsInline
+                            <div className="aspect-square w-full bg-gradient-to-br from-blue-600 to-purple-700 flex items-center justify-center relative overflow-hidden">
+                              {/* Video Thumbnail - Use poster image if available, otherwise show play icon */}
+                              {media.thumbnailUrl ? (
+                                <img
+                                  src={getBestDisplayUrl(media.thumbnailUrl, media.googleDriveThumbnailId, 300, 'image')}
+                                  alt={media.originalName}
+                                  className="w-full h-full object-cover"
+                                  onError={(e) => {
+                                    // Hide image and show play icon fallback
+                                    e.currentTarget.style.display = 'none';
+                                  }}
                                 />
-                                <div className="absolute inset-0 bg-black bg-opacity-20 flex items-center justify-center rounded-lg">
-                                  <div className="bg-white bg-opacity-90 rounded-full p-3 shadow-lg">
-                                    <svg className="w-6 h-6 text-blue-600" fill="currentColor" viewBox="0 0 20 20">
-                                      <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM9.555 7.168A1 1 0 008 8v4a1 1 0 001.555.832l3-2a1 1 0 000-1.664l-3-2z" clipRule="evenodd" />
-                                    </svg>
-                                  </div>
+                              ) : null}
+                              <div className="absolute inset-0 bg-black bg-opacity-40 flex items-center justify-center">
+                                <div className="bg-white bg-opacity-90 rounded-full p-3 shadow-lg">
+                                  <Play className="text-blue-600" size={24} />
                                 </div>
+                              </div>
+                              {/* Video type indicator */}
+                              <div className="absolute top-2 right-2 bg-black bg-opacity-70 text-white text-xs px-2 py-1 rounded">
+                                VIDEO
                               </div>
                             </div>
                           )}
 
                           {/* Selection Checkbox */}
                           {isSelectionMode && (
-                            <div className="absolute top-2 left-2 z-10">
-                              <div className={`w-6 h-6 rounded border-2 flex items-center justify-center ${selectedMediaIds.has(media._id)
-                                ? 'bg-blue-600 border-blue-600 text-white'
-                                : 'bg-white border-gray-300'
+                            <div className="absolute top-3 left-3 z-10">
+                              <div className={`w-7 h-7 rounded-xl border-2 flex items-center justify-center transition-all duration-200 ${selectedMediaIds.has(media.id)
+                                ? 'bg-blue-600 border-blue-600 text-white shadow-lg scale-110'
+                                : 'bg-white/90 border-slate-300 backdrop-blur-sm'
                                 }`}>
-                                {selectedMediaIds.has(media._id) && <Check size={16} />}
+                                {selectedMediaIds.has(media.id) && <Check size={18} />}
                               </div>
                             </div>
                           )}
 
                           {/* Media Info Overlay */}
-                          <div className="absolute inset-0 bg-black bg-opacity-0 group-hover:bg-opacity-20 transition-all duration-300 flex items-end rounded-lg">
-                            <div className="opacity-0 group-hover:opacity-100 transition-opacity duration-300 p-3 w-full">
-                              <div className="bg-black bg-opacity-70 text-white text-xs p-2 rounded">
-                                <p className="font-medium">{media.originalName}</p>
+                          <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-transparent to-transparent opacity-0 group-hover:opacity-100 transition-all duration-300 flex items-end">
+                            <div className="p-3 w-full">
+                              <div className="text-white">
+                                <p className="font-medium text-sm truncate">{media.originalName || 'Untitled'}</p>
                                 {media.uploadedBy && (
-                                  <p className="opacity-75">By {media.uploadedBy}</p>
+                                  <p className="text-xs opacity-90 mt-1">By {media.uploadedBy}</p>
                                 )}
                               </div>
                             </div>
                           </div>
 
-                          {/* Click to view indicator */}
-                          <div className="absolute top-2 right-2 opacity-0 group-hover:opacity-100 transition-opacity duration-300">
-                            <div className="bg-white bg-opacity-90 rounded-full p-2 shadow-lg">
-                              <Eye className="text-gray-700" size={16} />
+                          {/* View indicator */}
+                          {!isSelectionMode && (
+                            <div className="absolute top-3 right-3 opacity-0 group-hover:opacity-100 transition-all duration-300">
+                              <div className="bg-white/90 backdrop-blur-sm rounded-xl p-2 shadow-lg">
+                                <Eye className="text-slate-700" size={16} />
+                              </div>
                             </div>
-                          </div>
-                        </div>
+                          )}
+                        </motion.div>
                       ))}
                     </div>
                   ) : (
-                    <div className="text-center py-12">
-                      <Image className="text-gray-400 mx-auto mb-4" size={64} />
-                      <h3 className="text-xl font-semibold text-gray-700 mb-2">No media in this album</h3>
-                      <p className="text-gray-500 mb-6">This album doesn't contain any photos or videos yet.</p>
-                      <button
-                        onClick={() => handleUploadToAlbum(selectedAlbum)}
-                        className="bg-green-600 text-white px-6 py-3 rounded-lg hover:bg-green-700 transition-colors flex items-center gap-2 mx-auto"
-                      >
-                        <Upload size={20} />
-                        Upload First Media
-                      </button>
-                    </div>
+                    <motion.div 
+                      initial={{ opacity: 0, y: 20 }}
+                      animate={{ opacity: 1, y: 0 }}
+                      className="text-center py-16"
+                    >
+                      <div className="bg-white rounded-2xl shadow-lg border border-slate-200 p-12 max-w-md mx-auto">
+                        <div className="w-20 h-20 bg-gradient-to-br from-slate-100 to-slate-200 rounded-full flex items-center justify-center mx-auto mb-6">
+                          <Image className="text-slate-400" size={40} />
+                        </div>
+                        <h3 className="text-2xl font-bold text-slate-800 mb-3">No media yet</h3>
+                        <p className="text-slate-600 mb-8 leading-relaxed">This album is empty. Upload some beautiful photos and videos to get started!</p>
+                        <button
+                          onClick={() => handleUploadToAlbum(selectedAlbum)}
+                          className="bg-gradient-to-r from-emerald-600 to-teal-600 text-white px-8 py-4 rounded-xl font-semibold hover:from-emerald-700 hover:to-teal-700 transition-all duration-300 shadow-lg hover:shadow-xl flex items-center gap-2 mx-auto"
+                        >
+                          <Upload size={20} />
+                          <span>Upload First Media</span>
+                        </button>
+                      </div>
+                    </motion.div>
                   )}
 
-                  {/* Footer Info */}
-                  <div className="mt-8 p-4 bg-gray-50 rounded-lg">
-                    <div className="text-sm text-gray-600">
-                      <strong>Album Statistics:</strong> {albumMedia.length} total files
-                      {selectedAlbum.createdBy && (
-                        <span className="ml-4">
-                          <strong>Created by:</strong> {selectedAlbum.createdBy.email}
-                        </span>
-                      )}
+                  {/* Modern Footer Info */}
+                  <div className="mt-8 bg-white rounded-2xl shadow-lg border border-slate-200 p-6">
+                    <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+                      <div className="flex items-center gap-4">
+                        <div className="flex items-center gap-2">
+                          <div className="w-3 h-3 bg-blue-500 rounded-full"></div>
+                          <span className="text-slate-700 font-medium">{albumMedia.length} total files</span>
+                        </div>
+                        {selectedAlbum.createdBy && (
+                          <div className="flex items-center gap-2">
+                            <div className="w-3 h-3 bg-emerald-500 rounded-full"></div>
+                            <span className="text-slate-600">Created by {selectedAlbum.createdBy.email}</span>
+                          </div>
+                        )}
+                      </div>
+                      <div className="text-xs text-slate-500">
+                        Last updated: {(() => {
+                          try {
+                            const date = selectedAlbum.updatedAt?.toDate ? selectedAlbum.updatedAt.toDate() : new Date(selectedAlbum.updatedAt || selectedAlbum.createdAt);
+                            return date.toLocaleDateString();
+                          } catch (error) {
+                            return 'Recently';
+                          }
+                        })()}
+                      </div>
                     </div>
                   </div>
                 </motion.div>
@@ -1513,151 +1782,158 @@ export default function HostDashboard() {
           </div>
         )}
 
-        {/* Media Management Tab */}
+        {/* Modern Media Management Tab */}
         {activeTab === 'media' && (
           <div className="space-y-6">
-            <div className="flex items-center justify-between">
-              <h3 className="text-2xl font-bold text-gray-900">Media Gallery</h3>
-              <div className="text-sm text-gray-600">
-                {allMedia.length} photos and videos
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+              <div>
+                <h3 className="text-2xl font-bold text-slate-800">Media Gallery</h3>
+                <p className="text-slate-600 mt-1">Browse and manage all wedding photos and videos</p>
+              </div>
+              <div className="flex items-center gap-3">
+                <div className="bg-white rounded-xl px-4 py-2 shadow-sm border border-slate-200">
+                  <span className="text-sm font-medium text-slate-700">{allMedia.length}</span>
+                  <span className="text-xs text-slate-500 ml-1">items</span>
+                </div>
               </div>
             </div>
 
-            {/* Filters */}
-            <div className="bg-white rounded-xl shadow-lg p-6">
-              <div className="flex flex-wrap gap-4 mb-6">
-                <div className="flex items-center gap-2">
-                  <Filter className="w-4 h-4 text-gray-500" />
-                  <span className="text-sm font-medium text-gray-700">Filters:</span>
+            {/* Modern Filters */}
+            <div className="bg-white rounded-2xl shadow-lg border border-slate-200 p-6">
+              <div className="flex items-center gap-3 mb-6">
+                <div className="p-2 bg-blue-100 rounded-xl">
+                  <Filter className="w-5 h-5 text-blue-600" />
+                </div>
+                <h4 className="text-lg font-semibold text-slate-800">Filter Media</h4>
+              </div>
+              
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-6">
+                <div>
+                  <label className="block text-sm font-medium text-slate-700 mb-2">Album</label>
+                  <select
+                    value={mediaFilters.album}
+                    onChange={(e) => handleMediaFilterChange('album', e.target.value)}
+                    className="w-full px-4 py-3 border border-slate-300 rounded-xl text-sm focus:ring-2 focus:ring-blue-500 focus:border-transparent bg-white"
+                  >
+                    <option value="all">All Albums</option>
+                    {albums.map((album) => (
+                      <option key={album.id} value={album.id}>{album.name}</option>
+                    ))}
+                  </select>
                 </div>
 
-                <select
-                  value={mediaFilters.album}
-                  onChange={(e) => handleMediaFilterChange('album', e.target.value)}
-                  className="px-3 py-1 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-rose-500 focus:border-transparent"
-                >
-                  <option value="all">All Albums</option>
-                  {albums.map((album) => (
-                    <option key={album._id} value={album._id}>{album.name}</option>
-                  ))}
-                </select>
+                <div>
+                  <label className="block text-sm font-medium text-slate-700 mb-2">Type</label>
+                  <select
+                    value={mediaFilters.type}
+                    onChange={(e) => handleMediaFilterChange('type', e.target.value)}
+                    className="w-full px-4 py-3 border border-slate-300 rounded-xl text-sm focus:ring-2 focus:ring-blue-500 focus:border-transparent bg-white"
+                  >
+                    <option value="all">All Types</option>
+                    <option value="image">📷 Images</option>
+                    <option value="video">🎥 Videos</option>
+                  </select>
+                </div>
 
-                <select
-                  value={mediaFilters.type}
-                  onChange={(e) => handleMediaFilterChange('type', e.target.value)}
-                  className="px-3 py-1 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-rose-500 focus:border-transparent"
-                >
-                  <option value="all">All Types</option>
-                  <option value="image">Images</option>
-                  <option value="video">Videos</option>
-                </select>
-
-                <select
-                  value={mediaFilters.approved}
-                  onChange={(e) => handleMediaFilterChange('approved', e.target.value)}
-                  className="px-3 py-1 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-rose-500 focus:border-transparent"
-                >
-                  <option value="all">All Status</option>
-                  <option value="true">Approved</option>
-                  <option value="false">Pending</option>
-                </select>
+                <div>
+                  <label className="block text-sm font-medium text-slate-700 mb-2">Status</label>
+                  <select
+                    value={mediaFilters.approved}
+                    onChange={(e) => handleMediaFilterChange('approved', e.target.value)}
+                    className="w-full px-4 py-3 border border-slate-300 rounded-xl text-sm focus:ring-2 focus:ring-blue-500 focus:border-transparent bg-white"
+                  >
+                    <option value="all">All Status</option>
+                    <option value="true">✅ Approved</option>
+                    <option value="false">⏳ Pending</option>
+                  </select>
+                </div>
               </div>
 
-              {/* Media Gallery */}
+              {/* Modern Media Gallery */}
               {loadingAllMedia ? (
-                <div className="flex items-center justify-center py-12">
-                  <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-[#cba397]"></div>
+                <div className="flex items-center justify-center py-16">
+                  <div className="text-center">
+                    <div className="animate-spin rounded-full h-12 w-12 border-4 border-blue-200 border-t-blue-600 mx-auto mb-4"></div>
+                    <p className="text-slate-600">Loading media gallery...</p>
+                  </div>
                 </div>
               ) : allMedia.length > 0 ? (
-                <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-4">
-                  {allMedia.map((media) => (
-                    <div
-                      key={media._id}
-                      className="relative group cursor-pointer"
+                <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-4">
+                  {allMedia.map((media, index) => (
+                    <motion.div
+                      key={media._id || media.id || `media-${index}`}
+                      initial={{ opacity: 0, scale: 0.9 }}
+                      animate={{ opacity: 1, scale: 1 }}
+                      transition={{ delay: index * 0.05 }}
+                      className="relative group cursor-pointer bg-white rounded-2xl shadow-lg border border-slate-200 overflow-hidden hover:shadow-xl transition-all duration-300"
                     >
                       {media.mediaType === 'image' ? (
-                        <div
-                          className="w-full rounded-lg overflow-hidden"
-                          style={{
-                            aspectRatio: '1/1',
-                            minHeight: '200px',
-                            backgroundColor: '#ffffff',
-                            border: '1px solid #e5e7eb',
-                            position: 'relative'
-                          }}
-                        >
+                        <div className="aspect-square w-full bg-slate-100 relative overflow-hidden">
                           <img
-                            src={getBestDisplayUrl(media.thumbnailUrl || media.url, media.googleDriveFileId, 300)}
+                            src={getBestDisplayUrl(media.thumbnailUrl || media.url, media.googleDriveFileId, 300, media.mediaType)}
                             alt={media.originalName || 'Media'}
-                            style={{
-                              width: '100%',
-                              height: '100%',
-                              objectFit: 'cover',
-                              display: 'block',
-                              backgroundColor: '#f9fafb',
-                              opacity: '1',
-                              visibility: 'visible'
-                            }}
+                            className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-500"
                             onError={(e) => {
                               console.error('Failed to load image:', media.url);
                               const target = e.currentTarget as HTMLImageElement;
-                              target.style.backgroundColor = '#dc2626';
-                              target.style.border = '2px solid #dc2626';
-                              target.alt = 'Image failed to load';
-                            }}
-                            onLoad={(e) => {
-                              const target = e.currentTarget as HTMLImageElement;
-                              target.style.backgroundColor = 'transparent';
+                              target.className = 'w-full h-full object-cover bg-red-100 border-2 border-red-300';
                             }}
                           />
                         </div>
                       ) : (
-                        <div className="aspect-square w-full bg-gradient-to-br from-blue-600 to-purple-700 flex items-center justify-center rounded-lg relative overflow-hidden">
-                          <div className="w-full h-full relative">
-                            <video
-                              src={media.url}
-                              className="w-full h-full object-cover rounded-lg"
-                              preload="metadata"
-                              muted
-                              playsInline
+                        <div className="aspect-square w-full bg-gradient-to-br from-blue-600 to-purple-700 flex items-center justify-center relative overflow-hidden">
+                          {/* Video Thumbnail - Use poster image if available */}
+                          {media.thumbnailUrl ? (
+                            <img
+                              src={getBestDisplayUrl(media.thumbnailUrl, media.googleDriveThumbnailId, 300, 'image')}
+                              alt={media.originalName || 'Video'}
+                              className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-500"
+                              onError={(e) => {
+                                // Hide image and show play icon fallback
+                                e.currentTarget.style.display = 'none';
+                              }}
                             />
-                            <div className="absolute inset-0 bg-black bg-opacity-20 flex items-center justify-center rounded-lg">
-                              <div className="bg-white bg-opacity-90 rounded-full p-3 shadow-lg">
-                                <svg className="w-6 h-6 text-blue-600" fill="currentColor" viewBox="0 0 20 20">
-                                  <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM9.555 7.168A1 1 0 008 8v4a1 1 0 001.555.832l3-2a1 1 0 000-1.664l-3-2z" clipRule="evenodd" />
-                                </svg>
-                              </div>
+                          ) : null}
+                          <div className="absolute inset-0 bg-black bg-opacity-20 flex items-center justify-center">
+                            <div className="bg-white/90 backdrop-blur-sm rounded-full p-4 shadow-lg group-hover:scale-110 transition-transform duration-300">
+                              <svg className="w-8 h-8 text-blue-600" fill="currentColor" viewBox="0 0 20 20">
+                                <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM9.555 7.168A1 1 0 008 8v4a1 1 0 001.555.832l3-2a1 1 0 000-1.664l-3-2z" clipRule="evenodd" />
+                              </svg>
                             </div>
+                          </div>
+                          {/* Video type indicator */}
+                          <div className="absolute top-2 right-2 bg-black bg-opacity-70 text-white text-xs px-2 py-1 rounded">
+                            VIDEO
                           </div>
                         </div>
                       )}
 
                       {/* Media Info Overlay */}
-                      <div className="absolute inset-0 bg-transparent bg-opacity-0 group-hover:bg-opacity-40 transition-all duration-300 flex items-end rounded-lg">
-                        <div className="opacity-0 group-hover:opacity-100 transition-opacity duration-300 p-3 w-full">
-                          <div className="bg-black text-white text-xs p-2 rounded">
-                            <p className="font-medium">{media.originalName}</p>
+                      <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-transparent to-transparent opacity-0 group-hover:opacity-100 transition-all duration-300 flex items-end">
+                        <div className="p-3 w-full">
+                          <div className="text-white">
+                            <p className="font-medium text-sm truncate">{media.originalName || 'Untitled'}</p>
                             {media.uploadedBy && (
-                              <p className="opacity-75">By {media.uploadedBy}</p>
+                              <p className="text-xs opacity-90 mt-1">By {media.uploadedBy}</p>
                             )}
                             {media.album?.name && (
-                              <p className="opacity-75">Album: {media.album.name}</p>
+                              <p className="text-xs opacity-75 mt-1">Album: {media.album.name}</p>
                             )}
                           </div>
                         </div>
                       </div>
 
-                      {/* Action Buttons */}
-                      <div className="absolute top-2 right-2 opacity-0 group-hover:opacity-100 transition-opacity duration-300 flex gap-1">
+                      {/* Modern Action Buttons */}
+                      <div className="absolute top-3 right-3 opacity-0 group-hover:opacity-100 transition-all duration-300 flex gap-2">
                         <button
                           onClick={(e) => {
                             e.stopPropagation();
                             window.open(media.url, '_blank');
                           }}
-                          className="bg-white bg-opacity-90 text-gray-700 rounded-full p-2 shadow-lg hover:bg-opacity-100 transition-colors"
+                          className="bg-white/90 backdrop-blur-sm text-slate-700 rounded-xl p-2 shadow-lg hover:bg-white transition-colors"
                           title="View Full Size"
                         >
-                          <Eye size={14} />
+                          <Eye size={16} />
                         </button>
                         <button
                           onClick={(e) => {
@@ -1670,53 +1946,64 @@ export default function HostDashboard() {
                             link.download = media.originalName || 'download';
                             link.click();
                           }}
-                          className="bg-white bg-opacity-90 text-gray-700 rounded-full p-2 shadow-lg hover:bg-opacity-100 transition-colors"
+                          className="bg-white/90 backdrop-blur-sm text-slate-700 rounded-xl p-2 shadow-lg hover:bg-white transition-colors"
                           title="Download"
                         >
-                          <Download size={14} />
+                          <Download size={16} />
                         </button>
                         <button
                           onClick={(e) => {
                             e.stopPropagation();
-                            handleDeleteMediaFromGallery(media._id);
+                            handleDeleteMediaFromGallery(media.id);
                           }}
-                          className="bg-red-500 bg-opacity-90 text-white rounded-full p-2 shadow-lg hover:bg-opacity-100 transition-colors"
+                          className="bg-red-500/90 backdrop-blur-sm text-white rounded-xl p-2 shadow-lg hover:bg-red-500 transition-colors"
                           title="Delete"
                         >
-                          <Trash2 size={14} />
+                          <Trash2 size={16} />
                         </button>
                       </div>
-
-                    </div>
+                    </motion.div>
                   ))}
                 </div>
               ) : (
-                <div className="text-center py-12">
-                  <Image className="text-gray-400 mx-auto mb-4" size={64} />
-                  <h3 className="text-xl font-semibold text-gray-700 mb-2">No media found</h3>
-                  <p className="text-gray-500">No photos or videos match your current filters.</p>
-                </div>
+                <motion.div 
+                  initial={{ opacity: 0, y: 20 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  className="text-center py-16"
+                >
+                  <div className="bg-slate-50 rounded-2xl p-12 max-w-md mx-auto">
+                    <div className="w-20 h-20 bg-gradient-to-br from-slate-200 to-slate-300 rounded-full flex items-center justify-center mx-auto mb-6">
+                      <Image className="text-slate-400" size={40} />
+                    </div>
+                    <h3 className="text-2xl font-bold text-slate-800 mb-3">No media found</h3>
+                    <p className="text-slate-600 leading-relaxed">No photos or videos match your current filters. Try adjusting your search criteria.</p>
+                  </div>
+                </motion.div>
               )}
 
-              {/* Pagination */}
+              {/* Modern Pagination */}
               {mediaTotalPages > 1 && (
-                <div className="flex items-center justify-center gap-2 mt-6">
+                <div className="flex items-center justify-center gap-3 mt-8">
                   <button
                     onClick={() => setMediaPage(Math.max(1, mediaPage - 1))}
                     disabled={mediaPage === 1}
-                    className="px-3 py-1 border border-gray-300 rounded-lg text-sm disabled:opacity-50 disabled:cursor-not-allowed hover:bg-gray-50"
+                    className="px-4 py-2 bg-white border border-slate-300 rounded-xl text-sm font-medium disabled:opacity-50 disabled:cursor-not-allowed hover:bg-slate-50 transition-colors flex items-center gap-2"
                   >
-                    Previous
+                    <ChevronLeft size={16} />
+                    <span>Previous</span>
                   </button>
-                  <span className="text-sm text-gray-600">
-                    Page {mediaPage} of {mediaTotalPages}
-                  </span>
+                  <div className="px-4 py-2 bg-slate-100 rounded-xl">
+                    <span className="text-sm font-medium text-slate-700">
+                      {mediaPage} of {mediaTotalPages}
+                    </span>
+                  </div>
                   <button
                     onClick={() => setMediaPage(Math.min(mediaTotalPages, mediaPage + 1))}
                     disabled={mediaPage === mediaTotalPages}
-                    className="px-3 py-1 border border-gray-300 rounded-lg text-sm disabled:opacity-50 disabled:cursor-not-allowed hover:bg-gray-50"
+                    className="px-4 py-2 bg-white border border-slate-300 rounded-xl text-sm font-medium disabled:opacity-50 disabled:cursor-not-allowed hover:bg-slate-50 transition-colors flex items-center gap-2"
                   >
-                    Next
+                    <span>Next</span>
+                    <ChevronRight size={16} />
                   </button>
                 </div>
               )}
@@ -1724,194 +2011,250 @@ export default function HostDashboard() {
           </div>
         )}
 
-        {/* Invitations Management Tab with RSVP */}
+        {/* Modern Invitations Management Tab */}
         {activeTab === 'invitations' && (
           <div className="space-y-6">
-            {/* RSVP Stats Cards */}
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+              <div>
+                <h3 className="text-2xl font-bold text-slate-800">Guest Invitations</h3>
+                <p className="text-slate-600 mt-1">Manage invitations and track RSVP responses</p>
+              </div>
+            </div>
+
+            {/* Modern RSVP Stats Cards - 2x2 on Mobile, Single Row on Desktop */}
             {rsvpData?.stats && (
-              <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-6">
+              <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 mb-6">
                 <motion.div
-                  className="bg-white rounded-xl shadow-lg p-6 text-center border-l-4 border-blue-500"
+                  className="bg-white rounded-2xl shadow-lg border border-slate-200 p-6 hover:shadow-xl transition-all duration-300 group"
                   initial={{ opacity: 0, y: 20 }}
                   animate={{ opacity: 1, y: 0 }}
                   transition={{ delay: 0.1 }}
                 >
-                  <div className="text-3xl font-bold text-blue-600">{rsvpData.stats.total}</div>
-                  <div className="text-sm text-gray-600">Total Invitations</div>
+                  <div className="flex items-center justify-between mb-4">
+                    <div className="p-3 bg-gradient-to-br from-blue-500 to-indigo-600 rounded-xl text-white group-hover:scale-110 transition-transform duration-300">
+                      <Mail size={24} />
+                    </div>
+                    <div className="text-right">
+                      <div className="text-3xl font-bold text-slate-800">{rsvpData.stats.total}</div>
+                      <div className="text-sm text-slate-600">Total Invitations</div>
+                    </div>
+                  </div>
                 </motion.div>
 
                 <motion.div
-                  className="bg-white rounded-xl shadow-lg p-6 text-center border-l-4 border-green-500"
+                  className="bg-white rounded-2xl shadow-lg border border-slate-200 p-6 hover:shadow-xl transition-all duration-300 group"
                   initial={{ opacity: 0, y: 20 }}
                   animate={{ opacity: 1, y: 0 }}
                   transition={{ delay: 0.2 }}
                 >
-                  <div className="text-3xl font-bold text-green-600">{rsvpData.stats.attending}</div>
-                  <div className="text-sm text-gray-600">Attending</div>
+                  <div className="flex items-center justify-between mb-4">
+                    <div className="p-3 bg-gradient-to-br from-emerald-500 to-teal-600 rounded-xl text-white group-hover:scale-110 transition-transform duration-300">
+                      <CheckCircle size={24} />
+                    </div>
+                    <div className="text-right">
+                      <div className="text-3xl font-bold text-slate-800">{rsvpData.stats.attending}</div>
+                      <div className="text-sm text-slate-600">Attending</div>
+                    </div>
+                  </div>
                 </motion.div>
 
                 <motion.div
-                  className="bg-white rounded-xl shadow-lg p-6 text-center border-l-4 border-red-500"
+                  className="bg-white rounded-2xl shadow-lg border border-slate-200 p-6 hover:shadow-xl transition-all duration-300 group"
                   initial={{ opacity: 0, y: 20 }}
                   animate={{ opacity: 1, y: 0 }}
                   transition={{ delay: 0.3 }}
                 >
-                  <div className="text-3xl font-bold text-red-600">{rsvpData.stats.notAttending}</div>
-                  <div className="text-sm text-gray-600">Not Attending</div>
+                  <div className="flex items-center justify-between mb-4">
+                    <div className="p-3 bg-gradient-to-br from-red-500 to-pink-600 rounded-xl text-white group-hover:scale-110 transition-transform duration-300">
+                      <XCircle size={24} />
+                    </div>
+                    <div className="text-right">
+                      <div className="text-3xl font-bold text-slate-800">{rsvpData.stats.notAttending}</div>
+                      <div className="text-sm text-slate-600">Not Attending</div>
+                    </div>
+                  </div>
                 </motion.div>
 
                 <motion.div
-                  className="bg-white rounded-xl shadow-lg p-6 text-center border-l-4 border-yellow-500"
+                  className="bg-white rounded-2xl shadow-lg border border-slate-200 p-6 hover:shadow-xl transition-all duration-300 group"
                   initial={{ opacity: 0, y: 20 }}
                   animate={{ opacity: 1, y: 0 }}
                   transition={{ delay: 0.4 }}
                 >
-                  <div className="text-3xl font-bold text-yellow-600">{rsvpData.stats.pending}</div>
-                  <div className="text-sm text-gray-600">Pending</div>
+                  <div className="flex items-center justify-between mb-4">
+                    <div className="p-3 bg-gradient-to-br from-amber-500 to-orange-600 rounded-xl text-white group-hover:scale-110 transition-transform duration-300">
+                      <Clock size={24} />
+                    </div>
+                    <div className="text-right">
+                      <div className="text-3xl font-bold text-slate-800">{rsvpData.stats.pending}</div>
+                      <div className="text-sm text-slate-600">Pending</div>
+                    </div>
+                  </div>
                 </motion.div>
               </div>
             )}
 
-            {/* RSVP Filters */}
-            <div className="bg-white rounded-xl shadow-lg p-6">
-              <div className="flex flex-wrap gap-4 mb-6">
-                <div className="flex items-center gap-2">
-                  <Filter className="w-4 h-4 text-gray-500" />
-                  <span className="text-sm font-medium text-gray-700">Filters:</span>
+            {/* Modern RSVP Filters */}
+            <div className="bg-white rounded-2xl shadow-lg border border-slate-200 p-6">
+              <div className="flex items-center gap-3 mb-6">
+                <div className="p-2 bg-blue-100 rounded-xl">
+                  <Filter className="w-5 h-5 text-blue-600" />
+                </div>
+                <h4 className="text-lg font-semibold text-slate-800">Filter Invitations</h4>
+              </div>
+              
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-6">
+                <div>
+                  <label className="block text-sm font-medium text-slate-700 mb-2">RSVP Status</label>
+                  <select
+                    value={rsvpFilters.status}
+                    onChange={(e) => {
+                      const newFilters = { ...rsvpFilters, status: e.target.value };
+                      setRsvpFilters(newFilters);
+                    }}
+                    className="w-full px-4 py-3 border border-slate-300 rounded-xl text-sm focus:ring-2 focus:ring-blue-500 focus:border-transparent bg-white"
+                  >
+                    <option value="all">All Status</option>
+                    <option value="pending">⏳ Pending</option>
+                    <option value="attending">✅ Attending</option>
+                    <option value="not_attending">❌ Not Attending</option>
+                  </select>
                 </div>
 
-                <select
-                  value={rsvpFilters.status}
-                  onChange={(e) => {
-                    const newFilters = { ...rsvpFilters, status: e.target.value };
-                    setRsvpFilters(newFilters);
-                    fetchRSVPData(newFilters);
-                  }}
-                  className="px-3 py-1 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-rose-500 focus:border-transparent"
-                >
-                  <option value="all">All Status</option>
-                  <option value="pending">Pending</option>
-                  <option value="attending">Attending</option>
-                  <option value="not_attending">Not Attending</option>
-                </select>
+                <div>
+                  <label className="block text-sm font-medium text-slate-700 mb-2">Guest Role</label>
+                  <select
+                    value={rsvpFilters.role}
+                    onChange={(e) => {
+                      const newFilters = { ...rsvpFilters, role: e.target.value };
+                      setRsvpFilters(newFilters);
+                    }}
+                    className="w-full px-4 py-3 border border-slate-300 rounded-xl text-sm focus:ring-2 focus:ring-blue-500 focus:border-transparent bg-white"
+                  >
+                    <option value="all">All Roles</option>
+                    {entourageRoles.map((role) => (
+                      <option key={role} value={role}>{role}</option>
+                    ))}
+                  </select>
+                </div>
 
-                <select
-                  value={rsvpFilters.role}
-                  onChange={(e) => {
-                    const newFilters = { ...rsvpFilters, role: e.target.value };
-                    setRsvpFilters(newFilters);
-                    fetchRSVPData(newFilters);
-                  }}
-                  className="px-3 py-1 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-rose-500 focus:border-transparent"
-                >
-                  <option value="all">All Roles</option>
-                  {entourageRoles.map((role) => (
-                    <option key={role} value={role}>{role}</option>
-                  ))}
-                </select>
-
-                <input
-                  type="text"
-                  placeholder="Search guests..."
-                  value={rsvpFilters.search}
-                  onChange={(e) => {
-                    const newFilters = { ...rsvpFilters, search: e.target.value };
-                    setRsvpFilters(newFilters);
-                    fetchRSVPData(newFilters);
-                  }}
-                  className="px-3 py-1 border border-gray-300 rounded-lg text-sm focus:ring-2 focus:ring-rose-500 focus:border-transparent"
-                />
+                <div>
+                  <label className="block text-sm font-medium text-slate-700 mb-2">Search</label>
+                  <input
+                    type="text"
+                    placeholder="Search guests..."
+                    value={rsvpFilters.search}
+                    onChange={(e) => {
+                      const newFilters = { ...rsvpFilters, search: e.target.value };
+                      setRsvpFilters(newFilters);
+                    }}
+                    className="w-full px-4 py-3 border border-slate-300 rounded-xl text-sm focus:ring-2 focus:ring-blue-500 focus:border-transparent bg-white"
+                  />
+                </div>
               </div>
 
-              {/* RSVP List */}
+              {/* Modern Mobile-Friendly RSVP List */}
               <div className="space-y-4">
-                {currentInvitations.map((invitation: any) => (
+                {currentInvitations.map((invitation: any, index: number) => (
                   <motion.div
-                    key={invitation._id}
-                    className="border border-gray-200 rounded-lg p-4 hover:shadow-md transition-shadow"
-                    initial={{ opacity: 0 }}
-                    animate={{ opacity: 1 }}
+                    key={invitation.id}
+                    initial={{ opacity: 0, y: 10 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    transition={{ delay: index * 0.05 }}
+                    className="bg-slate-50 rounded-2xl p-4 hover:bg-slate-100 transition-all duration-200 border border-slate-200"
                   >
-                    <div className="flex items-center justify-between">
-                      <div className="flex items-center gap-4">
-                        <div className="flex items-center gap-2">
-                          {invitation.rsvp.status === 'attending' && (
-                            <CheckCircle className="w-5 h-5 text-green-500" />
-                          )}
-                          {invitation.rsvp.status === 'not_attending' && (
-                            <XCircle className="w-5 h-5 text-red-500" />
-                          )}
-                          {invitation.rsvp.status === 'pending' && (
-                            <Clock className="w-5 h-5 text-yellow-500" />
-                          )}
-                          <div>
-                            <h4 className="font-medium text-gray-900">{invitation.guestName}</h4>
-                            <p className="text-sm text-gray-500">{invitation.guestRole}</p>
+                    {/* Mobile-First Layout */}
+                    <div className="space-y-3">
+                      {/* Header Row - Guest Info & Status */}
+                      <div className="flex items-start justify-between gap-3">
+                        <div className="flex items-center gap-3 min-w-0 flex-1">
+                          {/* Avatar with Status Icon */}
+                          <div className="relative">
+                            <div className="w-12 h-12 bg-gradient-to-br from-blue-500 to-indigo-600 rounded-full flex items-center justify-center text-white font-bold text-lg">
+                              {invitation.guestName.charAt(0).toUpperCase()}
+                            </div>
+                            <div className="absolute -bottom-1 -right-1">
+                              {invitation.rsvp.status === 'attending' && (
+                                <div className="w-5 h-5 bg-green-500 rounded-full flex items-center justify-center">
+                                  <CheckCircle className="w-3 h-3 text-white" />
+                                </div>
+                              )}
+                              {invitation.rsvp.status === 'not_attending' && (
+                                <div className="w-5 h-5 bg-red-500 rounded-full flex items-center justify-center">
+                                  <XCircle className="w-3 h-3 text-white" />
+                                </div>
+                              )}
+                              {invitation.rsvp.status === 'pending' && (
+                                <div className="w-5 h-5 bg-amber-500 rounded-full flex items-center justify-center">
+                                  <Clock className="w-3 h-3 text-white" />
+                                </div>
+                              )}
+                            </div>
+                          </div>
+                          
+                          {/* Guest Details */}
+                          <div className="min-w-0 flex-1">
+                            <h4 className="font-semibold text-slate-800 truncate">{invitation.guestName}</h4>
+                            <p className="text-sm text-slate-600">{invitation.guestRole}</p>
+                            {invitation.rsvp.status === 'attending' && invitation.rsvp.attendeeCount && (
+                              <p className="text-xs text-emerald-600 font-medium mt-1">
+                                {invitation.rsvp.attendeeCount} guest{invitation.rsvp.attendeeCount !== 1 ? 's' : ''}
+                              </p>
+                            )}
+                          </div>
+                        </div>
+                        
+                        {/* Status Badge */}
+                        <div className="flex-shrink-0">
+                          <div className={`inline-flex items-center px-3 py-1 rounded-xl text-xs font-medium border ${
+                            invitation.rsvp.status === 'attending'
+                              ? 'bg-green-100 text-green-700 border-green-200'
+                              : invitation.rsvp.status === 'not_attending'
+                                ? 'bg-red-100 text-red-700 border-red-200'
+                                : 'bg-amber-100 text-amber-700 border-amber-200'
+                          }`}>
+                            {invitation.rsvp.status === 'attending' ? '✅ Attending' :
+                              invitation.rsvp.status === 'not_attending' ? '❌ Declined' : '⏳ Pending'}
                           </div>
                         </div>
                       </div>
-
-                      <div className="flex items-center gap-4">
-                        {invitation.rsvp.status === 'attending' && (
-                          <div className="text-sm text-gray-600">
-                            <span className="font-medium">{invitation.rsvp.attendeeCount}</span> guest{invitation.rsvp.attendeeCount !== 1 ? 's' : ''}
-                          </div>
-                        )}
-
-                        <div className="flex items-center gap-2">
+                      
+                      {/* Response Date & Actions Row */}
+                      <div className="flex items-center justify-between gap-3 pt-2 border-t border-slate-200">
+                        <div className="text-xs text-slate-500">
+                          {invitation.rsvp.respondedAt ? (
+                            <span>Responded: {new Date(invitation.rsvp.respondedAt).toLocaleDateString()}</span>
+                          ) : (
+                            <span>No response yet</span>
+                          )}
+                        </div>
+                        
+                        {/* Action Buttons */}
+                        <div className="flex items-center gap-1">
                           {invitation.qrCode && (
                             <>
                               <button
                                 onClick={() => handleViewQR(invitation)}
-                                className="p-2 text-blue-600 hover:bg-blue-50 rounded-lg transition-colors"
+                                className="p-2 text-blue-600 hover:bg-blue-100 rounded-lg transition-colors"
                                 title="View QR Code"
                               >
-                                <QrCode className="w-4 h-4" />
+                                <QrCode size={16} />
                               </button>
-
                               <button
                                 onClick={() => handleCopyLink(invitation.qrCode)}
-                                className="p-2 text-green-600 hover:bg-green-50 rounded-lg transition-colors"
-                                title="Copy Invitation Link"
+                                className="p-2 text-emerald-600 hover:bg-emerald-100 rounded-lg transition-colors"
+                                title="Copy Link"
                               >
-                                <Copy className="w-4 h-4" />
+                                <Copy size={16} />
                               </button>
-
                               <button
                                 onClick={() => handleOpenInvitation(invitation.qrCode)}
-                                className="p-2 text-purple-600 hover:bg-purple-50 rounded-lg transition-colors"
+                                className="p-2 text-purple-600 hover:bg-purple-100 rounded-lg transition-colors"
                                 title="Open Invitation"
                               >
-                                <ExternalLink className="w-4 h-4" />
+                                <ExternalLink size={16} />
                               </button>
-
-                              {invitation.qrCodePath && (
-                                <button
-                                  onClick={() => handleViewQR(invitation)}
-                                  className="p-2 text-orange-600 hover:bg-orange-50 rounded-lg transition-colors"
-                                  title="Show QR Code"
-                                >
-                                  <Download className="w-4 h-4" />
-                                </button>
-                              )}
                             </>
-                          )}
-                        </div>
-
-                        <div className="text-right">
-                          <div className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${invitation.rsvp.status === 'attending'
-                            ? 'bg-green-100 text-green-800'
-                            : invitation.rsvp.status === 'not_attending'
-                              ? 'bg-red-100 text-red-800'
-                              : 'bg-yellow-100 text-yellow-800'
-                            }`}>
-                            {invitation.rsvp.status === 'attending' ? 'Attending' :
-                              invitation.rsvp.status === 'not_attending' ? 'Not Attending' : 'Pending'}
-                          </div>
-                          {invitation.rsvp.respondedAt && (
-                            <div className="text-xs text-gray-500 mt-1">
-                              {new Date(invitation.rsvp.respondedAt).toLocaleDateString()}
-                            </div>
                           )}
                         </div>
                       </div>
@@ -1919,91 +2262,114 @@ export default function HostDashboard() {
 
 
 
-                    {invitation.rsvp.guestNames && invitation.rsvp.guestNames.length > 0 && (
-                      <div className="mt-3 pt-3 border-t border-gray-100">
-                        <div className="flex items-center gap-2 text-sm">
-                          <User className="w-4 h-4 text-blue-500" />
-                          <span className="font-medium text-gray-700">Guest Name:</span>
-                          <span className="text-gray-600">{invitation.rsvp.guestNames[0]}</span>
-                        </div>
-                      </div>
-                    )}
-
-                    {(invitation.rsvp.email || invitation.rsvp.phone) && (
-                      <div className="mt-3 pt-3 border-t border-gray-100">
-                        <div className="flex items-center gap-2 mb-2">
-                          <Mail className="w-4 h-4 text-blue-500" />
-                          <span className="text-sm font-medium text-gray-700">Contact Information</span>
-                        </div>
-                        <div className="space-y-2">
-                          {invitation.rsvp.email && (
-                            <div className="flex items-center gap-2 text-sm">
-                              <Mail className="w-4 h-4 text-green-500" />
-                              <span className="font-medium text-gray-700">Email:</span>
-                              <span className="text-gray-600">{invitation.rsvp.email}</span>
+                    {/* Additional Guest Information - Mobile Optimized */}
+                    {(invitation.rsvp.guestNames?.length > 0 || invitation.rsvp.email || invitation.rsvp.phone) && (
+                      <div className="mt-3 pt-3 border-t border-slate-200 space-y-2">
+                        {invitation.rsvp.guestNames && invitation.rsvp.guestNames.length > 0 && (
+                          <div className="flex items-center gap-2 text-sm">
+                            <div className="p-1 bg-blue-100 rounded">
+                              <User className="w-3 h-3 text-blue-600" />
                             </div>
-                          )}
-                          {invitation.rsvp.phone && (
-                            <div className="flex items-center gap-2 text-sm">
-                              <Phone className="w-4 h-4 text-purple-500" />
-                              <span className="font-medium text-gray-700">Phone:</span>
-                              <span className="text-gray-600">{invitation.rsvp.phone}</span>
+                            <span className="font-medium text-slate-700">Guest:</span>
+                            <span className="text-slate-600 truncate">{invitation.rsvp.guestNames[0]}</span>
+                          </div>
+                        )}
+                        
+                        {invitation.rsvp.email && (
+                          <div className="flex items-center gap-2 text-sm">
+                            <div className="p-1 bg-emerald-100 rounded">
+                              <Mail className="w-3 h-3 text-emerald-600" />
                             </div>
-                          )}
-                        </div>
+                            <span className="font-medium text-slate-700">Email:</span>
+                            <span className="text-slate-600 truncate">{invitation.rsvp.email}</span>
+                          </div>
+                        )}
+                        
+                        {invitation.rsvp.phone && (
+                          <div className="flex items-center gap-2 text-sm">
+                            <div className="p-1 bg-purple-100 rounded">
+                              <Phone className="w-3 h-3 text-purple-600" />
+                            </div>
+                            <span className="font-medium text-slate-700">Phone:</span>
+                            <span className="text-slate-600">{invitation.rsvp.phone}</span>
+                          </div>
+                        )}
                       </div>
                     )}
                   </motion.div>
                 ))}
 
-                {/* Pagination */}
+                {/* Modern Pagination */}
                 {totalPages > 1 && (
-                  <div className="flex items-center justify-between mt-6 pt-6 border-t border-gray-200">
-                    <div className="text-sm text-gray-600">
+                  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mt-8 pt-6 border-t border-slate-200">
+                    <div className="text-sm text-slate-600 text-center sm:text-left">
                       Showing {startIndex + 1} to {Math.min(endIndex, rsvpData?.invitations?.length || 0)} of {rsvpData?.invitations?.length || 0} invitations
                     </div>
 
-                    <div className="flex items-center gap-2">
+                    <div className="flex items-center justify-center gap-2">
                       <button
                         onClick={() => handlePageChange(currentPage - 1)}
                         disabled={currentPage === 1}
-                        className="flex items-center gap-1 px-3 py-2 text-sm text-gray-600 hover:text-gray-800 disabled:text-gray-400 disabled:cursor-not-allowed"
+                        className="flex items-center gap-2 px-4 py-2 bg-white border border-slate-300 rounded-xl text-sm font-medium disabled:opacity-50 disabled:cursor-not-allowed hover:bg-slate-50 transition-colors"
                       >
-                        <ChevronLeft className="w-4 h-4" />
-                        Previous
+                        <ChevronLeft size={16} />
+                        <span className="hidden sm:inline">Previous</span>
                       </button>
 
                       <div className="flex items-center gap-1">
-                        {Array.from({ length: totalPages }, (_, i) => i + 1).map((page) => (
-                          <button
-                            key={page}
-                            onClick={() => handlePageChange(page)}
-                            className={`px-3 py-2 text-sm rounded-lg transition-colors ${currentPage === page
-                              ? 'bg-blue-600 text-white'
-                              : 'text-gray-600 hover:bg-gray-100'
+                        {Array.from({ length: Math.min(totalPages, 5) }, (_, i) => {
+                          let page;
+                          if (totalPages <= 5) {
+                            page = i + 1;
+                          } else if (currentPage <= 3) {
+                            page = i + 1;
+                          } else if (currentPage >= totalPages - 2) {
+                            page = totalPages - 4 + i;
+                          } else {
+                            page = currentPage - 2 + i;
+                          }
+                          return (
+                            <button
+                              key={page}
+                              onClick={() => handlePageChange(page)}
+                              className={`px-3 py-2 text-sm rounded-xl transition-colors font-medium ${
+                                currentPage === page
+                                  ? 'bg-blue-600 text-white shadow-md'
+                                  : 'text-slate-600 hover:bg-slate-100'
                               }`}
-                          >
-                            {page}
-                          </button>
-                        ))}
+                            >
+                              {page}
+                            </button>
+                          );
+                        })}
                       </div>
 
                       <button
                         onClick={() => handlePageChange(currentPage + 1)}
                         disabled={currentPage === totalPages}
-                        className="flex items-center gap-1 px-3 py-2 text-sm text-gray-600 hover:text-gray-800 disabled:text-gray-400 disabled:cursor-not-allowed"
+                        className="flex items-center gap-2 px-4 py-2 bg-white border border-slate-300 rounded-xl text-sm font-medium disabled:opacity-50 disabled:cursor-not-allowed hover:bg-slate-50 transition-colors"
                       >
-                        Next
-                        <ChevronRight className="w-4 h-4" />
+                        <span className="hidden sm:inline">Next</span>
+                        <ChevronRight size={16} />
                       </button>
                     </div>
                   </div>
                 )}
 
                 {rsvpData?.invitations?.length === 0 && (
-                  <div className="text-center py-8 text-gray-500">
-                    No RSVP responses found for the current filters.
-                  </div>
+                  <motion.div 
+                    initial={{ opacity: 0, y: 20 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    className="text-center py-16"
+                  >
+                    <div className="bg-slate-50 rounded-2xl p-12 max-w-md mx-auto">
+                      <div className="w-20 h-20 bg-gradient-to-br from-slate-200 to-slate-300 rounded-full flex items-center justify-center mx-auto mb-6">
+                        <Mail className="text-slate-400" size={40} />
+                      </div>
+                      <h3 className="text-2xl font-bold text-slate-800 mb-3">No invitations found</h3>
+                      <p className="text-slate-600 leading-relaxed">No RSVP responses match your current filters. Try adjusting your search criteria.</p>
+                    </div>
+                  </motion.div>
                 )}
               </div>
             </div>
@@ -2023,149 +2389,231 @@ export default function HostDashboard() {
         )}
       </div>
 
-      {/* Create Album Modal */}
-      {showCreateAlbumModal && (
-        <div className="fixed inset-0 bg-gray-900 bg-opacity-75 backdrop-blur-sm flex items-center justify-center p-2 sm:p-4 z-50">
+      {/* Modern Create Album Modal */}
+      <AnimatePresence>
+        {showCreateAlbumModal && (
           <motion.div
-            initial={{ scale: 0.9, opacity: 0 }}
-            animate={{ scale: 1, opacity: 1 }}
-            className="bg-white rounded-xl max-w-md w-full p-4 sm:p-6 shadow-2xl border border-gray-200 max-h-[90vh] overflow-y-auto"
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-start sm:items-center justify-center p-4 z-50 overflow-y-auto"
+            onClick={() => setShowCreateAlbumModal(false)}
           >
-            <h3 className="text-lg sm:text-xl font-bold text-gray-800 mb-4">Create New Album</h3>
-
-            {/* QR Configuration Indicator */}
-            <div className="bg-blue-50 border border-blue-200 rounded-lg p-3 mb-4">
-              <div className="flex items-center gap-2 text-sm text-blue-700">
-                <Palette className="w-4 h-4" />
-                <span className="font-medium">QR Code Style:</span>
-                <span className="capitalize">
-                  {qrConfig.centerType === 'none' ? 'Plain QR Code' :
-                    qrConfig.centerType === 'logo' ? 'With Logo' :
-                      `With Monogram (${qrConfig.centerOptions.monogram})`}
-                </span>
-              </div>
-              <p className="text-xs text-blue-600 mt-1">
-                This album will use your current QR configuration. Change it in QR Settings if needed.
-              </p>
-            </div>
-
-            <div className="space-y-4">
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">
-                  Album Name *
-                </label>
-                <input
-                  type="text"
-                  value={newAlbum.name}
-                  onChange={(e) => setNewAlbum({ ...newAlbum, name: e.target.value })}
-                  placeholder="Enter album name"
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#84a2be] focus:border-transparent text-gray-900 font-medium"
-                />
-              </div>
-
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">
-                  Description
-                </label>
-                <textarea
-                  value={newAlbum.description}
-                  onChange={(e) => setNewAlbum({ ...newAlbum, description: e.target.value })}
-                  placeholder="Enter album description"
-                  rows={3}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#84a2be] focus:border-transparent text-gray-900 font-medium"
-                />
-              </div>
-
-              <div>
-                <label className="flex items-center">
-                  <input
-                    type="checkbox"
-                    checked={newAlbum.isPublic}
-                    onChange={(e) => setNewAlbum({ ...newAlbum, isPublic: e.target.checked })}
-                    className="mr-2"
-                  />
-                  <span className="text-sm text-gray-700">Public Album (guests can view and upload)</span>
-                </label>
-              </div>
-
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">
-                  Cover Photo (Optional)
-                </label>
-                <div className="border-2 border-dashed border-gray-300 rounded-lg p-3 sm:p-4 text-center hover:border-rose-400 transition-colors">
-                  {newAlbum.coverImage ? (
-                    <div className="space-y-2">
-                      <img
-                        src={newAlbum.coverImage}
-                        alt="Cover preview"
-                        className="w-20 h-20 sm:w-24 sm:h-24 object-cover rounded-lg mx-auto"
-                      />
-                      <button
-                        type="button"
-                        onClick={() => setNewAlbum({ ...newAlbum, coverImage: undefined })}
-                        className="text-xs sm:text-sm text-red-600 hover:text-red-700"
-                      >
-                        Remove
-                      </button>
+            <motion.div
+              initial={{ scale: 0.95, opacity: 0, y: 20 }}
+              animate={{ scale: 1, opacity: 1, y: 0 }}
+              exit={{ scale: 0.95, opacity: 0, y: 20 }}
+              className="bg-white rounded-2xl w-full max-w-lg max-h-[90vh] overflow-hidden shadow-2xl border border-slate-200 relative mt-10 sm:mt-0 mb-10"
+              onClick={(e) => e.stopPropagation()}
+            >
+              {/* Modal Header */}
+              <div className="bg-gradient-to-r from-purple-50 to-pink-50 px-6 py-4 border-b border-slate-200">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-3">
+                    <div className="p-2 bg-purple-100 rounded-xl">
+                      <Image className="w-6 h-6 text-purple-600" />
                     </div>
-                  ) : (
-                    <div className="space-y-2">
-                      <Upload className="mx-auto text-gray-400 sm:w-6" size={20} />
-                      <div>
-                        <p className="text-xs sm:text-sm text-gray-600">
-                          <span className="text-rose-500 font-medium">Click to upload</span> cover photo
-                        </p>
-                        <p className="text-xs text-gray-500 mt-1">
-                          PNG, JPG, GIF up to 10MB
-                        </p>
-                      </div>
-                      <input
-                        type="file"
-                        accept="image/*"
-                        onChange={(e) => {
-                          const file = e.target.files?.[0];
-                          if (file) {
-                            // For now, we'll use a placeholder. In production, you'd upload to Cloudinary
-                            const reader = new FileReader();
-                            reader.onload = (e) => {
-                              setNewAlbum({ ...newAlbum, coverImage: e.target?.result as string });
-                            };
-                            reader.readAsDataURL(file);
-                          }
-                        }}
-                        className="hidden"
-                        id="host-cover-photo-upload"
-                      />
-                      <label
-                        htmlFor="host-cover-photo-upload"
-                        className="cursor-pointer inline-block px-3 py-1 bg-rose-100 text-rose-700 rounded-lg hover:bg-rose-200 transition-colors text-sm"
-                      >
-                        Choose File
-                      </label>
+                    <div>
+                      <h3 className="text-xl font-bold text-slate-800">Create New Album</h3>
+                      <p className="text-sm text-slate-600">Add a new photo album for your wedding</p>
                     </div>
-                  )}
+                  </div>
+                  <button
+                    onClick={() => setShowCreateAlbumModal(false)}
+                    className="p-2 text-slate-400 hover:text-slate-600 hover:bg-slate-100 rounded-xl transition-colors"
+                  >
+                    <X size={20} />
+                  </button>
                 </div>
               </div>
-            </div>
 
-            <div className="flex gap-2 sm:gap-3 mt-6">
-              <button
-                onClick={() => setShowCreateAlbumModal(false)}
-                className="flex-1 px-3 sm:px-4 py-2 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 text-sm sm:text-base"
-              >
-                Cancel
-              </button>
-              <button
-                onClick={handleCreateAlbum}
-                disabled={isCreatingAlbum}
-                className={`flex-1 px-3 sm:px-4 py-2 rounded-lg text-white text-sm sm:text-base ${isCreatingAlbum ? 'bg-gray-400 cursor-not-allowed' : 'bg-gradient-to-r from-[#667c93] to-[#84a2be] hover:shadow-lg'}`}
-              >
-                {isCreatingAlbum ? 'Creating...' : 'Create Album'}
-              </button>
-            </div>
+              {/* Modal Content */}
+              <div className="p-6 overflow-y-auto max-h-[calc(90vh-140px)]">
+                {/* QR Configuration Indicator */}
+                <div className="bg-gradient-to-r from-blue-50 to-indigo-50 border border-blue-200 rounded-xl p-4 mb-6">
+                  <div className="flex items-center gap-3 text-sm">
+                    <div className="p-2 bg-blue-100 rounded-lg">
+                      <Palette className="w-4 h-4 text-blue-600" />
+                    </div>
+                    <div className="flex-1">
+                      <div className="font-medium text-blue-800">
+                        QR Code Style: <span className="capitalize text-blue-700">
+                          {qrConfig.centerType === 'none' ? 'Plain QR Code' :
+                            qrConfig.centerType === 'logo' ? 'With Logo' :
+                              `With Monogram (${qrConfig.centerOptions.monogram})`}
+                        </span>
+                      </div>
+                      <p className="text-xs text-blue-600 mt-1">
+                        This album will use your current QR configuration. Change it in QR Settings if needed.
+                      </p>
+                    </div>
+                  </div>
+                </div>
+
+                <div className="space-y-6">
+                  <div>
+                    <label className="block text-sm font-medium text-slate-700 mb-2">
+                      Album Name *
+                    </label>
+                    <input
+                      type="text"
+                      value={newAlbum.name}
+                      onChange={(e) => {
+                        setNewAlbum({ ...newAlbum, name: e.target.value });
+                        if (showAlbumValidation) {
+                          const nameValidation = validateAlbumName(e.target.value);
+                          setAlbumValidation(prev => ({ ...prev, name: nameValidation }));
+                        }
+                      }}
+                      placeholder="Enter album name"
+                      className={`w-full px-4 py-3 border rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent text-slate-900 font-medium bg-white transition-colors ${
+                        showAlbumValidation && !albumValidation.name.isValid
+                          ? 'border-red-300 bg-red-50'
+                          : 'border-slate-300'
+                      }`}
+                    />
+                    {showAlbumValidation && (
+                      <FieldValidation
+                        error={albumValidation.name.errors[0]}
+                      />
+                    )}
+                  </div>
+
+                  <div>
+                    <label className="block text-sm font-medium text-slate-700 mb-2">
+                      Description
+                    </label>
+                    <textarea
+                      value={newAlbum.description}
+                      onChange={(e) => {
+                        setNewAlbum({ ...newAlbum, description: e.target.value });
+                        if (showAlbumValidation) {
+                          const descriptionValidation = validateAlbumDescription(e.target.value);
+                          setAlbumValidation(prev => ({ ...prev, description: descriptionValidation }));
+                        }
+                      }}
+                      placeholder="Enter album description (optional)"
+                      rows={3}
+                      className={`w-full px-4 py-3 border rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent text-slate-900 font-medium bg-white resize-none transition-colors ${
+                        showAlbumValidation && !albumValidation.description.isValid
+                          ? 'border-red-300 bg-red-50'
+                          : 'border-slate-300'
+                      }`}
+                    />
+                    {showAlbumValidation && (
+                      <FieldValidation
+                        error={albumValidation.description.errors[0]}
+                      />
+                    )}
+                  </div>
+
+                  <div>
+                    <label className="flex items-center gap-3 p-4 bg-slate-50 rounded-xl border border-slate-200 hover:bg-slate-100 transition-colors cursor-pointer">
+                      <input
+                        type="checkbox"
+                        checked={newAlbum.isPublic}
+                        onChange={(e) => setNewAlbum({ ...newAlbum, isPublic: e.target.checked })}
+                        className="w-5 h-5 text-blue-600 bg-white border-slate-300 rounded focus:ring-blue-500 focus:ring-2"
+                      />
+                      <div>
+                        <span className="text-sm font-medium text-slate-700">Public Album</span>
+                        <p className="text-xs text-slate-500 mt-1">Guests can view and upload photos to this album</p>
+                      </div>
+                    </label>
+                  </div>
+
+                  <div>
+                    <label className="block text-sm font-medium text-slate-700 mb-2">
+                      Cover Photo (Optional)
+                    </label>
+                    <div className="border-2 border-dashed border-slate-300 rounded-xl p-6 text-center hover:border-blue-400 hover:bg-blue-50/50 transition-all duration-200">
+                      {newAlbum.coverImage ? (
+                        <div className="space-y-3">
+                          <img
+                            src={newAlbum.coverImage}
+                            alt="Cover preview"
+                            className="w-24 h-24 object-cover rounded-xl mx-auto shadow-md"
+                          />
+                          <button
+                            type="button"
+                            onClick={() => setNewAlbum({ ...newAlbum, coverImage: undefined })}
+                            className="text-sm text-red-600 hover:text-red-700 font-medium"
+                          >
+                            Remove Photo
+                          </button>
+                        </div>
+                      ) : (
+                        <div className="space-y-3">
+                          <div className="w-16 h-16 bg-slate-100 rounded-xl flex items-center justify-center mx-auto">
+                            <Upload className="text-slate-400" size={24} />
+                          </div>
+                          <div>
+                            <p className="text-sm text-slate-600">
+                              <span className="text-blue-600 font-medium">Click to upload</span> cover photo
+                            </p>
+                            <p className="text-xs text-slate-500 mt-1">
+                              PNG, JPG, GIF up to 10MB
+                            </p>
+                          </div>
+                          <input
+                            type="file"
+                            accept="image/*"
+                            onChange={(e) => {
+                              const file = e.target.files?.[0];
+                              if (file) {
+                                const reader = new FileReader();
+                                reader.onload = (e) => {
+                                  setNewAlbum({ ...newAlbum, coverImage: e.target?.result as string });
+                                };
+                                reader.readAsDataURL(file);
+                              }
+                            }}
+                            className="hidden"
+                            id="host-cover-photo-upload"
+                          />
+                          <label
+                            htmlFor="host-cover-photo-upload"
+                            className="cursor-pointer inline-block px-4 py-2 bg-blue-100 text-blue-700 rounded-xl hover:bg-blue-200 transition-colors text-sm font-medium"
+                          >
+                            Choose File
+                          </label>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              {/* Modal Footer */}
+              <div className="bg-slate-50 px-6 py-4 border-t border-slate-200 flex flex-col sm:flex-row gap-3 sm:justify-end">
+                <button
+                  onClick={() => setShowCreateAlbumModal(false)}
+                  className="px-6 py-3 rounded-xl border border-slate-300 text-slate-700 font-medium hover:bg-slate-100 transition-colors order-2 sm:order-1"
+                >
+                  Cancel
+                </button>
+                <button
+                  onClick={handleCreateAlbum}
+                  disabled={isCreatingAlbum || !newAlbum.name.trim() || (showAlbumValidation && (!albumValidation.name.isValid || !albumValidation.description.isValid))}
+                  className="px-6 py-3 rounded-xl bg-gradient-to-r from-purple-600 to-pink-600 text-white font-medium hover:from-purple-700 hover:to-pink-700 transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed shadow-lg hover:shadow-xl order-1 sm:order-2"
+                >
+                  {isCreatingAlbum ? (
+                    <div className="flex items-center gap-2">
+                      <div className="animate-spin rounded-full h-4 w-4 border-2 border-white/30 border-t-white"></div>
+                      <span>Creating...</span>
+                    </div>
+                  ) : (
+                    <div className="flex items-center gap-2">
+                      <span>Create Album</span>
+                      <Image size={16} />
+                    </div>
+                  )}
+                </button>
+              </div>
+            </motion.div>
           </motion.div>
-        </div>
-      )}
+        )}
+      </AnimatePresence>
 
       {/* Edit Album Modal */}
       {showEditAlbumModal && editingAlbum && (
@@ -2254,148 +2702,219 @@ export default function HostDashboard() {
         </div>
       )}
 
-      {/* Create Invitation Modal */}
-      {showCreateModal && (
-        <div className="fixed inset-0 bg-gray-900 bg-opacity-75 backdrop-blur-sm flex items-center justify-center p-4 z-50">
+      {/* Modern Create Invitation Modal */}
+      <AnimatePresence>
+        {showCreateModal && (
           <motion.div
-            initial={{ scale: 0.9, opacity: 0 }}
-            animate={{ scale: 1, opacity: 1 }}
-            className="bg-white rounded-xl max-w-md w-full p-6 shadow-2xl border border-gray-200 max-h-[90vh] overflow-y-auto"
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-start sm:items-center justify-center p-4 z-50 overflow-y-auto"
+            onClick={() => setShowCreateModal(false)}
           >
-            <h3 className="text-xl font-bold text-gray-800 mb-4">Create New Invitation</h3>
-
-            {/* QR Configuration Indicator */}
-            <div className="bg-blue-50 border border-blue-200 rounded-lg p-3 mb-4">
-              <div className="flex items-center gap-2 text-sm text-blue-700">
-                <Palette className="w-4 h-4" />
-                <span className="font-medium">QR Code Style:</span>
-                <span className="capitalize">
-                  {qrConfig.centerType === 'none' ? 'Plain QR Code' :
-                    qrConfig.centerType === 'logo' ? 'With Logo' :
-                      `With Monogram (${qrConfig.centerOptions.monogram})`}
-                </span>
-              </div>
-              <p className="text-xs text-blue-600 mt-1">
-                This invitation will use your current QR configuration. Change it in QR Settings if needed.
-              </p>
-            </div>
-
-            <div className="space-y-4">
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">
-                  Guest Name *
-                </label>
-                <input
-                  type="text"
-                  value={newInvitation.guestName}
-                  onChange={(e) => setNewInvitation({ ...newInvitation, guestName: e.target.value })}
-                  placeholder="Enter guest name"
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#84a2be] focus:border-transparent text-gray-900 font-medium"
-                />
+            <motion.div
+              initial={{ scale: 0.95, opacity: 0, y: 20 }}
+              animate={{ scale: 1, opacity: 1, y: 0 }}
+              exit={{ scale: 0.95, opacity: 0, y: 20 }}
+              className="bg-white rounded-2xl w-full max-w-lg max-h-[90vh] overflow-hidden shadow-2xl border border-slate-200 relative mt-10 sm:mt-0 mb-10"
+              onClick={(e) => e.stopPropagation()}
+            >
+              {/* Modal Header */}
+              <div className="bg-gradient-to-r from-emerald-50 to-teal-50 px-6 py-4 border-b border-slate-200">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-3">
+                    <div className="p-2 bg-emerald-100 rounded-xl">
+                      <Mail className="w-6 h-6 text-emerald-600" />
+                    </div>
+                    <div>
+                      <h3 className="text-xl font-bold text-slate-800">Create New Invitation</h3>
+                      <p className="text-sm text-slate-600">Send a personalized wedding invitation</p>
+                    </div>
+                  </div>
+                  <button
+                    onClick={() => setShowCreateModal(false)}
+                    className="p-2 text-slate-400 hover:text-slate-600 hover:bg-slate-100 rounded-xl transition-colors"
+                  >
+                    <X size={20} />
+                  </button>
+                </div>
               </div>
 
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">
-                  Guest Role
-                </label>
-                <select
-                  value={newInvitation.guestRole}
-                  onChange={(e) => setNewInvitation({ ...newInvitation, guestRole: e.target.value })}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#84a2be] focus:border-transparent text-gray-900 font-medium"
-                >
-                  {entourageRoles.map((role) => (
-                    <option key={role} value={role}>{role}</option>
-                  ))}
-                </select>
-              </div>
-
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">
-                  Custom Message *
-                </label>
-                <div className="relative">
-                  <textarea
-                    value={newInvitation.customMessage}
-                    onChange={(e) => setNewInvitation({ ...newInvitation, customMessage: e.target.value })}
-                    placeholder="Enter personalized message for the guest"
-                    rows={4}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#84a2be] focus:border-transparent text-gray-900 font-medium"
-                    required
-                    maxLength={1000}
-                  />
-                  <div className="absolute bottom-2 right-2 text-xs text-gray-500 bg-white px-1 rounded">
-                    {newInvitation.customMessage.length}/1000
+              {/* Modal Content */}
+              <div className="p-6 overflow-y-auto max-h-[calc(90vh-140px)]">
+                {/* QR Configuration Indicator */}
+                <div className="bg-gradient-to-r from-blue-50 to-indigo-50 border border-blue-200 rounded-xl p-4 mb-6">
+                  <div className="flex items-center gap-3 text-sm">
+                    <div className="p-2 bg-blue-100 rounded-lg">
+                      <Palette className="w-4 h-4 text-blue-600" />
+                    </div>
+                    <div className="flex-1">
+                      <div className="font-medium text-blue-800">
+                        QR Code Style: <span className="capitalize text-blue-700">
+                          {qrConfig.centerType === 'none' ? 'Plain QR Code' :
+                            qrConfig.centerType === 'logo' ? 'With Logo' :
+                              `With Monogram (${qrConfig.centerOptions.monogram})`}
+                        </span>
+                      </div>
+                      <p className="text-xs text-blue-600 mt-1">
+                        This invitation will use your current QR configuration. Change it in QR Settings if needed.
+                      </p>
+                    </div>
                   </div>
                 </div>
 
-                {/* Suggested Messages */}
-                <div className="mt-3">
-                  <div className="flex items-center justify-between mb-2">
-                    <p className="text-sm text-gray-600">Suggested messages:</p>
-                    <button
-                      type="button"
-                      onClick={() => setNewInvitation({ ...newInvitation, customMessage: '' })}
-                      className="text-xs text-gray-500 hover:text-gray-700 underline"
+                <div className="space-y-6">
+                  <div>
+                    <label className="block text-sm font-medium text-slate-700 mb-2">
+                      Guest Name *
+                    </label>
+                    <input
+                      type="text"
+                      value={newInvitation.guestName}
+                      onChange={(e) => {
+                        setNewInvitation({ ...newInvitation, guestName: e.target.value });
+                        if (showInvitationValidation) {
+                          const nameValidation = validateGuestName(e.target.value);
+                          setInvitationValidation(prev => ({ ...prev, guestName: nameValidation }));
+                        }
+                      }}
+                      placeholder="Enter guest name"
+                      className={`w-full px-4 py-3 border rounded-xl focus:ring-2 focus:ring-emerald-500 focus:border-transparent text-slate-900 font-medium bg-white transition-colors ${
+                        showInvitationValidation && !invitationValidation.guestName.isValid
+                          ? 'border-red-300 bg-red-50'
+                          : 'border-slate-300'
+                      }`}
+                    />
+                    {showInvitationValidation && (
+                      <FieldValidation
+                        error={invitationValidation.guestName.errors[0]}
+                      />
+                    )}
+                  </div>
+
+                  <div>
+                    <label className="block text-sm font-medium text-slate-700 mb-2">
+                      Guest Role
+                    </label>
+                    <select
+                      value={newInvitation.guestRole}
+                      onChange={(e) => setNewInvitation({ ...newInvitation, guestRole: e.target.value })}
+                      className="w-full px-4 py-3 border border-slate-300 rounded-xl focus:ring-2 focus:ring-emerald-500 focus:border-transparent text-slate-900 font-medium bg-white"
                     >
-                      Clear
-                    </button>
+                      {entourageRoles.map((role) => (
+                        <option key={role} value={role}>{role}</option>
+                      ))}
+                    </select>
                   </div>
-                  <div className="grid grid-cols-1 gap-2 max-h-32 overflow-y-auto border border-gray-200 rounded-lg p-2 bg-gray-50">
-                    {suggestedMessages.map((message, index) => (
-                      <button
-                        key={index}
-                        type="button"
-                        onClick={() => handleSelectSuggestedMessage(message)}
-                        className="text-left p-2 text-xs bg-white hover:bg-blue-50 rounded border border-gray-200 transition-colors hover:border-blue-300"
-                      >
-                        {message.length > 80 ? `${message.substring(0, 80)}...` : message}
-                      </button>
-                    ))}
+
+                  <div>
+                    <label className="block text-sm font-medium text-slate-700 mb-2">
+                      Custom Message *
+                    </label>
+                    <div className="relative">
+                      <textarea
+                        value={newInvitation.customMessage}
+                        onChange={(e) => {
+                          setNewInvitation({ ...newInvitation, customMessage: e.target.value });
+                          if (showInvitationValidation) {
+                            const messageValidation = validateInvitationMessage(e.target.value);
+                            setInvitationValidation(prev => ({ ...prev, customMessage: messageValidation }));
+                          }
+                        }}
+                        placeholder="Enter personalized message for the guest"
+                        rows={4}
+                        className={`w-full px-4 py-3 border rounded-xl focus:ring-2 focus:ring-emerald-500 focus:border-transparent text-slate-900 font-medium bg-white resize-none transition-colors ${
+                          showInvitationValidation && !invitationValidation.customMessage.isValid
+                            ? 'border-red-300 bg-red-50'
+                            : 'border-slate-300'
+                        }`}
+                        required
+                        maxLength={1000}
+                      />
+                      <div className="absolute bottom-3 right-3 text-xs text-slate-500 bg-white px-2 py-1 rounded-lg border border-slate-200">
+                        {newInvitation.customMessage.length}/1000
+                      </div>
+                    </div>
+                    {showInvitationValidation && (
+                      <FieldValidation
+                        error={invitationValidation.customMessage.errors[0]}
+                      />
+                    )}
+
+                    {/* Modern Suggested Messages */}
+                    <div className="mt-4">
+                      <div className="flex items-center justify-between mb-3">
+                        <p className="text-sm font-medium text-slate-700">Suggested messages:</p>
+                        <button
+                          type="button"
+                          onClick={() => setNewInvitation({ ...newInvitation, customMessage: '' })}
+                          className="text-xs text-slate-500 hover:text-slate-700 font-medium"
+                        >
+                          Clear
+                        </button>
+                      </div>
+                      <div className="grid grid-cols-1 gap-2 max-h-32 overflow-y-auto border border-slate-200 rounded-xl p-3 bg-slate-50">
+                        {suggestedMessages.map((message, index) => (
+                          <button
+                            key={index}
+                            type="button"
+                            onClick={() => handleSelectSuggestedMessage(message)}
+                            className="text-left p-3 text-xs bg-white hover:bg-emerald-50 rounded-lg border border-slate-200 transition-colors hover:border-emerald-300 font-medium"
+                          >
+                            {message.length > 80 ? `${message.substring(0, 80)}...` : message}
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+                  </div>
+
+                  <div>
+                    <label className="block text-sm font-medium text-slate-700 mb-2">
+                      Invitation Type
+                    </label>
+                    <select
+                      value={newInvitation.invitationType}
+                      onChange={(e) => setNewInvitation({ ...newInvitation, invitationType: e.target.value })}
+                      className="w-full px-4 py-3 border border-slate-300 rounded-xl focus:ring-2 focus:ring-emerald-500 focus:border-transparent text-slate-900 font-medium bg-white"
+                    >
+                      <option value="personalized">📝 Personalized</option>
+                      <option value="general">📋 General</option>
+                    </select>
                   </div>
                 </div>
               </div>
 
-              <div>
-                <label className="block text-sm font-medium text-gray-700 mb-2">
-                  Invitation Type
-                </label>
-                <select
-                  value={newInvitation.invitationType}
-                  onChange={(e) => setNewInvitation({ ...newInvitation, invitationType: e.target.value })}
-                  className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#84a2be] focus:border-transparent text-gray-900 font-medium"
+              {/* Modal Footer */}
+              <div className="bg-slate-50 px-6 py-4 border-t border-slate-200 flex flex-col sm:flex-row gap-3 sm:justify-end">
+                <button
+                  onClick={() => setShowCreateModal(false)}
+                  disabled={isCreatingInvitation}
+                  className="px-6 py-3 rounded-xl border border-slate-300 text-slate-700 font-medium hover:bg-slate-100 transition-colors disabled:opacity-50 disabled:cursor-not-allowed order-2 sm:order-1"
                 >
-                  <option value="personalized">Personalized</option>
-                  <option value="general">General</option>
-                </select>
+                  Cancel
+                </button>
+                <button
+                  onClick={handleCreateInvitation}
+                  disabled={isCreatingInvitation || !newInvitation.guestName.trim() || !newInvitation.customMessage.trim() || (showInvitationValidation && (!invitationValidation.guestName.isValid || !invitationValidation.customMessage.isValid))}
+                  className="px-6 py-3 rounded-xl bg-gradient-to-r from-emerald-600 to-teal-600 text-white font-medium hover:from-emerald-700 hover:to-teal-700 transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed shadow-lg hover:shadow-xl order-1 sm:order-2"
+                >
+                  {isCreatingInvitation ? (
+                    <div className="flex items-center gap-2">
+                      <div className="animate-spin rounded-full h-4 w-4 border-2 border-white/30 border-t-white"></div>
+                      <span>Creating...</span>
+                    </div>
+                  ) : (
+                    <div className="flex items-center gap-2">
+                      <span>Create Invitation</span>
+                      <Mail size={16} />
+                    </div>
+                  )}
+                </button>
               </div>
-            </div>
-
-            <div className="flex gap-3 mt-6">
-              <button
-                onClick={() => setShowCreateModal(false)}
-                disabled={isCreatingInvitation}
-                className="flex-1 px-4 py-2 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
-              >
-                Cancel
-              </button>
-              <button
-                onClick={handleCreateInvitation}
-                disabled={isCreatingInvitation || !newInvitation.guestName.trim() || !newInvitation.customMessage.trim()}
-                className="flex-1 px-4 py-2 bg-gradient-to-r from-[#667c93] to-[#84a2be] text-white rounded-lg hover:shadow-lg disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
-              >
-                {isCreatingInvitation ? (
-                  <>
-                    <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
-                    Creating...
-                  </>
-                ) : (
-                  'Create Invitation'
-                )}
-              </button>
-            </div>
+            </motion.div>
           </motion.div>
-        </div>
-      )}
+        )}
+      </AnimatePresence>
 
       {/* QR Code Modal */}
       <AnimatePresence>
@@ -2525,60 +3044,93 @@ export default function HostDashboard() {
         )}
       </AnimatePresence>
 
-      {/* QR Configuration Modal */}
+      {/* Modern QR Configuration Modal */}
       <AnimatePresence>
         {showQRConfig && (
           <motion.div
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
-            className="fixed inset-0 bg-gray-900 bg-opacity-75 backdrop-blur-sm flex items-center justify-center p-4 z-50"
+            className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-start sm:items-center justify-center p-4 z-50 overflow-y-auto"
             onClick={() => setShowQRConfig(false)}
           >
             <motion.div
-              initial={{ scale: 0.9, opacity: 0 }}
-              animate={{ scale: 1, opacity: 1 }}
-              exit={{ scale: 0.9, opacity: 0 }}
-              className="bg-white rounded-xl max-w-4xl w-full max-h-[90vh] overflow-y-auto shadow-2xl border border-gray-200"
+              initial={{ scale: 0.95, opacity: 0, y: 20 }}
+              animate={{ scale: 1, opacity: 1, y: 0 }}
+              exit={{ scale: 0.95, opacity: 0, y: 20 }}
+              className="bg-white rounded-2xl w-full max-w-md sm:max-w-lg md:max-w-2xl max-h-[90vh] overflow-hidden shadow-2xl border border-slate-200 relative mt-10 sm:mt-0 mb-10"
               onClick={(e) => e.stopPropagation()}
             >
-              <div className="p-6">
-                <div className="flex items-center justify-between mb-6">
-                  <h3 className="text-2xl font-bold text-gray-800 flex items-center gap-2">
-                    <Palette className="w-6 h-6 text-purple-600" />
-                    QR Code Configuration
-                  </h3>
+              {/* Modal Header */}
+              <div className="bg-gradient-to-r from-blue-50 to-indigo-50 px-6 py-4 border-b border-slate-200">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-3">
+                    <div className="p-2 bg-blue-100 rounded-xl">
+                      <QrCodeIcon className="w-6 h-6 text-blue-600" />
+                    </div>
+                    <div>
+                      <h3 className="text-xl font-bold text-slate-800">QR Code Settings</h3>
+                      <p className="text-sm text-slate-600">Customize your QR code appearance</p>
+                    </div>
+                  </div>
                   <button
                     onClick={() => setShowQRConfig(false)}
-                    className="text-gray-400 hover:text-gray-600 transition-colors"
+                    className="p-2 text-slate-400 hover:text-slate-600 hover:bg-slate-100 rounded-xl transition-colors"
                   >
-                    <X className="w-6 h-6" />
+                    <X size={20} />
                   </button>
                 </div>
+              </div>
 
+              {/* Modal Content */}
+              <div className="p-6 overflow-y-auto max-h-[calc(90vh-140px)]">
+                {isQRLoading && (
+                  <div className="absolute inset-0 bg-white/80 backdrop-blur-sm flex items-center justify-center rounded-2xl z-10">
+                    <div className="text-center">
+                      <div className="animate-spin rounded-full h-12 w-12 border-4 border-blue-200 border-t-blue-600 mx-auto mb-4"></div>
+                      <p className="text-slate-600 font-medium">Saving settings...</p>
+                    </div>
+                  </div>
+                )}
+                
                 <QRCodeConfig
-                  onConfigChange={setQrConfig}
+                  onConfigChange={(cfg) => setQrConfig(cfg)}
                   initialConfig={qrConfig}
-                  showPreview={true}
                 />
+              </div>
 
-                <div className="flex gap-3 mt-6 pt-6 border-t border-gray-200">
-                  <button
-                    onClick={() => setShowQRConfig(false)}
-                    className="flex-1 px-4 py-2 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 transition-colors"
-                  >
-                    Close
-                  </button>
-                  <button
-                    onClick={() => {
-                      setShowQRConfig(false);
-                      toast.success('QR configuration saved!');
-                    }}
-                    className="flex-1 px-4 py-2 bg-gradient-to-r from-purple-500 to-pink-500 text-white rounded-lg hover:shadow-lg transition-all duration-300"
-                  >
-                    Save Configuration
-                  </button>
-                </div>
+              {/* Modal Footer */}
+              <div className="bg-slate-50 px-6 py-4 border-t border-slate-200 flex flex-col sm:flex-row gap-3 sm:justify-end">
+                <button 
+                  onClick={() => setShowQRConfig(false)} 
+                  className="px-6 py-3 rounded-xl border border-slate-300 text-slate-700 font-medium hover:bg-slate-100 transition-colors order-2 sm:order-1"
+                >
+                  Cancel
+                </button>
+                <button 
+                  onClick={async () => { 
+                    setIsQRLoading(true); 
+                    try { 
+                      await handleSaveQRSettings(); 
+                    } finally { 
+                      setIsQRLoading(false); 
+                    } 
+                  }} 
+                  className="px-6 py-3 rounded-xl bg-gradient-to-r from-blue-600 to-indigo-600 text-white font-medium hover:from-blue-700 hover:to-indigo-700 transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed shadow-lg hover:shadow-xl order-1 sm:order-2" 
+                  disabled={isQRLoading}
+                >
+                  {isQRLoading ? (
+                    <div className="flex items-center gap-2">
+                      <div className="animate-spin rounded-full h-4 w-4 border-2 border-white/30 border-t-white"></div>
+                      <span>Saving...</span>
+                    </div>
+                  ) : (
+                    <div className="flex items-center gap-2">
+                      <span>Save Settings</span>
+                      <CheckCircle size={16} />
+                    </div>
+                  )}
+                </button>
               </div>
             </motion.div>
           </motion.div>
@@ -2634,19 +3186,155 @@ export default function HostDashboard() {
               <div className="relative w-full h-full flex items-center justify-center" onClick={(e) => e.stopPropagation()}>
                 {selectedMedia.mediaType === 'image' ? (
                   <img
-                    src={getFullSizeDisplayUrl(selectedMedia.url, selectedMedia.googleDriveFileId)}
+                    src={getFullSizeDisplayUrl(selectedMedia.url, selectedMedia.googleDriveFileId, selectedMedia.mediaType)}
                     alt={selectedMedia.originalName}
                     className="max-w-none max-h-none w-auto h-auto object-contain"
                     style={{ maxWidth: '90vw', maxHeight: '90vh' }}
                   />
                 ) : (
-                  <video
-                    src={selectedMedia.url}
-                    controls
-                    autoPlay
-                    className="max-w-none max-h-none w-auto h-auto"
-                    style={{ maxWidth: '90vw', maxHeight: '90vh' }}
-                  />
+                  <div className="max-w-4xl max-h-[90vh] bg-gray-900 rounded-lg overflow-hidden">
+                    {showVideoPlayer ? (
+                      /* Video Player Mode */
+                      <div className="relative">
+                        <iframe
+                          src={getVideoPlaybackUrl(selectedMedia.url, selectedMedia.googleDriveFileId)}
+                          className="w-full h-[70vh]"
+                          frameBorder="0"
+                          allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
+                          allowFullScreen
+                          title={selectedMedia.originalName}
+                        />
+                        
+                        {/* Video Controls */}
+                        <div className="absolute top-4 right-4 flex gap-2">
+                          <button
+                            onClick={() => setShowVideoPlayer(false)}
+                            className="bg-black bg-opacity-70 text-white p-2 rounded-full hover:bg-opacity-90 transition-colors"
+                            title="Back to preview"
+                          >
+                            <X size={20} />
+                          </button>
+                        </div>
+                        
+                        {/* Video Info Bar */}
+                        <div className="bg-gray-800 p-4 text-white">
+                          <div className="flex justify-between items-center">
+                            <div>
+                              <h3 className="font-semibold">{selectedMedia.originalName}</h3>
+                              {selectedMedia.uploadedBy && (
+                                <p className="text-sm text-gray-300">Uploaded by {selectedMedia.uploadedBy}</p>
+                              )}
+                            </div>
+                            
+                            <div className="flex gap-2">
+                              <button
+                                onClick={() => window.open(getVideoDownloadUrl(selectedMedia.url, selectedMedia.googleDriveFileId), '_blank')}
+                                className="px-3 py-1 bg-green-600 text-white rounded text-sm hover:bg-green-700 transition-colors flex items-center gap-1"
+                              >
+                                <Download size={16} />
+                                Download
+                              </button>
+                              
+                              <button
+                                onClick={() => {
+                                  const url = getVideoPlaybackUrl(selectedMedia.url, selectedMedia.googleDriveFileId);
+                                  navigator.clipboard.writeText(url);
+                                  toast.success('Video URL copied to clipboard!');
+                                }}
+                                className="px-3 py-1 bg-gray-600 text-white rounded text-sm hover:bg-gray-700 transition-colors flex items-center gap-1"
+                              >
+                                <Copy size={16} />
+                                Copy
+                              </button>
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+                    ) : (
+                      /* Video Preview Mode */
+                      <div className="flex flex-col items-center justify-center p-8">
+                        {/* Video Preview */}
+                        <div className="relative mb-6">
+                          {selectedMedia.thumbnailUrl ? (
+                            <img
+                              src={getBestDisplayUrl(selectedMedia.thumbnailUrl, selectedMedia.googleDriveThumbnailId, 600, 'image')}
+                              alt={selectedMedia.originalName}
+                              className="max-w-md max-h-64 object-cover rounded-lg"
+                              onError={(e) => e.currentTarget.style.display = 'none'}
+                            />
+                          ) : (
+                            <div className="w-64 h-36 bg-gradient-to-br from-blue-600 to-purple-700 rounded-lg flex items-center justify-center">
+                              <Play className="text-white" size={48} />
+                            </div>
+                          )}
+                          <div className="absolute inset-0 bg-black bg-opacity-40 rounded-lg flex items-center justify-center">
+                            <div className="bg-white bg-opacity-90 rounded-full p-4">
+                              <Play className="text-blue-600" size={32} />
+                            </div>
+                          </div>
+                        </div>
+                        
+                        {/* Video Info */}
+                        <div className="text-center text-white mb-6">
+                          <h3 className="text-lg font-semibold mb-2">{selectedMedia.originalName}</h3>
+                          <p className="text-gray-300 text-sm">Choose how to play this video</p>
+                        </div>
+                        
+                        {/* Action Buttons */}
+                        <div className="flex flex-wrap gap-3 justify-center">
+                          <button
+                            onClick={() => setShowVideoPlayer(true)}
+                            className="px-6 py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors flex items-center gap-2"
+                          >
+                            <Play size={20} />
+                            Play Here
+                          </button>
+                          
+                          <button
+                            onClick={() => window.open(getVideoPlaybackUrl(selectedMedia.url, selectedMedia.googleDriveFileId), '_blank')}
+                            className="px-6 py-3 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors flex items-center gap-2"
+                          >
+                            <ExternalLink size={20} />
+                            Open in Tab
+                          </button>
+                          
+                          <button
+                            onClick={() => window.open(getVideoDownloadUrl(selectedMedia.url, selectedMedia.googleDriveFileId), '_blank')}
+                            className="px-6 py-3 bg-purple-600 text-white rounded-lg hover:bg-purple-700 transition-colors flex items-center gap-2"
+                          >
+                            <Download size={20} />
+                            Download
+                          </button>
+                        </div>
+                        
+                        {/* Alternative URLs */}
+                        {selectedMedia.googleDriveFileId && (
+                          <div className="mt-6 text-center">
+                            <p className="text-gray-400 text-xs mb-2">Alternative options:</p>
+                            <div className="flex flex-wrap gap-2 text-xs justify-center">
+                              <button
+                                onClick={() => window.open(`https://drive.google.com/file/d/${selectedMedia.googleDriveFileId}/view`, '_blank')}
+                                className="text-blue-400 hover:text-blue-300 underline"
+                              >
+                                Google Drive View
+                              </button>
+                              <span className="text-gray-500">•</span>
+                              <button
+                                onClick={() => {
+                                  const url = getVideoPlaybackUrl(selectedMedia.url, selectedMedia.googleDriveFileId);
+                                  navigator.clipboard.writeText(url);
+                                  toast.success('URL copied!');
+                                }}
+                                className="text-blue-400 hover:text-blue-300 underline"
+                              >
+                                Copy Link
+                              </button>
+                            </div>
+                          </div>
+                        )}
+                      </div>
+                    )}
+                  </div>
                 )}
               </div>
 
@@ -2675,12 +3363,10 @@ export default function HostDashboard() {
               <div className="absolute bottom-4 right-4 text-white bg-black bg-opacity-50 rounded-lg p-2">
                 <div className="flex gap-1">
                   {albumMedia.map((_, index) => (
-                    <div
-                      key={index}
-                      className={`w-2 h-2 rounded-full cursor-pointer ${index === currentMediaIndex ? 'bg-white' : 'bg-gray-500'
-                        }`}
-                      onClick={(e) => {
-                        e.stopPropagation();
+                    <button
+                      key={albumMedia[index]?.id || albumMedia[index]?._id || `nav-${index}`}
+                      className={`w-2 h-2 rounded-full ${index === currentMediaIndex ? 'bg-white' : 'bg-white/50'}`}
+                      onClick={() => {
                         setCurrentMediaIndex(index);
                         setSelectedMedia(albumMedia[index]);
                       }}
@@ -2704,3 +3390,4 @@ export default function HostDashboard() {
     </div>
   );
 }
+

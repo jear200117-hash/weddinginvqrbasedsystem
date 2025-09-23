@@ -3,7 +3,7 @@
 import { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Heart, Calendar, MapPin, Users, ArrowRight, Send } from 'lucide-react';
-import { invitationsAPI, rsvpAPI, swrFetcher } from '@/lib/api';
+import { invitationsAPI, rsvpAPI } from '@/lib/api';
 import { useParams } from 'next/navigation';
 import Link from 'next/link';
 import RotatingBackground from '@/components/RotatingBackground';
@@ -21,28 +21,29 @@ import BackgroundMusic from '@/components/BackgroundMusic';
 import OtherDetailsSection from '@/components/OtherDetailsSection';
 import FAQSection from '@/components/FAQSection';
 import { Martini, Camera, Utensils, Mic, Cake, Music, Car } from "lucide-react";
-import useSWR, { mutate } from 'swr';
-import { getSocket } from '@/lib/socket';
-import { cacheUtils } from '@/lib/api';
+import { useInvitationByQR, useRSVPByQR } from '@/hooks/useFirebaseRealtime';
 
 interface Invitation {
-  _id: string;
+  id: string;
   guestName: string;
   guestRole: string;
   customMessage: string;
+  invitationType: string;
   qrCode: string;
   isActive: boolean;
-  isOpened: boolean;
-  invitationType: string;
-  createdAt: string;
-  rsvp?: {
+  rsvp: {
     status: 'pending' | 'attending' | 'not_attending';
-    attendeeCount: number;
-    respondedAt?: string;
+    attendeeCount?: number;
     guestNames?: string[];
     email?: string;
     phone?: string;
+    submittedAt?: any;
+    ipAddress?: string;
+    userAgent?: string;
   };
+  openedAt?: any;
+  createdAt: any;
+  updatedAt: any;
 }
 
 export default function InvitationPage() {
@@ -67,6 +68,10 @@ export default function InvitationPage() {
   const [openFAQIndex, setOpenFAQIndex] = useState<number | null>(null);
   // RSVP Reminder Modal
   const [showRSVPReminder, setShowRSVPReminder] = useState(false);
+
+  // Firebase real-time data
+  const firebaseInvitation = useInvitationByQR(qrCode);
+  const firebaseRSVP = useRSVPByQR(qrCode);
 
   // Add beforeunload reminder for RSVP
   useEffect(() => {
@@ -116,43 +121,48 @@ export default function InvitationPage() {
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, [invitation?.rsvp?.status]);
 
-  const { data: swrInvitation, error: swrError, isLoading: swrLoading } = useSWR(
-    qrCode ? `/invitations/qr/${qrCode}` : null,
-    swrFetcher,
-    { revalidateOnFocus: true, dedupingInterval: 3000 }
-  );
-
+  // Mark invitation as opened when page loads
   useEffect(() => {
-    if (swrInvitation?.invitation) {
-      setInvitation(swrInvitation.invitation);
+    if (qrCode) {
+      // Call backend API to mark invitation as opened
+      fetch(`https://api-rpahsncjpa-as.a.run.app/invitations/qr/${qrCode}`)
+        .then(response => response.json())
+        .then(data => {
+          if (data.invitation) {
+            console.log('Invitation marked as opened via API');
+          }
+        })
+        .catch(error => {
+          console.error('Error marking invitation as opened:', error);
+        });
+    }
+  }, [qrCode]);
+
+  // Firebase real-time invitation data
+  useEffect(() => {
+    if (firebaseInvitation.invitation) {
+      setInvitation(firebaseInvitation.invitation);
       // Start animation sequence
       setTimeout(() => setAnimationStage('envelope'), 2000);
       setTimeout(() => setAnimationStage('invitation'), 4000);
       setLoading(false);
     }
-  }, [swrInvitation]);
+  }, [firebaseInvitation.invitation]);
 
   useEffect(() => {
-    if (swrError) {
+    if (firebaseInvitation.error) {
       setError('Failed to load invitation');
       setLoading(false);
     }
-  }, [swrError]);
+  }, [firebaseInvitation.error]);
 
-  // Realtime RSVP updates for this invitation
+  // Update loading state based on Firebase data
   useEffect(() => {
-    const socket = getSocket();
-    const handleRSVP = () => {
-      if (qrCode) {
-        cacheUtils.clearPattern('/invitations/qr/');
-        mutate(`/invitations/qr/${qrCode}`);
-      }
-    };
-    socket.on('rsvp:updated', handleRSVP);
-    return () => {
-      socket.off('rsvp:updated', handleRSVP);
-    };
-  }, [qrCode]);
+    setLoading(firebaseInvitation.loading);
+  }, [firebaseInvitation.loading]);
+
+  // Firebase real-time RSVP updates are handled by the hooks above
+  // No need for Socket.IO subscriptions since we're using Firebase real-time
 
   // Countdown timer effect
   useEffect(() => {
@@ -201,7 +211,7 @@ export default function InvitationPage() {
         rsvp: {
           status,
           attendeeCount,
-          respondedAt: new Date().toISOString()
+          submittedAt: new Date()
         }
       });
     }
@@ -219,7 +229,7 @@ export default function InvitationPage() {
     }
   };
 
-  if (loading || swrLoading) {
+  if (loading) {
     return (
       <div className="min-h-screen bg-gradient-to-br from-rose-50 to-pink-100 flex items-center justify-center">
         <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-rose-500"></div>

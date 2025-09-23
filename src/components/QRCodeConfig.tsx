@@ -42,6 +42,7 @@ interface QRConfig {
 }
 
 interface Logo {
+  id: string;
   filename: string;
   url: string;
   name: string;
@@ -73,7 +74,9 @@ export default function QRCodeConfig({
   });
 
   const [logos, setLogos] = useState<Logo[]>([]);
-  const [loading, setLoading] = useState(false);
+  const [loading, setLoading] = useState(false); // preview loading
+  const [loadingLogos, setLoadingLogos] = useState(false);
+  const [loadingOptions, setLoadingOptions] = useState(false);
   const [uploading, setUploading] = useState(false);
   const [previewUrl, setPreviewUrl] = useState<string>('');
   const [qrOptions, setQrOptions] = useState<any>(null);
@@ -88,20 +91,26 @@ export default function QRCodeConfig({
   }, [config, onConfigChange]);
 
   const loadLogos = async () => {
+    setLoadingLogos(true);
     try {
       const response = await qrAPI.getLogos();
       setLogos(response.logos || []);
     } catch (error) {
       console.error('Failed to load logos:', error);
+    } finally {
+      setLoadingLogos(false);
     }
   };
 
   const loadQROptions = async () => {
+    setLoadingOptions(true);
     try {
       const response = await qrAPI.getOptions();
       setQrOptions(response);
     } catch (error) {
       console.error('Failed to load QR options:', error);
+    } finally {
+      setLoadingOptions(false);
     }
   };
 
@@ -118,17 +127,22 @@ export default function QRCodeConfig({
     try {
       const response = await qrAPI.uploadLogo(file);
       const newLogo = {
+        id: response.id,
         filename: response.filename,
-        url: response.logoUrl,
-        name: response.originalName
+        url: response.url,
+        name: response.filename
       };
       setLogos(prev => [...prev, newLogo]);
       // Auto-select the newly uploaded logo
-      updateCenterOptions({ logoPath: response.logoUrl });
+      updateCenterOptions({ logoPath: response.url });
       toast.success('Logo uploaded successfully');
     } catch (error: any) {
       console.error('Upload error:', error);
-      toast.error(error.response?.data?.error || 'Failed to upload logo');
+      if (error.response?.status === 501) {
+        toast.error('Logo upload feature is not implemented yet');
+      } else {
+        toast.error(error.response?.data?.message || 'Failed to upload logo');
+      }
     } finally {
       setUploading(false);
     }
@@ -241,7 +255,11 @@ export default function QRCodeConfig({
             <label className="block text-sm font-medium text-gray-700 mb-2">
               Select Logo
             </label>
-            {logos.length > 0 ? (
+            {loadingLogos ? (
+              <div className="flex items-center justify-center py-8">
+                <div className="animate-spin rounded-full h-10 w-10 border-b-2 border-blue-500"></div>
+              </div>
+            ) : logos.length > 0 ? (
               <div className="grid grid-cols-4 gap-2">
                 {logos.map((logo) => {
                   const isSelected = config.centerOptions.logoPath === logo.url;
@@ -260,14 +278,14 @@ export default function QRCodeConfig({
                         return l.url;
                       }
                     } catch {}
-                    return `https://backendv2-nasy.onrender.com${l.url}`;
+                    return `https://api-rpahsncjpa-as.a.run.app${l.url}`;
                   };
 
                   const viewUrl = getLogoViewUrl(logo);
 
                   return (
                     <div
-                      key={logo.filename}
+                      key={logo.id || logo.filename}
                       className={`relative group cursor-pointer rounded-lg border-2 p-2 transition-all ${
                         isSelected
                           ? 'border-blue-500 bg-blue-50 ring-2 ring-blue-200'
@@ -278,8 +296,8 @@ export default function QRCodeConfig({
                       }}
                     >
                       <img
-                        src={`/api/proxy-image?url=${encodeURIComponent(viewUrl)}`}
-                        alt={logo.name}
+                        src={logo.url}
+                        alt={logo.filename}
                         className="w-full h-16 object-contain"
                         onError={(e) => {
                           console.error('Failed to load logo image:', logo.url);
@@ -380,7 +398,7 @@ export default function QRCodeConfig({
                 onChange={(e) => updateCenterOptions({ fontSize: parseInt(e.target.value) })}
                 className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
               >
-                {qrOptions?.monogramOptions?.fontSizes?.map((size: number) => (
+                {loadingOptions ? null : qrOptions?.monogramOptions?.fontSizes?.map((size: number) => (
                   <option key={size} value={size}>{size}px</option>
                 )) || [20, 30, 40, 50, 60].map(size => (
                   <option key={size} value={size}>{size}px</option>
@@ -396,7 +414,7 @@ export default function QRCodeConfig({
                 onChange={(e) => updateCenterOptions({ fontFamily: e.target.value })}
                 className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
               >
-                {qrOptions?.monogramOptions?.fontFamilies?.map((font: string) => (
+                {loadingOptions ? null : qrOptions?.monogramOptions?.fontFamilies?.map((font: string) => (
                   <option key={font} value={font}>{font}</option>
                 )) || ['Arial', 'Helvetica', 'Times New Roman', 'Georgia'].map(font => (
                   <option key={font} value={font}>{font}</option>

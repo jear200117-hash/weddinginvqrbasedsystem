@@ -87,7 +87,8 @@ export default function HostLoginPage() {
                   placeholder="Enter your email"
                   className="w-full pl-10 pr-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#84a2be] focus:border-transparent transition-colors text-gray-900 font-medium"
                   required
-                />
+                  suppressHydrationWarning
+                      />
               </div>
             </div>
 
@@ -104,11 +105,13 @@ export default function HostLoginPage() {
                   placeholder="Enter your password"
                   className="w-full pl-10 pr-12 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#84a2be] focus:border-transparent transition-colors text-gray-900 font-medium"
                   required
+                  suppressHydrationWarning
                 />
                 <button
                   type="button"
                   onClick={() => setShowPassword(!showPassword)}
                   className="absolute right-3 top-1/2 transform -translate-y-1/2 text-gray-400 hover:text-gray-600"
+                  suppressHydrationWarning
                 >
                   {showPassword ? <EyeOff size={20} /> : <Eye size={20} />}
                 </button>
@@ -119,6 +122,7 @@ export default function HostLoginPage() {
               type="submit"
               disabled={loading}
               className="w-full bg-gradient-to-r from-[#667c93] to-[#84a2be] text-white py-3 rounded-lg font-semibold hover:shadow-lg transition-all duration-300 disabled:opacity-50 disabled:cursor-not-allowed"
+              suppressHydrationWarning
             >
               {loading ? 'Signing In...' : 'Sign In'}
             </button>

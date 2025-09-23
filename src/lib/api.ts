@@ -1,10 +1,9 @@
 import axios from 'axios';
 import Cookies from 'js-cookie';
 import { offlineCacheUtils, networkStatus } from './offlineCache';
-import { realtimeCache } from './realtimeCache';
 
-// Ensure the API base URL includes /api in local dev
-const API_BASE_URL = 'https://backendv2-nasy.onrender.com/api';
+// API Configuration - Firebase Functions only
+const API_BASE_URL = 'https://api-rpahsncjpa-as.a.run.app';
 
 // Custom cache implementation
 interface CacheEntry {
@@ -15,26 +14,18 @@ interface CacheEntry {
 
 class ApiCache {
   private cache = new Map<string, CacheEntry>();
-  private readonly defaultMaxAge = 2 * 60 * 1000; // 2 minutes (reduced for more real-time)
   private pendingRequests = new Map<string, Promise<any>>();
+  private defaultMaxAge = 5 * 60 * 1000; // 5 minutes
 
-  private shouldCache(url: string, method: string): boolean {
-    // Don't cache POST, PUT, DELETE, PATCH requests
-    if (['post', 'put', 'delete', 'patch'].includes(method.toLowerCase())) {
-      return false;
-    }
-    
-    // Don't cache auth endpoints
-    if (url.includes('/auth/login') || url.includes('/auth/logout') || url.includes('/auth/change-password')) {
-      return false;
-    }
-    
-    return true;
-  }
-
+  // Generate cache key from URL and params
   private getCacheKey(url: string, params?: any): string {
     const paramString = params ? JSON.stringify(params) : '';
     return `${url}${paramString}`;
+  }
+
+  // Check if we should cache this request
+  private shouldCache(url: string, method: string): boolean {
+    return method === 'get' && !url.includes('/auth/');
   }
 
   get(url: string, params?: any): any | null {
@@ -43,9 +34,11 @@ class ApiCache {
     const key = this.getCacheKey(url, params);
     const entry = this.cache.get(key);
     
-    if (!entry) return null;
+    if (!entry) {
+      return null;
+    }
     
-    // Check if cache is still valid
+    // Check if expired
     if (Date.now() - entry.timestamp > entry.maxAge) {
       this.cache.delete(key);
       return null;
@@ -78,12 +71,14 @@ class ApiCache {
     }
 
     // Create new request
-    const requestPromise = requestFn().finally(() => {
-      // Remove from pending requests when done
+    const requestPromise = requestFn();
+    this.pendingRequests.set(key, requestPromise);
+
+    // Clean up when request completes
+    requestPromise.finally(() => {
       this.pendingRequests.delete(key);
     });
 
-    this.pendingRequests.set(key, requestPromise);
     return requestPromise;
   }
 
@@ -108,8 +103,12 @@ const api = axios.create({
 // Request interceptor to add auth token and check cache
 api.interceptors.request.use((config) => {
   const token = Cookies.get('auth_token');
+  console.log('API Request to:', config.url, 'Token available:', !!token);
   if (token) {
     config.headers.Authorization = `Bearer ${token}`;
+    console.log('Authorization header set for:', config.url);
+  } else {
+    console.log('No token found for request to:', config.url);
   }
 
   // Check cache for GET requests
@@ -125,14 +124,26 @@ api.interceptors.request.use((config) => {
     }
   }
 
+  // Ensure FormData requests use proper multipart headers set by the browser
+  if (typeof FormData !== 'undefined' && config.data instanceof FormData) {
+    if (config.headers && (config.headers as any)['Content-Type']) {
+      delete (config.headers as any)['Content-Type'];
+    }
+    // Some adapters may store lowercase header keys
+    if (config.headers && (config.headers as any)['content-type']) {
+      delete (config.headers as any)['content-type'];
+    }
+    console.log('Detected FormData payload for:', config.url, '- ensuring Content-Type is not preset');
+  }
+
   return config;
 });
 
-// Response interceptor for error handling and caching
+// Response interceptor to handle caching and errors
 api.interceptors.response.use(
   (response) => {
     // Cache successful GET responses
-    if (response.config.method === 'get' && response.status >= 200 && response.status < 300) {
+    if (response.config.method === 'get') {
       apiCache.set(response.config.url || '', response.data, response.config.params);
     }
     return response;
@@ -140,43 +151,23 @@ api.interceptors.response.use(
   (error) => {
     // Handle cached responses
     if (error.isCached) {
-      return Promise.resolve({
-        data: error.data,
-        status: 200,
-        statusText: 'OK',
-        headers: {},
-        config: error.config
-      });
+      return Promise.resolve(error);
     }
 
-    const status = error.response?.status;
-    const data = error.response?.data;
-
-    const normalized = {
-      statusCode: status || 0,
-      message: data?.message || data?.error || error.message || 'Request failed',
-      error: data?.error || 'request_error',
-    };
-
-    if (status === 401) {
-      Cookies.remove('auth_token');
-      apiCache.clear(); // Clear cache on logout
-      if (typeof window !== 'undefined' && !window.location.pathname.startsWith('/host/login')) {
-        window.location.href = '/host/login';
+    // Handle network errors
+    if (!navigator.onLine) {
+      const cachedData = apiCache.get(error.config?.url || '', error.config?.params);
+      if (cachedData) {
+        return Promise.resolve({ data: cachedData, fromCache: true });
       }
     }
 
-    if (status === 429) {
-      normalized.message = 'Too many requests. Please try again shortly.';
-    }
-    if (error.code === 'ECONNABORTED') {
-      normalized.message = 'Request timed out. Check your connection and try again.';
-    }
-
-    // Emit toast for visibility
-    if (typeof window !== 'undefined') {
-      window.dispatchEvent(new CustomEvent('app-toast', { detail: { type: 'error', message: normalized.message } }))
-    }
+    // Normalize error response
+    const normalized = {
+      ...error,
+      data: error.response?.data || { error: 'Network error' },
+      status: error.response?.status || 0
+    };
 
     return Promise.reject(normalized);
   }
@@ -279,7 +270,7 @@ export const albumsAPI = {
   },
 
   getByQRCode: async (qrCode: string) => {
-    const response = await axios.get(`${API_BASE_URL}/albums/qr/${qrCode}`);
+    const response = await api.get(`/albums/qr/${qrCode}`);
     return response.data;
   },
 
@@ -298,7 +289,7 @@ export const albumsAPI = {
   },
 
   getById: async (id: string, params?: {
-    page?: number;
+    includeMedia?: boolean;
     limit?: number;
   }) => {
     const response = await api.get(`/albums/${id}`, { params });
@@ -306,7 +297,7 @@ export const albumsAPI = {
   },
 
   update: async (id: string, album: {
-    name: string;
+    name?: string;
     description?: string;
     isPublic?: boolean;
     isFeatured?: boolean;
@@ -328,8 +319,7 @@ export const albumsAPI = {
   getStats: async () => {
     const response = await api.get('/albums/stats/overview');
     return response.data;
-  },
-
+  }
 };
 
 // Media API
@@ -337,63 +327,73 @@ export const mediaAPI = {
   upload: async (albumId: string, files: FileList, uploadedBy: string) => {
     const formData = new FormData();
     Array.from(files).forEach(file => {
-      formData.append('media', file);
+    formData.append('media', file);
     });
     formData.append('uploadedBy', uploadedBy);
 
-    const response = await axios.post(
-      `${API_BASE_URL}/media/upload/${albumId}`,
+    const response = await api.post(
+      `/media/upload/${albumId}`,
       formData,
       {
-        headers: {
-          'Content-Type': 'multipart/form-data',
-        },
-        timeout: 60000, // 60 seconds for uploads
+        timeout: 60000
       }
     );
     return response.data;
   },
 
   uploadHost: async (albumId: string, files: FileList, uploadedBy?: string) => {
-    const formData = new FormData();
-    Array.from(files).forEach(file => {
-      formData.append('media', file);
-    });
-    if (uploadedBy) {
-      formData.append('uploadedBy', uploadedBy);
-    }
+    // Always use base64 for host uploads (one by one)
+    const uploadedMedia: any[] = [];
+    for (let i = 0; i < files.length; i++) {
+      const file = files[i];
+      const base64Data = await new Promise<string>((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onload = () => resolve(reader.result as string);
+        reader.onerror = reject;
+        reader.readAsDataURL(file);
+      });
 
-    const response = await api.post(
-      `/media/host/upload/${albumId}`,
-      formData,
-      {
-        headers: {
-          'Content-Type': 'multipart/form-data',
-        },
-        timeout: 60000, // 60 seconds for uploads
+      const resp = await api.post(`/media/host/upload-base64/${albumId}`, {
+        fileData: base64Data,
+        fileName: file.name,
+        fileType: file.type,
+        uploadedBy
+      }, { timeout: 60000 });
+
+      if (resp?.data?.media) {
+        if (Array.isArray(resp.data.media)) uploadedMedia.push(...resp.data.media);
+        else uploadedMedia.push(resp.data.media);
       }
-    );
-    return response.data;
+    }
+    return { media: uploadedMedia };
   },
 
   uploadByQR: async (qrCode: string, files: FileList, uploadedBy: string) => {
-    const formData = new FormData();
-    Array.from(files).forEach(file => {
-      formData.append('media', file);
-    });
-    formData.append('uploadedBy', uploadedBy);
+    // Always use base64 route for guest QR uploads for reliability
+    const uploadedMedia: any[] = [];
+    for (let i = 0; i < files.length; i++) {
+      const file = files[i];
+      const base64Data = await new Promise<string>((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onload = () => resolve(reader.result as string);
+        reader.onerror = reject;
+        reader.readAsDataURL(file);
+      });
 
-    const response = await axios.post(
-      `${API_BASE_URL}/media/upload/qr/${qrCode}`,
-      formData,
-      {
-        headers: {
-          'Content-Type': 'multipart/form-data',
-        },
-        timeout: 60000, // 60 seconds for uploads
+      const resp = await api.post(`/media/upload/qr-base64/${qrCode}`, {
+        fileData: base64Data,
+        fileName: file.name,
+        fileType: file.type,
+        uploadedBy
+      }, { timeout: 60000 });
+
+      if (resp?.data?.media) {
+        if (Array.isArray(resp.data.media)) uploadedMedia.push(...resp.data.media);
+        else uploadedMedia.push(resp.data.media);
       }
-    );
-    return response.data;
+    }
+
+    return { media: uploadedMedia };
   },
 
   getAll: async (params?: {
@@ -453,13 +453,18 @@ export const qrAPI = {
   },
 
   uploadLogo: async (logoFile: File) => {
-    const formData = new FormData();
-    formData.append('logo', logoFile);
+    // Convert file to base64
+    const base64Data = await new Promise<string>((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onload = () => resolve(reader.result as string);
+      reader.onerror = reject;
+      reader.readAsDataURL(logoFile);
+    });
     
-    const response = await api.post('/qr/upload-logo', formData, {
-      headers: {
-        'Content-Type': 'multipart/form-data',
-      },
+    const response = await api.post('/qr/upload-logo', {
+      fileData: base64Data,
+      fileName: logoFile.name,
+      fileType: logoFile.type
     });
     return response.data;
   },
@@ -483,9 +488,7 @@ export const qrAPI = {
 // RSVP API
 export const rsvpAPI = {
   submit: async (qrCode: string, rsvpData: {
-    status: 'attending' | 'not_attending';
-    attendeeCount?: number;
-    guestNames?: string[];
+    guestNames: string[];
     email?: string;
     phone?: string;
   }) => {
@@ -499,8 +502,9 @@ export const rsvpAPI = {
   },
 
   getAll: async (params?: {
+    page?: number;
+    limit?: number;
     status?: string;
-    role?: string;
     search?: string;
   }) => {
     const response = await api.get('/rsvp/all', { params });
@@ -514,7 +518,9 @@ export const rsvpAPI = {
 
   update: async (id: string, updateData: {
     status?: string;
-    attendeeCount?: number;
+    guestNames?: string[];
+    email?: string;
+    phone?: string;
     notes?: string;
   }) => {
     const response = await api.put(`/rsvp/update/${id}`, updateData);
@@ -522,102 +528,41 @@ export const rsvpAPI = {
   }
 };
 
-export default api;
-
-
-  // Cache management functions (no realtime calls here to avoid cycles)
-export const cacheUtils = {
-  clearAll: () => {
-    apiCache.clear();
-  },
-  clearPattern: (pattern: string) => {
-    apiCache.clearPattern(pattern);
-  },
-  // Clear cache for specific data types
-  clearInvitations: () => {
-    apiCache.clearPattern('/invitations');
-  },
-  clearAlbums: () => {
-    apiCache.clearPattern('/albums');
-  },
-  clearMedia: () => {
-    apiCache.clearPattern('/media');
-  },
-  clearRSVP: () => {
-    apiCache.clearPattern('/rsvp');
-  },
-};
-
-// SWR fetcher using axios instance with optimized caching and offline support
-export const swrFetcher = async (url: string) => {
-  try {
-    const res = await api.get(url);
-    
-    // Cache data offline for critical endpoints
-    if (url.includes('/albums') && !url.includes('/albums/')) {
-      offlineCacheUtils.setAlbums(res.data.albums || res.data);
-    } else if (url.includes('/invitations') && !url.includes('/invitations/')) {
-      offlineCacheUtils.setInvitations(res.data.invitations || res.data);
-    } else if (url.includes('/rsvp')) {
-      offlineCacheUtils.setRSVP(res.data.rsvp || res.data);
-    } else if (url.includes('/stats')) {
-      offlineCacheUtils.setStats(res.data);
-    }
-    
-    return res.data;
-  } catch (error) {
-    // Try to return offline data if network fails
-    if (!networkStatus.getOnlineStatus()) {
-      if (url.includes('/albums') && !url.includes('/albums/')) {
-        const offlineData = offlineCacheUtils.getAlbums();
-        if (offlineData) return { albums: offlineData };
-      } else if (url.includes('/invitations') && !url.includes('/invitations/')) {
-        const offlineData = offlineCacheUtils.getInvitations();
-        if (offlineData) return { invitations: offlineData };
-      } else if (url.includes('/rsvp')) {
-        const offlineData = offlineCacheUtils.getRSVP();
-        if (offlineData) return { rsvp: offlineData };
-      } else if (url.includes('/stats')) {
-        const offlineData = offlineCacheUtils.getStats();
-        if (offlineData) return offlineData;
-      }
-    }
-    
-    throw error;
+// Utility function to create RSVP query parameters
+export const createRSVPQuery = (filters: {
+  status?: string;
+  role?: string;
+  search?: string;
+  page?: number;
+  limit?: number;
+}) => {
+  const params: any = {};
+  
+  if (filters.status && filters.status !== 'all') {
+    params.status = filters.status;
   }
+  
+  if (filters.role && filters.role !== 'all') {
+    params.role = filters.role;
+  }
+  
+  if (filters.search) {
+    params.search = filters.search;
+  }
+  
+  if (filters.page) {
+    params.page = filters.page;
+  }
+  
+  if (filters.limit) {
+    params.limit = filters.limit;
+  }
+  
+  return params;
 };
 
-// Enhanced SWR configuration for better caching with real-time support
-export const swrConfig = {
-  // Enable real-time revalidation
-  revalidateOnFocus: true,
-  revalidateOnReconnect: true,
-  revalidateIfStale: true,
-  // Shorter deduplication for more real-time updates
-  dedupingInterval: 2000, // 2 seconds
-  // Add error retry
-  errorRetryCount: 3,
-  errorRetryInterval: 1000,
-  // Shorter focus throttle for real-time
-  focusThrottleInterval: 5000, // 5 seconds
-  // Add polling for critical data
-  refreshInterval: 0, // Disabled by default, can be enabled per use case
-};
+// Firebase configuration for real-time data
+export const firebaseConfig = {};
 
-// Real-time configuration for socket-backed data (no polling, no focus revalidate)
-export const realtimeConfig = {
-  ...swrConfig,
-  refreshInterval: 0,
-  revalidateOnFocus: false,
-  dedupingInterval: 5000, // 5 seconds, socket pushes invalidate
-};
-
-// Helper to create a stable SWR key for RSVP list
-export const rsvpAllKey = (params?: { status?: string; role?: string; search?: string }) => {
-  const sp = new URLSearchParams();
-  if (params?.status && params.status !== 'all') sp.set('status', params.status);
-  if (params?.role && params.role !== 'all') sp.set('role', params.role);
-  if (params?.search && params.search.trim()) sp.set('search', params.search.trim());
-  const query = sp.toString();
-  return `/rsvp/all${query ? `?${query}` : ''}`;
-};
+// Export cache utilities for manual cache management
+export { apiCache };

@@ -1,20 +1,25 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import useSWR from 'swr';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useParams, useRouter } from 'next/navigation';
 import { Upload, Image, Video, X, CheckCircle, AlertCircle, Camera, User } from 'lucide-react';
-import { albumsAPI, mediaAPI, swrFetcher } from '@/lib/api';
+import { albumsAPI, mediaAPI } from '@/lib/api';
+import { useAlbumByQR } from '@/hooks/useFirebaseRealtime';
 import toast, { Toaster } from 'react-hot-toast';
+import { validateFiles, validateGuestName, FILE_VALIDATION_CONSTANTS, ValidationResult } from '@/lib/validation';
+import ValidationFeedback, { FieldValidation, FileValidationPreview } from '@/components/ValidationFeedback';
 
 interface Album {
   id: string;
   name: string;
-  description: string;
+  description?: string;
+  isPublic: boolean;
+  isFeatured: boolean;
   coverImage?: string;
-  mediaCount: number;
-  uploadUrl: string;
+  qrCode: string;
+  createdAt: any;
+  updatedAt: any;
 }
 
 export default function GuestUploadPage() {
@@ -31,37 +36,99 @@ export default function GuestUploadPage() {
   });
   const [uploadProgress, setUploadProgress] = useState(0);
   const [uploadedFiles, setUploadedFiles] = useState<string[]>([]);
+  const [validationState, setValidationState] = useState<{
+    guestName: ValidationResult;
+    files: ValidationResult;
+  }>({
+    guestName: { isValid: true, errors: [] },
+    files: { isValid: true, errors: [], warnings: [] }
+  });
+  const [showValidation, setShowValidation] = useState(false);
 
-  const { data: swrAlbum, error: swrError, isLoading: swrLoading } = useSWR(
-    qrCode ? `/albums/qr/${qrCode}` : null,
-    swrFetcher,
-    { revalidateOnFocus: true, dedupingInterval: 3000 }
-  );
+  // Firebase real-time album data
+  const firebaseAlbum = useAlbumByQR(qrCode);
 
   useEffect(() => {
-    if (swrAlbum?.album) {
-      setAlbum(swrAlbum.album);
+    if (firebaseAlbum.album) {
+      setAlbum(firebaseAlbum.album);
       setLoading(false);
     }
-  }, [swrAlbum]);
+  }, [firebaseAlbum.album]);
 
   useEffect(() => {
-    if (swrError) {
+    if (firebaseAlbum.error) {
       toast.error('Album not found or no longer available');
       router.push('/');
     }
-  }, [swrError, router]);
+  }, [firebaseAlbum.error, router]);
+
+  // Update loading state based on Firebase data
+  useEffect(() => {
+    setLoading(firebaseAlbum.loading);
+  }, [firebaseAlbum.loading]);
 
   const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
     if (e.target.files) {
       const filesArray = Array.from(e.target.files);
+      
+      // Validate files immediately
+      const fileValidation = validateFiles(filesArray, {
+        maxFiles: FILE_VALIDATION_CONSTANTS.MAX_GUEST_PHOTOS,
+        maxFileSize: FILE_VALIDATION_CONSTANTS.MAX_FILE_SIZE,
+        allowedTypes: [...FILE_VALIDATION_CONSTANTS.ALLOWED_IMAGE_TYPES, ...FILE_VALIDATION_CONSTANTS.ALLOWED_VIDEO_TYPES]
+      });
+      
+      setValidationState(prev => ({
+        ...prev,
+        files: fileValidation
+      }));
+      
       setUploadForm({ ...uploadForm, files: filesArray });
+      
+      // Show validation feedback
+      setShowValidation(true);
+      
+      // Show toast for immediate feedback
+      if (!fileValidation.isValid) {
+        toast.error(`Please fix file selection issues before uploading.`);
+      } else if (fileValidation.warnings && fileValidation.warnings.length > 0) {
+        toast(`${filesArray.length} files selected. Check warnings below.`, {
+          icon: '⚠️',
+          duration: 4000,
+        });
+      } else {
+        toast.success(`${filesArray.length} files selected and ready to upload!`);
+      }
     }
   };
 
+  const validateForm = () => {
+    const nameValidation = validateGuestName(uploadForm.guestName);
+    const fileValidation = validateFiles(uploadForm.files, {
+      maxFiles: FILE_VALIDATION_CONSTANTS.MAX_GUEST_PHOTOS,
+      maxFileSize: FILE_VALIDATION_CONSTANTS.MAX_FILE_SIZE,
+      allowedTypes: [...FILE_VALIDATION_CONSTANTS.ALLOWED_IMAGE_TYPES, ...FILE_VALIDATION_CONSTANTS.ALLOWED_VIDEO_TYPES]
+    });
+    
+    setValidationState({
+      guestName: nameValidation,
+      files: fileValidation
+    });
+    
+    setShowValidation(true);
+    
+    return nameValidation.isValid && fileValidation.isValid;
+  };
+
   const handleUpload = async () => {
-    if (!album || !uploadForm.guestName.trim() || uploadForm.files.length === 0) {
-      toast.error('Please fill in your name and select files to upload');
+    if (!album) {
+      toast.error('Album information is not available');
+      return;
+    }
+    
+    // Validate form before upload
+    if (!validateForm()) {
+      toast.error('Please fix the validation errors before uploading');
       return;
     }
 
@@ -70,33 +137,44 @@ export default function GuestUploadPage() {
     setUploadedFiles([]);
 
     try {
-      const fileList = Object.assign(uploadForm.files, {
-        length: uploadForm.files.length,
-        item: (index: number) => uploadForm.files[index]
-      }) as FileList;
-      
-      // Simulate progress
-      const progressInterval = setInterval(() => {
-        setUploadProgress(prev => {
-          if (prev >= 90) {
-            clearInterval(progressInterval);
-            return prev;
-          }
-          return prev + 10;
-        });
-      }, 200);
+      const uploadedMedia: any[] = [];
+      const totalFiles = uploadForm.files.length;
 
-      const response = await mediaAPI.uploadByQR(qrCode, fileList, uploadForm.guestName);
-      
-      clearInterval(progressInterval);
+      for (let i = 0; i < totalFiles; i++) {
+        const file = uploadForm.files[i];
+
+        // Create a single-file FileList for the current file
+        const dt = new DataTransfer();
+        dt.items.add(file);
+        const singleFileList = dt.files;
+
+        // Update progress before each upload attempt
+        const progress = Math.round(((i + 1) / totalFiles) * 100);
+        setUploadProgress(progress);
+
+        try {
+          const response = await mediaAPI.uploadByQR(qrCode, singleFileList, uploadForm.guestName);
+          if (response?.media) {
+            if (Array.isArray(response.media)) {
+              uploadedMedia.push(...response.media);
+            } else {
+              uploadedMedia.push(response.media);
+            }
+          }
+        } catch (fileError: any) {
+          console.error(`Error uploading file ${file.name}:`, fileError);
+          toast.error(`Failed to upload ${file.name}`);
+        }
+      }
+
       setUploadProgress(100);
-      
-      if (response.media && Array.isArray(response.media)) {
-        const uploadedFileNames = response.media.map((media: any) => media.originalName);
+
+      if (uploadedMedia.length > 0) {
+        const uploadedFileNames = uploadedMedia.map((m: any) => m.originalName || m.filename || 'File');
         setUploadedFiles(uploadedFileNames);
-        
-        toast.success(`Successfully uploaded ${response.media.length} file(s)!`);
-        
+
+        toast.success(`Successfully uploaded ${uploadedMedia.length} file(s)!`);
+
         // Reset form after successful upload
         setTimeout(() => {
           setUploadForm({ guestName: '', files: [] });
@@ -116,9 +194,42 @@ export default function GuestUploadPage() {
   const removeFile = (index: number) => {
     const newFiles = uploadForm.files.filter((_, i) => i !== index);
     setUploadForm({ ...uploadForm, files: newFiles });
+    
+    // Re-validate files after removal
+    if (newFiles.length > 0) {
+      const fileValidation = validateFiles(newFiles, {
+        maxFiles: FILE_VALIDATION_CONSTANTS.MAX_GUEST_PHOTOS,
+        maxFileSize: FILE_VALIDATION_CONSTANTS.MAX_FILE_SIZE,
+        allowedTypes: [...FILE_VALIDATION_CONSTANTS.ALLOWED_IMAGE_TYPES, ...FILE_VALIDATION_CONSTANTS.ALLOWED_VIDEO_TYPES]
+      });
+      
+      setValidationState(prev => ({
+        ...prev,
+        files: fileValidation
+      }));
+    } else {
+      setValidationState(prev => ({
+        ...prev,
+        files: { isValid: true, errors: [], warnings: [] }
+      }));
+      setShowValidation(false);
+    }
+  };
+  
+  const handleGuestNameChange = (value: string) => {
+    setUploadForm({ ...uploadForm, guestName: value });
+    
+    // Real-time validation for guest name
+    if (showValidation) {
+      const nameValidation = validateGuestName(value);
+      setValidationState(prev => ({
+        ...prev,
+        guestName: nameValidation
+      }));
+    }
   };
 
-  if (loading || swrLoading) {
+  if (loading) {
     return (
       <div className="min-h-screen bg-gradient-to-br from-[#667c93] to-[#84a2be] flex items-center justify-center">
         <div className="text-center">
@@ -192,7 +303,7 @@ export default function GuestUploadPage() {
               <h2 className="text-xl font-bold text-white">{album.name}</h2>
               <p className="text-white/80">{album.description}</p>
               <p className="text-white/60 text-sm mt-1">
-                {album.mediaCount} {album.mediaCount === 1 ? 'photo' : 'photos'} already uploaded
+                Photos already uploaded
               </p>
             </div>
           </div>
@@ -218,19 +329,32 @@ export default function GuestUploadPage() {
                 <input
                   type="text"
                   value={uploadForm.guestName}
-                  onChange={(e) => setUploadForm({...uploadForm, guestName: e.target.value})}
+                  onChange={(e) => handleGuestNameChange(e.target.value)}
                   placeholder="Enter your name"
-                  className="w-full pl-10 pr-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-[#84a2be] focus:border-transparent"
+                  className={`w-full pl-10 pr-4 py-3 border rounded-lg focus:ring-2 focus:ring-[#84a2be] focus:border-transparent transition-colors ${
+                    showValidation && !validationState.guestName.isValid
+                      ? 'border-red-300 bg-red-50'
+                      : 'border-gray-300'
+                  }`}
                 />
               </div>
+              {showValidation && (
+                <FieldValidation
+                  error={validationState.guestName.errors[0]}
+                />
+              )}
             </div>
 
             {/* File Upload */}
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-2">
-                Select Photos & Videos *
+                Select Photos & Videos * (Max {FILE_VALIDATION_CONSTANTS.MAX_GUEST_PHOTOS} files)
               </label>
-              <div className="border-2 border-dashed border-gray-300 rounded-lg p-6 text-center hover:border-[#84a2be] transition-colors">
+              <div className={`border-2 border-dashed rounded-lg p-6 text-center transition-colors ${
+                showValidation && !validationState.files.isValid
+                  ? 'border-red-300 bg-red-50'
+                  : 'border-gray-300 hover:border-[#84a2be]'
+              }`}>
                 <input
                   type="file"
                   multiple
@@ -251,7 +375,10 @@ export default function GuestUploadPage() {
                         <span className="text-[#84a2be]">Click to upload</span> or drag and drop
                       </p>
                       <p className="text-sm text-gray-500 mt-1">
-                        Photos and videos up to 50MB each
+                        Photos and videos up to {Math.round(FILE_VALIDATION_CONSTANTS.MAX_FILE_SIZE / (1024 * 1024))}MB each
+                      </p>
+                      <p className="text-xs text-gray-400 mt-1">
+                        Supported: JPG, PNG, GIF, WebP, MP4, MOV, AVI, WMV, WebM
                       </p>
                     </div>
                   </div>
@@ -259,36 +386,25 @@ export default function GuestUploadPage() {
               </div>
             </div>
 
-            {/* Selected Files */}
+            {/* File Validation and Preview */}
             {uploadForm.files.length > 0 && (
-              <div>
-                <h4 className="text-sm font-medium text-gray-700 mb-3">Selected Files:</h4>
-                <div className="space-y-2">
-                  {uploadForm.files.map((file, index) => (
-                    <div key={index} className="flex items-center justify-between bg-gray-50 rounded-lg p-3">
-                      <div className="flex items-center gap-3">
-                        {file.type.startsWith('image/') ? (
-                          <Image className="text-green-600" size={20} />
-                        ) : (
-                          <Video className="text-blue-600" size={20} />
-                        )}
-                        <div>
-                          <p className="text-sm font-medium text-gray-900">{file.name}</p>
-                          <p className="text-xs text-gray-500">
-                            {(file.size / 1024 / 1024).toFixed(2)} MB
-                          </p>
-                        </div>
-                      </div>
-                      <button
-                        onClick={() => removeFile(index)}
-                        className="text-red-500 hover:text-red-700 p-1"
-                      >
-                        <X size={16} />
-                      </button>
-                    </div>
-                  ))}
-                </div>
-              </div>
+              <FileValidationPreview
+                files={uploadForm.files}
+                validationResult={validationState.files}
+                onRemoveFile={removeFile}
+                maxFiles={FILE_VALIDATION_CONSTANTS.MAX_GUEST_PHOTOS}
+              />
+            )}
+            
+            {/* Overall validation feedback */}
+            {showValidation && (uploadForm.files.length > 0 || uploadForm.guestName.trim()) && (
+              <ValidationFeedback
+                errors={[
+                  ...validationState.guestName.errors.map(err => `Name: ${err}`),
+                  ...validationState.files.errors
+                ]}
+                warnings={validationState.files.warnings}
+              />
             )}
 
             {/* Upload Progress */}
@@ -328,7 +444,7 @@ export default function GuestUploadPage() {
             {/* Upload Button */}
             <button
               onClick={handleUpload}
-              disabled={uploading || !uploadForm.guestName.trim() || uploadForm.files.length === 0}
+              disabled={uploading || !uploadForm.guestName.trim() || uploadForm.files.length === 0 || (showValidation && (!validationState.guestName.isValid || !validationState.files.isValid))}
               className="w-full bg-gradient-to-r from-[#667c93] to-[#84a2be] text-white py-3 px-6 rounded-lg font-semibold hover:shadow-lg transition-all duration-300 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
             >
               {uploading ? (
@@ -365,7 +481,7 @@ export default function GuestUploadPage() {
             </li>
             <li className="flex items-start gap-2">
               <CheckCircle className="text-green-400 mt-0.5" size={16} />
-              <span>Maximum file size: 50MB per file</span>
+              <span>Maximum {FILE_VALIDATION_CONSTANTS.MAX_GUEST_PHOTOS} files per upload, {Math.round(FILE_VALIDATION_CONSTANTS.MAX_FILE_SIZE / (1024 * 1024))}MB per file</span>
             </li>
             <li className="flex items-start gap-2">
               <CheckCircle className="text-green-400 mt-0.5" size={16} />

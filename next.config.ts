@@ -23,6 +23,8 @@ const nextConfig: NextConfig = {
       },
     ],
   },
+  // Suppress hydration warnings for browser extension attributes
+  reactStrictMode: true,
 };
 
 export default nextConfig;
