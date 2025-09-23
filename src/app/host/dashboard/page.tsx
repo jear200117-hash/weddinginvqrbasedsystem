@@ -1494,6 +1494,28 @@ export default function HostDashboard() {
                                 
                                 // Toggle current menu
                                 if (isHidden) {
+                                  // Position the menu dynamically
+                                  const buttonRect = button.getBoundingClientRect();
+                                  const viewportHeight = window.innerHeight;
+                                  
+                                  // Check if there's enough space above the button
+                                  const spaceAbove = buttonRect.top;
+                                  const spaceBelow = viewportHeight - buttonRect.bottom;
+                                  
+                                  if (spaceAbove > 200) {
+                                    // Position above the button
+                                    menu.style.position = 'fixed';
+                                    menu.style.top = `${buttonRect.top - 200}px`;
+                                    menu.style.right = `${window.innerWidth - buttonRect.right}px`;
+                                    menu.style.bottom = 'auto';
+                                  } else {
+                                    // Position below the button
+                                    menu.style.position = 'fixed';
+                                    menu.style.top = `${buttonRect.bottom + 8}px`;
+                                    menu.style.right = `${window.innerWidth - buttonRect.right}px`;
+                                    menu.style.bottom = 'auto';
+                                  }
+                                  
                                   menu.classList.remove('hidden');
                                   console.log('Menu opened');
                                 } else {
@@ -1517,8 +1539,8 @@ export default function HostDashboard() {
                             >
                               <Settings size={18} />
                             </button>
-                            <div className="album-dropdown-menu hidden absolute bottom-12 right-0 bg-white rounded-xl shadow-2xl border border-slate-200 py-2 z-50 min-w-[160px] backdrop-blur-sm">
-                              <button
+                            <div className="album-dropdown-menu hidden bg-white rounded-xl shadow-2xl border border-slate-200 py-2 z-50 min-w-[160px] backdrop-blur-sm">
+                               <button
                                 onClick={(e) => {
                                   e.preventDefault();
                                   e.stopPropagation();
