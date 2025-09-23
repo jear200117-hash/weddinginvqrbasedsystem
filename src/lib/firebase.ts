@@ -4,13 +4,13 @@ import { getAuth, connectAuthEmulator } from 'firebase/auth';
 
 // Firebase configuration - works for both development and production
 const firebaseConfig = {
-  apiKey: "AIzaSyCX8qPzqPzqPzqPzqPzqPzqPzqPzqPzqPzq", // Replace with your actual API key
+  apiKey: "AIzaSyCvnER4etXFOEFv-ohVrKtZSvdhhQjJ1iY",
   authDomain: "weddingmanagement-e9c30.firebaseapp.com",
   projectId: "weddingmanagement-e9c30",
-  storageBucket: "weddingmanagement-e9c30.appspot.com",
-  messagingSenderId: "123456789", // Replace with your actual sender ID
-  appId: "1:123456789:web:abcdef123456", // Replace with your actual app ID
-  measurementId: "G-XXXXXXXXXX" // Replace with your actual measurement ID
+  storageBucket: "weddingmanagement-e9c30.firebasestorage.app",
+  messagingSenderId: "618489383503",
+  appId: "1:618489383503:web:10219f6bfdd4daa0eef83a",
+  measurementId: "G-PR072D8JE3"
 };
 
 // Initialize Firebase
