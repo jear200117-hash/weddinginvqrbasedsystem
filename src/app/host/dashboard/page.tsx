@@ -268,6 +268,21 @@ export default function HostDashboard() {
 
   const router = useRouter();
 
+  // Close all dropdown menus when clicking outside
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      const dropdowns = document.querySelectorAll('.dropdown-menu');
+      dropdowns.forEach(dropdown => {
+        if (!dropdown.contains(event.target as Node)) {
+          dropdown.classList.add('hidden');
+        }
+      });
+    };
+
+    document.addEventListener('click', handleClickOutside);
+    return () => document.removeEventListener('click', handleClickOutside);
+  }, []);
+
   // RSVP state
   const [rsvpData, setRsvpData] = useState<any>(null);
   const [rsvpFilters, setRsvpFilters] = useState({
@@ -1456,39 +1471,99 @@ export default function HostDashboard() {
                           </div>
                         )}
                         
-                        {/* Overlay with action buttons */}
-                        <div className="absolute inset-0 bg-transparent bg-opacity-0 group-hover:bg-opacity-20 transition-all duration-300 flex items-end justify-end p-3">
-                          <div className="opacity-0 group-hover:opacity-100 transition-opacity duration-300 flex gap-2">
+                        {/* Mobile-friendly action buttons */}
+                        <div className="absolute top-3 right-3">
+                          {/* Mobile: Always visible menu button */}
+                          <div className="sm:hidden">
                             <button
                               onClick={(e) => {
                                 e.stopPropagation();
-                                handleViewAlbumQR(album);
+                                const menu = e.currentTarget.nextElementSibling as HTMLElement;
+                                menu.classList.toggle('hidden');
                               }}
-                              className="bg-white/90 text-purple-600 p-2 rounded-lg hover:bg-white transition-colors shadow-lg"
-                              title="View QR Code"
+                              className="bg-white/90 backdrop-blur-sm text-slate-700 rounded-lg p-2 shadow-lg hover:bg-white transition-colors"
+                              title="Album Actions"
                             >
-                              <QrCode size={16} />
+                              <Settings size={16} />
                             </button>
-                            <button
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                handleEditAlbum(album);
-                              }}
-                              className="bg-white/90 text-blue-600 p-2 rounded-lg hover:bg-white transition-colors shadow-lg"
-                              title="Edit Album"
-                            >
-                              <Edit size={16} />
-                            </button>
-                            <button
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                handleDeleteAlbum(album.id);
-                              }}
-                              className="bg-white/90 text-red-600 p-2 rounded-lg hover:bg-white transition-colors shadow-lg"
-                              title="Delete Album"
-                            >
-                              <Trash2 size={16} />
-                            </button>
+                            <div className="dropdown-menu hidden absolute top-10 right-0 bg-white rounded-xl shadow-2xl border border-slate-200 py-2 z-20 min-w-[160px]">
+                              <button
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  handleViewAlbumQR(album);
+                                }}
+                                className="w-full text-left px-4 py-2 text-sm text-slate-700 hover:bg-slate-100 flex items-center gap-2"
+                              >
+                                <QrCode size={16} />
+                                View QR Code
+                              </button>
+                              <button
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  handleUploadToAlbum(album);
+                                }}
+                                className="w-full text-left px-4 py-2 text-sm text-slate-700 hover:bg-slate-100 flex items-center gap-2"
+                              >
+                                <Upload size={16} />
+                                Upload Photos
+                              </button>
+                              <button
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  handleEditAlbum(album);
+                                }}
+                                className="w-full text-left px-4 py-2 text-sm text-slate-700 hover:bg-slate-100 flex items-center gap-2"
+                              >
+                                <Edit size={16} />
+                                Edit Album
+                              </button>
+                              <button
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  handleDeleteAlbum(album.id);
+                                }}
+                                className="w-full text-left px-4 py-2 text-sm text-red-600 hover:bg-red-50 flex items-center gap-2"
+                              >
+                                <Trash2 size={16} />
+                                Delete Album
+                              </button>
+                            </div>
+                          </div>
+                          
+                          {/* Desktop: Hover overlay with action buttons */}
+                          <div className="hidden sm:block absolute inset-0 bg-transparent bg-opacity-0 group-hover:bg-opacity-20 transition-all duration-300 flex items-end justify-end p-3 -top-3 -right-3">
+                            <div className="opacity-0 group-hover:opacity-100 transition-opacity duration-300 flex gap-2">
+                              <button
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  handleViewAlbumQR(album);
+                                }}
+                                className="bg-white/90 text-purple-600 p-2 rounded-lg hover:bg-white transition-colors shadow-lg"
+                                title="View QR Code"
+                              >
+                                <QrCode size={16} />
+                              </button>
+                              <button
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  handleEditAlbum(album);
+                                }}
+                                className="bg-white/90 text-blue-600 p-2 rounded-lg hover:bg-white transition-colors shadow-lg"
+                                title="Edit Album"
+                              >
+                                <Edit size={16} />
+                              </button>
+                              <button
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  handleDeleteAlbum(album.id);
+                                }}
+                                className="bg-white/90 text-red-600 p-2 rounded-lg hover:bg-white transition-colors shadow-lg"
+                                title="Delete Album"
+                              >
+                                <Trash2 size={16} />
+                              </button>
+                            </div>
                           </div>
                         </div>
                         
@@ -1768,11 +1843,57 @@ export default function HostDashboard() {
                             </div>
                           </div>
 
-                          {/* View indicator */}
+                          {/* Mobile-friendly action buttons */}
                           {!isSelectionMode && (
-                            <div className="absolute top-3 right-3 opacity-0 group-hover:opacity-100 transition-all duration-300">
-                              <div className="bg-white/90 backdrop-blur-sm rounded-xl p-2 shadow-lg">
-                                <Eye className="text-slate-700" size={16} />
+                            <div className="absolute top-3 right-3">
+                              {/* Mobile: Always visible action button */}
+                              <div className="sm:hidden">
+                                <button
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    const menu = e.currentTarget.nextElementSibling as HTMLElement;
+                                    menu.classList.toggle('hidden');
+                                  }}
+                                  className="bg-white/90 backdrop-blur-sm text-slate-700 rounded-lg p-2 shadow-lg hover:bg-white transition-colors"
+                                  title="Media Actions"
+                                >
+                                  <Settings size={16} />
+                                </button>
+                                <div className="dropdown-menu hidden absolute top-10 right-0 bg-white rounded-xl shadow-2xl border border-slate-200 py-2 z-20 min-w-[140px]">
+                                  <button
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+                                      handleMediaClick(media, index);
+                                    }}
+                                    className="w-full text-left px-4 py-2 text-sm text-slate-700 hover:bg-slate-100 flex items-center gap-2"
+                                  >
+                                    <Eye size={16} />
+                                    View Media
+                                  </button>
+                                  <button
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+                                      const downloadUrl = media.googleDriveFileId
+                                        ? `https://drive.google.com/uc?export=download&id=${media.googleDriveFileId}`
+                                        : media.url;
+                                      const link = document.createElement('a');
+                                      link.href = downloadUrl;
+                                      link.download = media.originalName || 'download';
+                                      link.click();
+                                    }}
+                                    className="w-full text-left px-4 py-2 text-sm text-slate-700 hover:bg-slate-100 flex items-center gap-2"
+                                  >
+                                    <Download size={16} />
+                                    Download
+                                  </button>
+                                </div>
+                              </div>
+                              
+                              {/* Desktop: Hover indicator */}
+                              <div className="hidden sm:block opacity-0 group-hover:opacity-100 transition-all duration-300">
+                                <div className="bg-white/90 backdrop-blur-sm rounded-xl p-2 shadow-lg">
+                                  <Eye className="text-slate-700" size={16} />
+                                </div>
                               </div>
                             </div>
                           )}
@@ -2056,44 +2177,100 @@ export default function HostDashboard() {
                         </div>
                       </div>
 
-                      {/* Modern Action Buttons */}
-                      <div className="absolute top-3 right-3 opacity-0 group-hover:opacity-100 transition-all duration-300 flex gap-2">
-                        <button
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            window.open(media.url, '_blank');
-                          }}
-                          className="bg-white/90 backdrop-blur-sm text-slate-700 rounded-xl p-2 shadow-lg hover:bg-white transition-colors"
-                          title="View Full Size"
-                        >
-                          <Eye size={16} />
-                        </button>
-                        <button
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            const downloadUrl = media.googleDriveFileId
-                              ? `https://drive.google.com/uc?export=download&id=${media.googleDriveFileId}`
-                              : media.url;
-                            const link = document.createElement('a');
-                            link.href = downloadUrl;
-                            link.download = media.originalName || 'download';
-                            link.click();
-                          }}
-                          className="bg-white/90 backdrop-blur-sm text-slate-700 rounded-xl p-2 shadow-lg hover:bg-white transition-colors"
-                          title="Download"
-                        >
-                          <Download size={16} />
-                        </button>
-                        <button
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            handleDeleteMediaFromGallery(media.id);
-                          }}
-                          className="bg-red-500/90 backdrop-blur-sm text-white rounded-xl p-2 shadow-lg hover:bg-red-500 transition-colors"
-                          title="Delete"
-                        >
-                          <Trash2 size={16} />
-                        </button>
+                      {/* Mobile-friendly Action Buttons */}
+                      <div className="absolute top-3 right-3">
+                        {/* Mobile: Always visible menu button */}
+                        <div className="sm:hidden">
+                          <button
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              const menu = e.currentTarget.nextElementSibling as HTMLElement;
+                              menu.classList.toggle('hidden');
+                            }}
+                            className="bg-white/90 backdrop-blur-sm text-slate-700 rounded-lg p-2 shadow-lg hover:bg-white transition-colors"
+                            title="Media Actions"
+                          >
+                            <Settings size={16} />
+                          </button>
+                          <div className="hidden absolute top-10 right-0 bg-white rounded-xl shadow-2xl border border-slate-200 py-2 z-20 min-w-[140px]">
+                            <button
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                window.open(media.url, '_blank');
+                              }}
+                              className="w-full text-left px-4 py-2 text-sm text-slate-700 hover:bg-slate-100 flex items-center gap-2"
+                            >
+                              <Eye size={16} />
+                              View Full Size
+                            </button>
+                            <button
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                const downloadUrl = media.googleDriveFileId
+                                  ? `https://drive.google.com/uc?export=download&id=${media.googleDriveFileId}`
+                                  : media.url;
+                                const link = document.createElement('a');
+                                link.href = downloadUrl;
+                                link.download = media.originalName || 'download';
+                                link.click();
+                              }}
+                              className="w-full text-left px-4 py-2 text-sm text-slate-700 hover:bg-slate-100 flex items-center gap-2"
+                            >
+                              <Download size={16} />
+                              Download
+                            </button>
+                            <button
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                handleDeleteMediaFromGallery(media.id);
+                              }}
+                              className="w-full text-left px-4 py-2 text-sm text-red-600 hover:bg-red-50 flex items-center gap-2"
+                            >
+                              <Trash2 size={16} />
+                              Delete
+                            </button>
+                          </div>
+                        </div>
+                        
+                        {/* Desktop: Hover action buttons */}
+                        <div className="hidden sm:flex opacity-0 group-hover:opacity-100 transition-all duration-300 gap-2">
+                          <button
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              window.open(media.url, '_blank');
+                            }}
+                            className="bg-white/90 backdrop-blur-sm text-slate-700 rounded-xl p-2 shadow-lg hover:bg-white transition-colors"
+                            title="View Full Size"
+                          >
+                            <Eye size={16} />
+                          </button>
+                          <button
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              const downloadUrl = media.googleDriveFileId
+                                ? `https://drive.google.com/uc?export=download&id=${media.googleDriveFileId}`
+                                : media.url;
+                              const link = document.createElement('a');
+                              link.href = downloadUrl;
+                              link.download = media.originalName || 'download';
+                              link.click();
+                            }}
+                            className="bg-white/90 backdrop-blur-sm text-slate-700 rounded-xl p-2 shadow-lg hover:bg-white transition-colors"
+                            title="Download"
+                          >
+                            <Download size={16} />
+                          </button>
+                          <button
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              handleDeleteMediaFromGallery(media.id);
+                            }}
+                            className="bg-red-500/90 backdrop-blur-sm text-white rounded-xl p-2 shadow-lg hover:bg-red-500 transition-colors"
+                            title="Delete"
+                          >
+                            <Trash2 size={16} />
+                          </button>
+                        </div>
                       </div>
                     </motion.div>
                   ))}
@@ -2536,14 +2713,14 @@ export default function HostDashboard() {
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
-            className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-start sm:items-center justify-center p-4 z-50 overflow-y-auto"
+            className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-start justify-center p-4 z-50 overflow-y-auto"
             onClick={() => setShowCreateAlbumModal(false)}
           >
             <motion.div
               initial={{ scale: 0.95, opacity: 0, y: 20 }}
               animate={{ scale: 1, opacity: 1, y: 0 }}
               exit={{ scale: 0.95, opacity: 0, y: 20 }}
-              className="bg-white rounded-2xl w-full max-w-lg max-h-[90vh] overflow-hidden shadow-2xl border border-slate-200 relative mt-10 sm:mt-0 mb-10"
+              className="bg-white rounded-2xl w-full max-w-lg my-4 shadow-2xl border border-slate-200 relative"
               onClick={(e) => e.stopPropagation()}
             >
               {/* Modal Header */}
@@ -2568,7 +2745,7 @@ export default function HostDashboard() {
               </div>
 
               {/* Modal Content */}
-              <div className="p-6 overflow-y-auto max-h-[calc(90vh-140px)]">
+              <div className="p-6">
                 {/* QR Configuration Indicator */}
                 <div className="bg-gradient-to-r from-blue-50 to-indigo-50 border border-blue-200 rounded-xl p-4 mb-6">
                   <div className="flex items-center gap-3 text-sm">
@@ -2849,14 +3026,14 @@ export default function HostDashboard() {
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
-            className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-start sm:items-center justify-center p-4 z-50 overflow-y-auto"
+            className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-start justify-center p-4 z-50 overflow-y-auto"
             onClick={() => setShowCreateModal(false)}
           >
             <motion.div
               initial={{ scale: 0.95, opacity: 0, y: 20 }}
               animate={{ scale: 1, opacity: 1, y: 0 }}
               exit={{ scale: 0.95, opacity: 0, y: 20 }}
-              className="bg-white rounded-2xl w-full max-w-lg max-h-[90vh] overflow-hidden shadow-2xl border border-slate-200 relative mt-10 sm:mt-0 mb-10"
+              className="bg-white rounded-2xl w-full max-w-lg my-4 shadow-2xl border border-slate-200 relative"
               onClick={(e) => e.stopPropagation()}
             >
               {/* Modal Header */}
@@ -2881,7 +3058,7 @@ export default function HostDashboard() {
               </div>
 
               {/* Modal Content */}
-              <div className="p-6 overflow-y-auto max-h-[calc(90vh-140px)]">
+              <div className="p-6">
                 {/* QR Configuration Indicator */}
                 <div className="bg-gradient-to-r from-blue-50 to-indigo-50 border border-blue-200 rounded-xl p-4 mb-6">
                   <div className="flex items-center gap-3 text-sm">

@@ -700,42 +700,130 @@ export default function HomePage() {
                 </div>
 
                 {albums.length > 0 ? (
-                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                    {albums.map((album) => (
-                      <motion.div
-                        key={album.id}
-                        initial={{ opacity: 0, y: 20 }}
-                        animate={{ opacity: 1, y: 0 }}
-                        whileHover={{ y: -5 }}
-                        className="bg-white rounded-xl shadow-lg overflow-hidden cursor-pointer hover:shadow-xl transition-all duration-300"
-                        onClick={() => handleAlbumSelect(album)}
-                      >
-                        <div className="h-48 bg-gradient-to-br from-[#84a2be] from-opacity-20 to-[#cba397] to-opacity-20 flex items-center justify-center">
-                          {album.coverImage ? (
-                            <img
-                              src={getBestDisplayUrl(album.coverImage, undefined, 400)}
-                              alt={album.name}
-                              className="w-full h-full object-cover"
-                            />
-                          ) : (
-                            <Image className="text-[#cba397]" size={64} />
-                          )}
-                        </div>
-                        <div className="p-6">
-                          <h3 className="text-xl font-semibold text-gray-900 mb-2">{album.name}</h3>
-                          <p className="text-gray-600 text-sm mb-4">{album.description}</p>
-                          <div className="flex items-center justify-between">
-                            <span className="text-sm text-gray-500">Items</span>
-                            {album.isFeatured && (
-                              <span className="bg-[#cba397] bg-opacity-20 text-[#667c93] px-2 py-1 rounded-full text-xs">
-                                Featured
-                              </span>
-                            )}
+                  <>
+                    {/* Featured Albums Section */}
+                    {albums.filter(album => album.isFeatured).length > 0 && (
+                      <div className="mb-16">
+                        <div className="flex items-center mb-8">
+                          <div className="flex-1 h-px bg-gradient-to-r from-transparent to-[#cba397]"></div>
+                          <div className="px-6">
+                            <h3 className="text-3xl font-light text-gray-900 font-parisienne text-slate-blue">
+                              Featured Albums
+                            </h3>
                           </div>
+                          <div className="flex-1 h-px bg-gradient-to-l from-transparent to-[#cba397]"></div>
                         </div>
-                      </motion.div>
-                    ))}
-                  </div>
+                        
+                        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 mb-8">
+                          {albums.filter(album => album.isFeatured).map((album, index) => (
+                            <motion.div
+                              key={album.id}
+                              initial={{ opacity: 0, y: 20 }}
+                              animate={{ opacity: 1, y: 0 }}
+                              transition={{ delay: index * 0.1 }}
+                              whileHover={{ y: -8, scale: 1.02 }}
+                              className="bg-white rounded-xl shadow-xl overflow-hidden cursor-pointer hover:shadow-2xl transition-all duration-300 border-2 border-[#cba397] border-opacity-30"
+                              onClick={() => handleAlbumSelect(album)}
+                            >
+                              <div className="h-56 bg-gradient-to-br from-[#84a2be] from-opacity-20 to-[#cba397] to-opacity-20 flex items-center justify-center relative">
+                                {album.coverImage ? (
+                                  <img
+                                    src={getBestDisplayUrl(album.coverImage, undefined, 400)}
+                                    alt={album.name}
+                                    className="w-full h-full object-cover"
+                                  />
+                                ) : (
+                                  <Image className="text-[#cba397]" size={72} />
+                                )}
+                                {/* Featured Badge */}
+                                <div className="absolute top-4 right-4">
+                                  <span className="bg-gradient-to-r from-[#cba397] to-[#667c93] text-white px-3 py-1 rounded-full text-xs font-semibold shadow-lg">
+                                    ✨ Featured
+                                  </span>
+                                </div>
+                              </div>
+                              <div className="p-6">
+                                <h3 className="text-xl font-semibold text-gray-900 mb-2">{album.name}</h3>
+                                <p className="text-gray-600 text-sm mb-4 line-clamp-2">{album.description}</p>
+                                <div className="flex items-center justify-between">
+                                  <span className="text-sm text-gray-500">Wedding Highlights</span>
+                                  <div className="flex items-center gap-2">
+                                    <Heart className="w-4 h-4 text-[#cba397]" />
+                                    <span className="text-xs text-[#667c93] font-medium">Must See</span>
+                                  </div>
+                                </div>
+                              </div>
+                            </motion.div>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+
+                    {/* All Albums Section */}
+                    {albums.filter(album => !album.isFeatured).length > 0 && (
+                      <div>
+                        <div className="flex items-center mb-8">
+                          <div className="flex-1 h-px bg-gradient-to-r from-transparent to-gray-300"></div>
+                          <div className="px-6">
+                            <h3 className="text-2xl font-light text-gray-700 font-parisienne">
+                              All Albums
+                            </h3>
+                          </div>
+                          <div className="flex-1 h-px bg-gradient-to-l from-transparent to-gray-300"></div>
+                        </div>
+                        
+                        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                          {albums.filter(album => !album.isFeatured).map((album, index) => (
+                            <motion.div
+                              key={album.id}
+                              initial={{ opacity: 0, y: 20 }}
+                              animate={{ opacity: 1, y: 0 }}
+                              transition={{ delay: index * 0.1 }}
+                              whileHover={{ y: -5 }}
+                              className="bg-white rounded-xl shadow-lg overflow-hidden cursor-pointer hover:shadow-xl transition-all duration-300"
+                              onClick={() => handleAlbumSelect(album)}
+                            >
+                              <div className="h-48 bg-gradient-to-br from-[#84a2be] from-opacity-20 to-[#cba397] to-opacity-20 flex items-center justify-center">
+                                {album.coverImage ? (
+                                  <img
+                                    src={getBestDisplayUrl(album.coverImage, undefined, 400)}
+                                    alt={album.name}
+                                    className="w-full h-full object-cover"
+                                  />
+                                ) : (
+                                  <Image className="text-[#cba397]" size={64} />
+                                )}
+                              </div>
+                              <div className="p-6">
+                                <h3 className="text-xl font-semibold text-gray-900 mb-2">{album.name}</h3>
+                                <p className="text-gray-600 text-sm mb-4 line-clamp-2">{album.description}</p>
+                                <div className="flex items-center justify-between">
+                                  <span className="text-sm text-gray-500">Album</span>
+                                  <span className="text-xs text-gray-400">
+                                    {(() => {
+                                      try {
+                                        const date = album.createdAt?.toDate ? album.createdAt.toDate() : new Date(album.createdAt);
+                                        return date.toLocaleDateString();
+                                      } catch (error) {
+                                        return 'Recent';
+                                      }
+                                    })()}
+                                  </span>
+                                </div>
+                              </div>
+                            </motion.div>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+
+                    {/* Show message if only featured albums exist */}
+                    {albums.filter(album => !album.isFeatured).length === 0 && albums.filter(album => album.isFeatured).length > 0 && (
+                      <div className="text-center py-8">
+                        <p className="text-gray-500 text-sm">More albums coming soon...</p>
+                      </div>
+                    )}
+                  </>
                 ) : (
                   <div className="text-center py-12">
                     <Image className="text-gray-400 mx-auto mb-4" size={64} />
