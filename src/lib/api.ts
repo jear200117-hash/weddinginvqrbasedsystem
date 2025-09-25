@@ -2,8 +2,9 @@ import axios from 'axios';
 import Cookies from 'js-cookie';
 import { offlineCacheUtils, networkStatus } from './offlineCache';
 
-// API Configuration - Firebase Functions only
+// API Configuration - Firebase Functions with optimized endpoints
 const API_BASE_URL = 'https://api-rpahsncjpa-as.a.run.app';
+const MEDIA_API_BASE_URL = 'https://mediaapi-rpahsncjpa-as.a.run.app';
 
 // Custom cache implementation
 interface CacheEntry {
@@ -94,16 +95,21 @@ class ApiCache {
 
 const apiCache = new ApiCache();
 
-// Create axios instance
+// Create axios instances
 const api = axios.create({
   baseURL: API_BASE_URL,
   timeout: 30000,
 });
 
-// Request interceptor to add auth token and check cache
-api.interceptors.request.use((config) => {
+const mediaApi = axios.create({
+  baseURL: MEDIA_API_BASE_URL,
+  timeout: 60000, // Longer timeout for media uploads
+});
+
+// Shared request interceptor function
+const createRequestInterceptor = (apiName: string) => (config: any) => {
   const token = Cookies.get('auth_token');
-  console.log('API Request to:', config.url, 'Token available:', !!token);
+  console.log(`${apiName} Request to:`, config.url, 'Token available:', !!token);
   if (token) {
     config.headers.Authorization = `Bearer ${token}`;
     console.log('Authorization header set for:', config.url);
@@ -111,8 +117,8 @@ api.interceptors.request.use((config) => {
     console.log('No token found for request to:', config.url);
   }
 
-  // Check cache for GET requests
-  if (config.method === 'get') {
+  // Check cache for GET requests (only for main API)
+  if (config.method === 'get' && apiName === 'API') {
     const cachedData = apiCache.get(config.url || '', config.params);
     if (cachedData) {
       // Return cached data immediately
@@ -137,18 +143,22 @@ api.interceptors.request.use((config) => {
   }
 
   return config;
-});
+};
 
-// Response interceptor to handle caching and errors
-api.interceptors.response.use(
-  (response) => {
-    // Cache successful GET responses
-    if (response.config.method === 'get') {
+// Apply request interceptors
+api.interceptors.request.use(createRequestInterceptor('API'));
+mediaApi.interceptors.request.use(createRequestInterceptor('MediaAPI'));
+
+// Shared response interceptor function
+const createResponseInterceptor = (apiName: string) => [
+  (response: any) => {
+    // Cache successful GET responses (only for main API)
+    if (response.config.method === 'get' && apiName === 'API') {
       apiCache.set(response.config.url || '', response.data, response.config.params);
     }
     return response;
   },
-  (error) => {
+  (error: any) => {
     // Handle cached responses
     if (error.isCached) {
       return Promise.resolve(error);
@@ -156,7 +166,7 @@ api.interceptors.response.use(
 
     // Handle authentication errors
     if (error.response?.status === 401) {
-      console.warn('Authentication error detected:', error.response.data);
+      console.warn(`${apiName} Authentication error detected:`, error.response.data);
       
       // Clear invalid token
       const currentToken = Cookies.get('auth_token');
@@ -172,8 +182,8 @@ api.interceptors.response.use(
       }
     }
 
-    // Handle network errors
-    if (!navigator.onLine) {
+    // Handle network errors (only for main API with cache)
+    if (!navigator.onLine && apiName === 'API') {
       const cachedData = apiCache.get(error.config?.url || '', error.config?.params);
       if (cachedData) {
         return Promise.resolve({ data: cachedData, fromCache: true });
@@ -189,7 +199,11 @@ api.interceptors.response.use(
 
     return Promise.reject(normalized);
   }
-);
+];
+
+// Apply response interceptors
+api.interceptors.response.use(...createResponseInterceptor('API'));
+mediaApi.interceptors.response.use(...createResponseInterceptor('MediaAPI'));
 
 // Auth API
 export const authAPI = {
@@ -378,7 +392,7 @@ export const albumsAPI = {
   }
 };
 
-// Media API
+// Media API (uses dedicated high-memory endpoint)
 export const mediaAPI = {
   upload: async (albumId: string, files: FileList, uploadedBy: string) => {
     const formData = new FormData();
@@ -387,7 +401,7 @@ export const mediaAPI = {
     });
     formData.append('uploadedBy', uploadedBy);
 
-    const response = await api.post(
+    const response = await mediaApi.post(
       `/media/upload/${albumId}`,
       formData,
       {
@@ -409,7 +423,7 @@ export const mediaAPI = {
         reader.readAsDataURL(file);
       });
 
-      const resp = await api.post(`/media/host/upload-base64/${albumId}`, {
+      const resp = await mediaApi.post(`/media/host/upload-base64/${albumId}`, {
         fileData: base64Data,
         fileName: file.name,
         fileType: file.type,
@@ -436,7 +450,7 @@ export const mediaAPI = {
         reader.readAsDataURL(file);
       });
 
-      const resp = await api.post(`/media/upload/qr-base64/${qrCode}`, {
+      const resp = await mediaApi.post(`/media/upload/qr-base64/${qrCode}`, {
         fileData: base64Data,
         fileName: file.name,
         fileType: file.type,
@@ -452,6 +466,7 @@ export const mediaAPI = {
     return { media: uploadedMedia };
   },
 
+  // Media metadata operations use the lightweight API
   getAll: async (params?: {
     page?: number;
     limit?: number;
