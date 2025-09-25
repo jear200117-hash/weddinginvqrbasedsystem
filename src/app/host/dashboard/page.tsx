@@ -238,6 +238,20 @@ export default function HostDashboard() {
   });
   const [isUpdatingAlbum, setIsUpdatingAlbum] = useState(false);
 
+  // Multi-add album state
+  const [showMultiAddAlbumModal, setShowMultiAddAlbumModal] = useState(false);
+  const [multiAlbums, setMultiAlbums] = useState([
+    { name: '', description: '', isPublic: true, coverImage: undefined as string | undefined }
+  ]);
+  const [isCreatingMultiAlbums, setIsCreatingMultiAlbums] = useState(false);
+  const [multiAlbumValidation, setMultiAlbumValidation] = useState<Array<{
+    name: ValidationResult;
+    description: ValidationResult;
+  }>>([
+    { name: { isValid: true, errors: [] }, description: { isValid: true, errors: [] } }
+  ]);
+  const [showMultiAlbumValidation, setShowMultiAlbumValidation] = useState(false);
+
   // Album viewing state
   const [albumMedia, setAlbumMedia] = useState<any[]>([]);
   const [loadingMedia, setLoadingMedia] = useState(false);
@@ -705,6 +719,121 @@ export default function HostDashboard() {
       toast.error(error.message || 'Failed to update album');
     } finally {
       setIsUpdatingAlbum(false);
+    }
+  };
+
+  // Multi-add album handlers
+  const addAlbumToMultiAdd = () => {
+    if (multiAlbums.length >= 10) {
+      toast.error('Maximum 10 albums can be created at once');
+      return;
+    }
+    
+    setMultiAlbums(prev => [...prev, { name: '', description: '', isPublic: true, coverImage: undefined }]);
+    setMultiAlbumValidation(prev => [...prev, { name: { isValid: true, errors: [] }, description: { isValid: true, errors: [] } }]);
+  };
+
+  const removeAlbumFromMultiAdd = (index: number) => {
+    if (multiAlbums.length <= 1) {
+      toast.error('At least one album is required');
+      return;
+    }
+    
+    setMultiAlbums(prev => prev.filter((_, i) => i !== index));
+    setMultiAlbumValidation(prev => prev.filter((_, i) => i !== index));
+  };
+
+  const updateMultiAlbum = (index: number, field: string, value: any) => {
+    setMultiAlbums(prev => prev.map((album, i) => 
+      i === index ? { ...album, [field]: value } : album
+    ));
+
+    // Validate the field if validation is enabled
+    if (showMultiAlbumValidation) {
+      if (field === 'name') {
+        const nameValidation = validateAlbumName(value);
+        setMultiAlbumValidation(prev => prev.map((validation, i) => 
+          i === index ? { ...validation, name: nameValidation } : validation
+        ));
+      } else if (field === 'description') {
+        const descriptionValidation = validateAlbumDescription(value);
+        setMultiAlbumValidation(prev => prev.map((validation, i) => 
+          i === index ? { ...validation, description: descriptionValidation } : validation
+        ));
+      }
+    }
+  };
+
+  const validateMultiAlbumForm = () => {
+    const validations = multiAlbums.map(album => ({
+      name: validateAlbumName(album.name),
+      description: validateAlbumDescription(album.description)
+    }));
+    
+    setMultiAlbumValidation(validations);
+    setShowMultiAlbumValidation(true);
+    
+    return validations.every(validation => validation.name.isValid && validation.description.isValid);
+  };
+
+  const handleCreateMultiAlbums = async () => {
+    if (isCreatingMultiAlbums) return;
+    
+    if (!validateMultiAlbumForm()) {
+      toast.error('Please fix the validation errors before creating albums');
+      return;
+    }
+
+    // Check for duplicate names
+    const names = multiAlbums.map(album => album.name.trim().toLowerCase());
+    const duplicates = names.filter((name, index) => names.indexOf(name) !== index);
+    if (duplicates.length > 0) {
+      toast.error('Album names must be unique');
+      return;
+    }
+
+    console.log('Creating multiple albums:', multiAlbums);
+
+    try {
+      setIsCreatingMultiAlbums(true);
+      
+      const response = await albumsAPI.createBulk(
+        multiAlbums.map(album => ({
+          name: album.name.trim(),
+          description: album.description.trim(),
+          isPublic: album.isPublic,
+          coverImage: album.coverImage
+        })),
+        {
+          qrCenterType: qrConfig.centerType,
+          qrCenterOptions: qrConfig.centerOptions
+        }
+      );
+
+      console.log('Multi-album creation response:', response);
+
+      if (response.successCount === multiAlbums.length) {
+        toast.success(`Successfully created ${response.successCount} albums!`);
+      } else if (response.successCount > 0) {
+        toast.success(`Created ${response.successCount} of ${response.totalCount} albums. ${response.failureCount} failed.`);
+        if (response.failedAlbums) {
+          console.error('Failed albums:', response.failedAlbums);
+        }
+      } else {
+        toast.error('Failed to create any albums');
+      }
+
+      // Close modal and reset form
+      setShowMultiAddAlbumModal(false);
+      setMultiAlbums([{ name: '', description: '', isPublic: true, coverImage: undefined }]);
+      setMultiAlbumValidation([{ name: { isValid: true, errors: [] }, description: { isValid: true, errors: [] } }]);
+      setShowMultiAlbumValidation(false);
+
+    } catch (error: any) {
+      console.error('Multi-album creation error:', error);
+      toast.error(error.response?.data?.error || 'Failed to create albums');
+    } finally {
+      setIsCreatingMultiAlbums(false);
     }
   };
 
@@ -1432,13 +1561,22 @@ export default function HostDashboard() {
                     <h3 className="text-2xl font-bold text-slate-800">Wedding Albums</h3>
                     <p className="text-slate-600 mt-1">Organize and manage your wedding photo collections</p>
                   </div>
-                  <button
-                    onClick={() => setShowCreateAlbumModal(true)}
-                    className="bg-gradient-to-r from-blue-600 to-indigo-600 text-white px-6 py-3 rounded-xl font-semibold hover:from-blue-700 hover:to-indigo-700 transition-all duration-300 flex items-center gap-2 shadow-lg hover:shadow-xl"
-                  >
-                    <Plus size={20} />
-                    <span>Create Album</span>
-                  </button>
+                  <div className="flex flex-col sm:flex-row gap-3">
+                    <button
+                      onClick={() => setShowCreateAlbumModal(true)}
+                      className="bg-gradient-to-r from-blue-600 to-indigo-600 text-white px-6 py-3 rounded-xl font-semibold hover:from-blue-700 hover:to-indigo-700 transition-all duration-300 flex items-center gap-2 shadow-lg hover:shadow-xl"
+                    >
+                      <Plus size={20} />
+                      <span>Create Album</span>
+                    </button>
+                    <button
+                      onClick={() => setShowMultiAddAlbumModal(true)}
+                      className="bg-gradient-to-r from-purple-600 to-pink-600 text-white px-6 py-3 rounded-xl font-semibold hover:from-purple-700 hover:to-pink-700 transition-all duration-300 flex items-center gap-2 shadow-lg hover:shadow-xl"
+                    >
+                      <Plus size={20} />
+                      <span>Create Multiple</span>
+                    </button>
+                  </div>
                 </div>
 
                 <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
@@ -2999,6 +3137,202 @@ export default function HostDashboard() {
                   ) : (
                     <div className="flex items-center gap-2">
                       <span>Create Album</span>
+                      <Image size={16} />
+                    </div>
+                  )}
+                </button>
+              </div>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      {/* Multi-Add Album Modal */}
+      <AnimatePresence>
+        {showMultiAddAlbumModal && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-start justify-center p-4 z-50 overflow-y-auto"
+            onClick={() => setShowMultiAddAlbumModal(false)}
+          >
+            <motion.div
+              initial={{ scale: 0.95, opacity: 0, y: 20 }}
+              animate={{ scale: 1, opacity: 1, y: 0 }}
+              exit={{ scale: 0.95, opacity: 0, y: 20 }}
+              className="bg-white rounded-2xl w-full max-w-4xl my-4 shadow-2xl border border-slate-200 relative"
+              onClick={(e) => e.stopPropagation()}
+            >
+              {/* Modal Header */}
+              <div className="bg-gradient-to-r from-purple-50 to-pink-50 px-6 py-4 border-b border-slate-200">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-3">
+                    <div className="p-2 bg-purple-100 rounded-xl">
+                      <Image className="w-6 h-6 text-purple-600" />
+                    </div>
+                    <div>
+                      <h3 className="text-xl font-bold text-slate-800">Create Multiple Albums</h3>
+                      <p className="text-sm text-slate-600">Create up to 10 albums at once for your wedding</p>
+                    </div>
+                  </div>
+                  <button
+                    onClick={() => setShowMultiAddAlbumModal(false)}
+                    className="p-2 text-slate-400 hover:text-slate-600 hover:bg-slate-100 rounded-xl transition-colors"
+                  >
+                    <X size={20} />
+                  </button>
+                </div>
+              </div>
+
+              {/* Modal Content */}
+              <div className="p-6 max-h-[70vh] overflow-y-auto">
+                {/* QR Configuration Indicator */}
+                <div className="bg-gradient-to-r from-blue-50 to-indigo-50 border border-blue-200 rounded-xl p-4 mb-6">
+                  <div className="flex items-center gap-3 text-sm">
+                    <div className="p-2 bg-blue-100 rounded-lg">
+                      <Palette className="w-4 h-4 text-blue-600" />
+                    </div>
+                    <div className="flex-1">
+                      <div className="font-medium text-blue-800">
+                        QR Code Style: <span className="capitalize text-blue-700">
+                          {qrConfig.centerType === 'none' ? 'Plain QR Code' :
+                            qrConfig.centerType === 'logo' ? 'With Logo' :
+                              `With Monogram (${qrConfig.centerOptions.monogram})`}
+                        </span>
+                      </div>
+                      <p className="text-xs text-blue-600 mt-1">
+                        All albums will use your current QR configuration. Change it in QR Settings if needed.
+                      </p>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Albums List */}
+                <div className="space-y-6">
+                  {multiAlbums.map((album, index) => (
+                    <motion.div
+                      key={index}
+                      initial={{ opacity: 0, y: 10 }}
+                      animate={{ opacity: 1, y: 0 }}
+                      transition={{ delay: index * 0.1 }}
+                      className="bg-slate-50 rounded-xl p-6 border border-slate-200"
+                    >
+                      <div className="flex items-center justify-between mb-4">
+                        <h4 className="text-lg font-semibold text-slate-800">Album {index + 1}</h4>
+                        {multiAlbums.length > 1 && (
+                          <button
+                            onClick={() => removeAlbumFromMultiAdd(index)}
+                            className="p-2 text-red-500 hover:text-red-700 hover:bg-red-50 rounded-lg transition-colors"
+                            title="Remove Album"
+                          >
+                            <Trash2 size={16} />
+                          </button>
+                        )}
+                      </div>
+
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        <div>
+                          <label className="block text-sm font-medium text-slate-700 mb-2">
+                            Album Name *
+                          </label>
+                          <input
+                            type="text"
+                            value={album.name}
+                            onChange={(e) => updateMultiAlbum(index, 'name', e.target.value)}
+                            placeholder="Enter album name"
+                            className={`w-full px-4 py-3 border rounded-xl focus:ring-2 focus:ring-purple-500 focus:border-transparent text-slate-900 font-medium bg-white transition-colors ${
+                              showMultiAlbumValidation && !multiAlbumValidation[index]?.name.isValid
+                                ? 'border-red-300 bg-red-50'
+                                : 'border-slate-300'
+                            }`}
+                          />
+                          {showMultiAlbumValidation && multiAlbumValidation[index] && (
+                            <FieldValidation
+                              error={multiAlbumValidation[index].name.errors[0]}
+                            />
+                          )}
+                        </div>
+
+                        <div>
+                          <label className="block text-sm font-medium text-slate-700 mb-2">
+                            Description
+                          </label>
+                          <textarea
+                            value={album.description}
+                            onChange={(e) => updateMultiAlbum(index, 'description', e.target.value)}
+                            placeholder="Enter album description (optional)"
+                            rows={3}
+                            className={`w-full px-4 py-3 border rounded-xl focus:ring-2 focus:ring-purple-500 focus:border-transparent text-slate-900 font-medium bg-white resize-none transition-colors ${
+                              showMultiAlbumValidation && multiAlbumValidation[index] && !multiAlbumValidation[index].description.isValid
+                                ? 'border-red-300 bg-red-50'
+                                : 'border-slate-300'
+                            }`}
+                          />
+                          {showMultiAlbumValidation && multiAlbumValidation[index] && (
+                            <FieldValidation
+                              error={multiAlbumValidation[index].description.errors[0]}
+                            />
+                          )}
+                        </div>
+                      </div>
+
+                      <div className="mt-4">
+                        <label className="flex items-center gap-3 p-3 bg-white rounded-xl border border-slate-200 hover:bg-slate-50 transition-colors cursor-pointer">
+                          <input
+                            type="checkbox"
+                            checked={album.isPublic}
+                            onChange={(e) => updateMultiAlbum(index, 'isPublic', e.target.checked)}
+                            className="w-5 h-5 text-purple-600 bg-white border-slate-300 rounded focus:ring-purple-500 focus:ring-2"
+                          />
+                          <div>
+                            <span className="text-sm font-medium text-slate-700">Public Album</span>
+                            <p className="text-xs text-slate-500 mt-1">Guests can view and upload photos to this album</p>
+                          </div>
+                        </label>
+                      </div>
+                    </motion.div>
+                  ))}
+                </div>
+
+                {/* Add Album Button */}
+                {multiAlbums.length < 10 && (
+                  <div className="mt-6 text-center">
+                    <button
+                      onClick={addAlbumToMultiAdd}
+                      className="inline-flex items-center gap-2 px-6 py-3 bg-gradient-to-r from-green-500 to-emerald-500 text-white rounded-xl font-medium hover:from-green-600 hover:to-emerald-600 transition-all duration-200 shadow-lg hover:shadow-xl"
+                    >
+                      <Plus size={20} />
+                      <span>Add Another Album</span>
+                    </button>
+                    <p className="text-xs text-slate-500 mt-2">
+                      You can create up to {10 - multiAlbums.length} more albums
+                    </p>
+                  </div>
+                )}
+              </div>
+
+              {/* Modal Footer */}
+              <div className="bg-slate-50 px-6 py-4 border-t border-slate-200 flex flex-col sm:flex-row gap-3 sm:justify-end">
+                <button
+                  onClick={() => setShowMultiAddAlbumModal(false)}
+                  className="px-6 py-3 rounded-xl border border-slate-300 text-slate-700 font-medium hover:bg-slate-100 transition-colors order-2 sm:order-1"
+                >
+                  Cancel
+                </button>
+                <button
+                  onClick={handleCreateMultiAlbums}
+                  disabled={isCreatingMultiAlbums || multiAlbums.some(album => !album.name.trim()) || (showMultiAlbumValidation && multiAlbumValidation.some(validation => !validation.name.isValid || !validation.description.isValid))}
+                  className="px-6 py-3 rounded-xl bg-gradient-to-r from-purple-600 to-pink-600 text-white font-medium hover:from-purple-700 hover:to-pink-700 transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed shadow-lg hover:shadow-xl order-1 sm:order-2"
+                >
+                  {isCreatingMultiAlbums ? (
+                    <div className="flex items-center gap-2">
+                      <div className="animate-spin rounded-full h-4 w-4 border-2 border-white/30 border-t-white"></div>
+                      <span>Creating Albums...</span>
+                    </div>
+                  ) : (
+                    <div className="flex items-center gap-2">
+                      <span>Create {multiAlbums.length} Albums</span>
                       <Image size={16} />
                     </div>
                   )}

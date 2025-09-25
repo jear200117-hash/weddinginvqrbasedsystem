@@ -296,6 +296,23 @@ export const albumsAPI = {
     return response.data;
   },
 
+  createBulk: async (albums: Array<{
+    name: string;
+    description?: string;
+    isPublic?: boolean;
+    coverImage?: string;
+  }>, qrConfig?: {
+    qrCenterType?: string;
+    qrCenterOptions?: any;
+  }) => {
+    const response = await api.post('/albums/bulk', {
+      albums,
+      qrCenterType: qrConfig?.qrCenterType || 'monogram',
+      qrCenterOptions: qrConfig?.qrCenterOptions || {}
+    });
+    return response.data;
+  },
+
   getHostAlbums: async () => {
     const response = await api.get('/albums/host');
     return response.data;
