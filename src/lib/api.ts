@@ -154,6 +154,24 @@ api.interceptors.response.use(
       return Promise.resolve(error);
     }
 
+    // Handle authentication errors
+    if (error.response?.status === 401) {
+      console.warn('Authentication error detected:', error.response.data);
+      
+      // Clear invalid token
+      const currentToken = Cookies.get('auth_token');
+      if (currentToken) {
+        console.log('Removing invalid auth token');
+        Cookies.remove('auth_token');
+      }
+      
+      // For certain endpoints, try to redirect to login
+      if (typeof window !== 'undefined' && window.location.pathname.includes('/host/')) {
+        console.log('Redirecting to login due to auth error');
+        window.location.href = '/host/login';
+      }
+    }
+
     // Handle network errors
     if (!navigator.onLine) {
       const cachedData = apiCache.get(error.config?.url || '', error.config?.params);
@@ -294,6 +312,44 @@ export const albumsAPI = {
   }) => {
     const response = await api.get(`/albums/${id}`, { params });
     return response.data;
+  },
+
+  getPublicById: async (id: string) => {
+    const response = await api.get(`/albums/public/${id}`);
+    return response.data;
+  },
+
+  // Smart function that tries authenticated access first, then falls back to public
+  getByIdSmart: async (id: string, params?: {
+    includeMedia?: boolean;
+    limit?: number;
+  }) => {
+    const token = Cookies.get('auth_token');
+    
+    // If we have a token, try the authenticated endpoint first
+    if (token) {
+      try {
+        const response = await api.get(`/albums/${id}`, { params });
+        return response.data;
+      } catch (error: any) {
+        // If authentication fails, fall back to public endpoint
+        if (error.status === 401 || error.status === 403) {
+          console.log('Authenticated access failed, trying public access for album:', id);
+          try {
+            const publicResponse = await api.get(`/albums/public/${id}`);
+            return publicResponse.data;
+          } catch (publicError) {
+            // If public access also fails, throw the original error
+            throw error;
+          }
+        }
+        throw error;
+      }
+    } else {
+      // No token, go directly to public endpoint
+      const response = await api.get(`/albums/public/${id}`);
+      return response.data;
+    }
   },
 
   update: async (id: string, album: {

@@ -259,7 +259,7 @@ export default function HomePage() {
 
   const fetchAlbumMedia = async (albumId: string) => {
     try {
-      const response = await albumsAPI.getById(albumId, {});
+      const response = await albumsAPI.getByIdSmart(albumId, {});
       console.log('Album media response:', response);
       // Media is now handled by Firebase real-time hook
     } catch (error: any) {
