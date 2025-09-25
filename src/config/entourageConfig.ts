@@ -115,7 +115,7 @@ export const ENTOURAGE_CONFIG = {
     bridesmaids: {
       title: "Bridesmaids",
       members: [
-        { name: "Danica De La Rea", number: 1 },
+        { name: "Jandina De Roxas", number: 1 },
         { name: "Evarose Marco", number: 2 },
         { name: "Alliyah Tañafranca", number: 3 }
       ]
