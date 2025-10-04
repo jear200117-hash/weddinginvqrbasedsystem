@@ -4,7 +4,7 @@
  */
 
 // Cloudinary configuration
-const CLOUDINARY_CLOUD_NAME = process.env.NEXT_PUBLIC_CLOUDINARY_CLOUD_NAME || '';
+const CLOUDINARY_CLOUD_NAME = 'ddjopmdsi';
 const CLOUDINARY_BASE_URL = `https://res.cloudinary.com/${CLOUDINARY_CLOUD_NAME}/image/upload`;
 
 // Debug - Check if environment variable is loaded
