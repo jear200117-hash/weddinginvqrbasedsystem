@@ -15,6 +15,7 @@ import {
 } from '@/hooks/useFirebaseRealtime';
 import { getBestDisplayUrl, getFullSizeDisplayUrl, getVideoPlaybackUrl, getVideoDownloadUrl } from '@/lib/googleDriveUtils';
 import toast, { Toaster } from 'react-hot-toast';
+import { getImageUrl, CloudinaryPresets } from '@/lib/cloudinary';
 import {
   Users,
   Mail,
@@ -1208,7 +1209,7 @@ export default function HostDashboard() {
             <div className="flex items-center gap-4">
               <div className="w-12 h-12 sm:w-14 sm:h-14 rounded-full bg-white shadow-md p-2 overflow-hidden">
                 <img
-                  src="/imgs/monogram-flower-black.png"
+                  src={getImageUrl('imgs', 'monogram-flower-black.png', CloudinaryPresets.highQuality)}
                   alt="MJ & Erica Monogram"
                   className="w-full h-full object-contain"
                 />

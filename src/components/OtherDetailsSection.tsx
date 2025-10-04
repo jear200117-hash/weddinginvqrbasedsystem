@@ -1,6 +1,7 @@
 'use client';
 
 import { motion } from 'framer-motion';
+import { getImageUrl, CloudinaryPresets } from '@/lib/cloudinary';
 
 export default function OtherDetailsSection() {
   return (
@@ -8,7 +9,7 @@ export default function OtherDetailsSection() {
       <div
         className="absolute inset-0 bg-cover bg-center bg-no-repeat pointer-events-none"
         style={{
-          backgroundImage: 'url(/weddingimgs/img16.jpg)',
+          backgroundImage: `url(${getImageUrl('weddingimgs', 'img16.jpg', CloudinaryPresets.background)})`,
           opacity: 0.08,
           transform: 'scale(1.1)'
         }}
@@ -24,7 +25,7 @@ export default function OtherDetailsSection() {
         >
           <div className="w-20 h-20 mx-auto flex items-center justify-center overflow-hidden mb-5">
             <img 
-              src="/imgs/monogram-flower-black.png" 
+              src={getImageUrl('imgs', 'monogram-flower-black.png', CloudinaryPresets.highQuality)} 
               alt="MJ & Erica Monogram" 
               className="w-full h-full object-contain"
             />
@@ -151,7 +152,7 @@ export default function OtherDetailsSection() {
                   {/* QR Code */}
                   <div className="bg-white rounded-2xl p-8 shadow-lg border-2 border-green-100">
                     <img
-                      src="/imgs/gcash-qr.png"
+                      src={getImageUrl('imgs', 'gcash-qr.png', CloudinaryPresets.highQuality)}
                       alt="GCash QR Code"
                       className="w-56 h-56 object-contain mx-auto"
                     />
@@ -175,7 +176,7 @@ export default function OtherDetailsSection() {
                   {/* QR Code */}
                   <div className="bg-white rounded-2xl p-8 shadow-lg border-2 border-blue-100">
                     <img
-                      src="/imgs/dollar-account-qr.png"
+                      src={getImageUrl('imgs', 'dollar-account-qr.png', CloudinaryPresets.highQuality)}
                       alt="Dollar Account QR Code"
                       className="w-56 h-56 object-contain mx-auto"
                     />

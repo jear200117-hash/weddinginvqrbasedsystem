@@ -8,6 +8,7 @@ import { useRouter } from 'next/navigation';
 import toast, { Toaster } from 'react-hot-toast';
 import Link from 'next/link';
 import Cookies from 'js-cookie';
+import { getImageUrl, CloudinaryPresets } from '@/lib/cloudinary';
 
 export default function HostLoginPage() {
   const [formData, setFormData] = useState({
@@ -63,7 +64,7 @@ export default function HostLoginPage() {
         <div className="text-center mb-8">
           <div className="w-30 h-30 mx-auto flex items-center justify-center overflow-hidden mb-5">
             <img 
-              src="/imgs/monogram-flower-black.png" 
+              src={getImageUrl('imgs', 'monogram-flower-black.png', CloudinaryPresets.highQuality)} 
               alt="MJ & Erica Monogram" 
               className="w-full h-full object-contain"
             />

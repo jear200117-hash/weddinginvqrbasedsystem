@@ -4,6 +4,7 @@ import { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Heart, Users, Check, X, Mail, Phone, ArrowRight, AlertCircle, Calendar, MapPin } from 'lucide-react';
 import { rsvpAPI } from '@/lib/api';
+import { getImageUrl, CloudinaryPresets } from '@/lib/cloudinary';
 
 interface RSVPSectionProps {
   guestName: string;
@@ -218,7 +219,7 @@ export default function RSVPSection({ guestName, qrCode, customMessage, currentR
       <div 
         className="absolute inset-0 bg-cover bg-center bg-no-repeat pointer-events-none"
         style={{
-          backgroundImage: 'url(/weddingimgs/img16.jpg)',
+          backgroundImage: `url(${getImageUrl('weddingimgs', 'img16.jpg', CloudinaryPresets.background)})`,
           opacity: 0.08,
           transform: 'scale(1.1)'
         }}
@@ -234,7 +235,7 @@ export default function RSVPSection({ guestName, qrCode, customMessage, currentR
         >
           <div className="w-20 h-20 mx-auto flex items-center justify-center overflow-hidden mb-5">
             <img 
-              src="/imgs/monogram-flower-black.png" 
+              src={getImageUrl('imgs', 'monogram-flower-black.png', CloudinaryPresets.highQuality)} 
               alt="MJ & Erica Monogram" 
               className="w-full h-full object-contain"
             />
@@ -284,7 +285,7 @@ export default function RSVPSection({ guestName, qrCode, customMessage, currentR
                   <div className="flex justify-center mb-6">
                   <div className="w-20 h-20 flex items-center justify-center overflow-hidden">
                         <img 
-                          src="/imgs/monogram-black.png" 
+                          src={getImageUrl('imgs', 'monogram-black.png', CloudinaryPresets.highQuality)} 
                           alt="MJ & Erica Monogram" 
                           className="w-full h-full object-contain"
                         />

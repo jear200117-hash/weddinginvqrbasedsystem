@@ -23,6 +23,7 @@ import OtherDetailsSection from '@/components/OtherDetailsSection';
 import FAQSection from '@/components/FAQSection';
 import { Martini, Camera, Utensils, Mic, Cake, Music, Car } from "lucide-react";
 import { useInvitationByQR, useRSVPByQR } from '@/hooks/useFirebaseRealtime';
+import { getImageUrl, CloudinaryPresets } from '@/lib/cloudinary';
 
 interface Invitation {
   id: string;
@@ -316,7 +317,7 @@ export default function InvitationPage() {
                   }}
                 >
                   <img
-                    src="/imgs/monogramwithmjanderica.png"
+                    src={getImageUrl('imgs', 'monogramwithmjanderica.png', CloudinaryPresets.highQuality)}
                     alt="MJ & Erica Wedding Monogram"
                     className="w-full h-full object-cover"
                   />
@@ -486,7 +487,7 @@ export default function InvitationPage() {
               <div
                 className="absolute inset-0 bg-cover bg-center bg-no-repeat pointer-events-none"
                 style={{
-                  backgroundImage: 'url(/weddingimgs/img1.jpg)',
+                  backgroundImage: `url(${getImageUrl('weddingimgs', 'img1.jpg', CloudinaryPresets.background)})`,
                   opacity: 0.08,
                   transform: 'scale(1.1)'
                 }}
@@ -504,7 +505,7 @@ export default function InvitationPage() {
                 >
                   <div className="w-20 h-20 mx-auto flex items-center justify-center overflow-hidden mb-5">
                     <img
-                      src="/imgs/monogram-flower-black.png"
+                      src={getImageUrl('imgs', 'monogram-flower-black.png', CloudinaryPresets.highQuality)}
                       alt="MJ & Erica Monogram"
                       className="w-full h-full object-contain"
                     />
@@ -601,7 +602,7 @@ export default function InvitationPage() {
               <div
                 className="absolute inset-0 bg-cover bg-center bg-no-repeat pointer-events-none"
                 style={{
-                  backgroundImage: 'url(/weddingimgs/img4.jpg)',
+                  backgroundImage: `url(${getImageUrl('weddingimgs', 'img4.jpg', CloudinaryPresets.background)})`,
                   opacity: 0.08,
                   transform: 'scale(1.1)'
                 }}
@@ -620,7 +621,7 @@ export default function InvitationPage() {
                     <div className="flex items-center mb-8">
                       <div className="w-32 h-32 flex items-center justify-center overflow-hidden">
                         <img
-                          src="/imgs/monogram-black.png"
+                          src={getImageUrl('imgs', 'monogram-black.png', CloudinaryPresets.highQuality)}
                           alt="MJ & Erica Monogram"
                           className="w-full h-full object-contain"
                         />
@@ -664,7 +665,7 @@ export default function InvitationPage() {
               <div
                 className="absolute inset-0 bg-cover bg-center bg-no-repeat pointer-events-none"
                 style={{
-                  backgroundImage: 'url(/weddingimgs/img2.jpg)',
+                  backgroundImage: `url(${getImageUrl('weddingimgs', 'img2.jpg', CloudinaryPresets.background)})`,
                   opacity: 0.08,
                   transform: 'scale(1.1)'
                 }}
@@ -680,7 +681,7 @@ export default function InvitationPage() {
                 >
                   <div className="w-20 h-20 mx-auto flex items-center justify-center overflow-hidden mb-5">
                     <img
-                      src="/imgs/monogram-flower-black.png"
+                      src={getImageUrl('imgs', 'monogram-flower-black.png', CloudinaryPresets.highQuality)}
                       alt="MJ & Erica Monogram"
                       className="w-full h-full object-contain"
                     />
@@ -801,21 +802,21 @@ export default function InvitationPage() {
               >
                 <div className="aspect-[3/2] rounded-lg overflow-hidden shadow-lg">
                   <img
-                    src={ACTIVE_ENTOURAGE_CONFIG ? `/weddingimgs/${ENTOURAGE_IMAGES_CONFIG[ACTIVE_ENTOURAGE_CONFIG][0]}` : '/weddingimgs/img9.jpg'}
+                    src={ACTIVE_ENTOURAGE_CONFIG ? getImageUrl('weddingimgs', ENTOURAGE_IMAGES_CONFIG[ACTIVE_ENTOURAGE_CONFIG][0], CloudinaryPresets.auto) : getImageUrl('weddingimgs', 'img9.jpg', CloudinaryPresets.auto)}
                     alt="Elegant wedding moment"
                     className="w-full h-full object-cover"
                   />
                 </div>
                 <div className="aspect-[3/2] rounded-lg overflow-hidden shadow-lg">
                   <img
-                    src={ACTIVE_ENTOURAGE_CONFIG ? `/weddingimgs/${ENTOURAGE_IMAGES_CONFIG[ACTIVE_ENTOURAGE_CONFIG][1]}` : '/weddingimgs/img11.jpg'}
+                    src={ACTIVE_ENTOURAGE_CONFIG ? getImageUrl('weddingimgs', ENTOURAGE_IMAGES_CONFIG[ACTIVE_ENTOURAGE_CONFIG][1], CloudinaryPresets.auto) : getImageUrl('weddingimgs', 'img11.jpg', CloudinaryPresets.auto)}
                     alt="Romantic wedding portrait"
                     className="w-full h-full object-cover"
                   />
                 </div>
                 <div className="aspect-[3/2] rounded-lg overflow-hidden shadow-lg">
                   <img
-                    src={ACTIVE_ENTOURAGE_CONFIG ? `/weddingimgs/${ENTOURAGE_IMAGES_CONFIG[ACTIVE_ENTOURAGE_CONFIG][2]}` : '/weddingimgs/img13.jpg'}
+                    src={ACTIVE_ENTOURAGE_CONFIG ? getImageUrl('weddingimgs', ENTOURAGE_IMAGES_CONFIG[ACTIVE_ENTOURAGE_CONFIG][2], CloudinaryPresets.auto) : getImageUrl('weddingimgs', 'img13.jpg', CloudinaryPresets.auto)}
                     alt="Beautiful wedding celebration"
                     className="w-full h-full object-cover"
                   />
@@ -829,7 +830,7 @@ export default function InvitationPage() {
               <div
                 className="absolute inset-0 bg-cover bg-center bg-no-repeat pointer-events-none"
                 style={{
-                  backgroundImage: 'url(/weddingimgs/img3.jpg)',
+                  backgroundImage: `url(${getImageUrl('weddingimgs', 'img3.jpg', CloudinaryPresets.background)})`,
                   opacity: 0.08,
                   transform: 'scale(1.1)'
                 }}
@@ -844,7 +845,7 @@ export default function InvitationPage() {
                 >
                   <div className="w-20 h-20 mx-auto flex items-center justify-center overflow-hidden mb-5">
                     <img
-                      src="/imgs/monogram-flower-black.png"
+                      src={getImageUrl('imgs', 'monogram-flower-black.png', CloudinaryPresets.highQuality)}
                       alt="MJ & Erica Monogram"
                       className="w-full h-full object-contain"
                     />
@@ -1288,7 +1289,7 @@ export default function InvitationPage() {
               <div
                 className="absolute inset-0 bg-cover bg-center bg-no-repeat pointer-events-none"
                 style={{
-                  backgroundImage: 'url(/weddingimgs/img11.jpg)',
+                  backgroundImage: `url(${getImageUrl('weddingimgs', 'img11.jpg', CloudinaryPresets.background)})`,
                   opacity: 0.08,
                   transform: 'scale(1.1)'
                 }}
@@ -1304,7 +1305,7 @@ export default function InvitationPage() {
                 >
                   <div className="w-20 h-20 mx-auto flex items-center justify-center overflow-hidden mb-5">
                     <img
-                      src="/imgs/monogram-flower-black.png"
+                      src={getImageUrl('imgs', 'monogram-flower-black.png', CloudinaryPresets.highQuality)}
                       alt="MJ & Erica Monogram"
                       className="w-full h-full object-contain"
                     />
@@ -1386,7 +1387,7 @@ export default function InvitationPage() {
                     <div className="relative">
                       <div className="aspect-[4/3] rounded-2xl overflow-hidden shadow-2xl bg-gradient-to-br from-sage-green/20 to-dusty-rose/20">
                         <img
-                          src="/imgs/church.jpg"
+                          src={getImageUrl('imgs', 'church.jpg', CloudinaryPresets.auto)}
                           alt="Our Lady of Lourdes Parish Church"
                           className="w-full h-full object-cover"
                         />
@@ -1408,7 +1409,7 @@ export default function InvitationPage() {
                     <div className="relative lg:order-1">
                       <div className="aspect-[4/3] rounded-2xl overflow-hidden shadow-2xl bg-gradient-to-br from-dusty-rose/20 to-warm-beige/20">
                         <img
-                          src="/imgs/reception.jpg"
+                          src={getImageUrl('imgs', 'reception.jpg', CloudinaryPresets.auto)}
                           alt="AQUILA Crystal Palace Reception Venue"
                           className="w-full h-full object-cover"
                         />
@@ -1480,7 +1481,7 @@ export default function InvitationPage() {
               <div
                 className="absolute inset-0 bg-cover bg-center bg-no-repeat pointer-events-none"
                 style={{
-                  backgroundImage: 'url(/weddingimgs/img15.jpg)',
+                  backgroundImage: `url(${getImageUrl('weddingimgs', 'img15.jpg', CloudinaryPresets.background)})`,
                   opacity: 0.08,
                   transform: 'scale(1.1)'
                 }}
@@ -1495,7 +1496,7 @@ export default function InvitationPage() {
                 >
                   <div className="w-20 h-20 mx-auto flex items-center justify-center overflow-hidden mb-5">
                     <img
-                      src="/imgs/monogram-flower-black.png"
+                      src={getImageUrl('imgs', 'monogram-flower-black.png', CloudinaryPresets.highQuality)}
                       alt="MJ & Erica Monogram"
                       className="w-full h-full object-contain"
                     />
@@ -1656,7 +1657,7 @@ export default function InvitationPage() {
                         <div className="space-y-6">
                           <div className="w-32 h-32 rounded-lg mx-auto overflow-hidden">
                             <img
-                              src="/imgs/ninong.png"
+                              src={getImageUrl('imgs', 'ninong.png', CloudinaryPresets.auto)}
                               alt="Ninong dress code"
                               className="w-full h-full object-cover"
                             />
@@ -1673,7 +1674,7 @@ export default function InvitationPage() {
                         <div className="space-y-6">
                           <div className="w-32 h-32 rounded-lg mx-auto overflow-hidden">
                             <img
-                              src="/imgs/ninang.png"
+                              src={getImageUrl('imgs', 'ninang.png', CloudinaryPresets.auto)}
                               alt="Ninang dress code"
                               className="w-full h-full object-cover"
                             />
@@ -1690,7 +1691,7 @@ export default function InvitationPage() {
                         <div className="space-y-6">
                           <div className="w-50 h-32 rounded-lg mx-auto overflow-hidden">
                             <img
-                              src="/imgs/guest.png"
+                              src={getImageUrl('imgs', 'guest.png', CloudinaryPresets.auto)}
                               alt="Guest dress code"
                               className="w-full h-full object-cover"
                             />
@@ -1821,21 +1822,21 @@ export default function InvitationPage() {
               >
                 <div className="aspect-[3/2] rounded-lg overflow-hidden shadow-lg">
                   <img
-                    src="/weddingimgs/img15.jpg"
+                    src={getImageUrl('weddingimgs', 'img15.jpg', CloudinaryPresets.auto)}
                     alt="Beautiful wedding moment"
                     className="w-full h-full object-cover"
                   />
                 </div>
                 <div className="aspect-[3/2] rounded-lg overflow-hidden shadow-lg">
                   <img
-                    src="/weddingimgs/img1.jpg"
+                    src={getImageUrl('weddingimgs', 'img1.jpg', CloudinaryPresets.auto)}
                     alt="Romantic wedding portrait"
                     className="w-full h-full object-cover"
                   />
                 </div>
                 <div className="aspect-[3/2] rounded-lg overflow-hidden shadow-lg">
                   <img
-                    src="/weddingimgs/img5.jpg"
+                    src={getImageUrl('weddingimgs', 'img5.jpg', CloudinaryPresets.auto)}
                     alt="Elegant wedding celebration"
                     className="w-full h-full object-cover"
                   />

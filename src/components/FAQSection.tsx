@@ -2,6 +2,7 @@
 
 import { useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
+import { getImageUrl, CloudinaryPresets } from '@/lib/cloudinary';
 
 interface FAQSectionProps {
   openFAQIndex: number | null;
@@ -52,7 +53,7 @@ export default function FAQSection({ openFAQIndex, setOpenFAQIndex }: FAQSection
       <div 
         className="absolute inset-0 bg-cover bg-center bg-no-repeat pointer-events-none"
         style={{
-          backgroundImage: 'url(/weddingimgs/img10.jpg)',
+          backgroundImage: `url(${getImageUrl('weddingimgs', 'img10.jpg', CloudinaryPresets.background)})`,
           opacity: 0.08,
           transform: 'scale(1.1)'
         }}
@@ -69,7 +70,7 @@ export default function FAQSection({ openFAQIndex, setOpenFAQIndex }: FAQSection
         >
           <div className="w-20 h-20 mx-auto flex items-center justify-center overflow-hidden mb-5">
             <img 
-              src="/imgs/monogram-flower-black.png" 
+              src={getImageUrl('imgs', 'monogram-flower-black.png', CloudinaryPresets.highQuality)} 
               alt="MJ & Erica Monogram" 
               className="w-full h-full object-contain"
             />

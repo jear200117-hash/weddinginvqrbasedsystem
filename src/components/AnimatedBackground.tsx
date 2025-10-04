@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
+import { getAllWeddingImages, CloudinaryPresets } from '@/lib/cloudinary';
 
 interface AnimatedBackgroundProps {
   opacity?: number;
@@ -9,8 +10,8 @@ const AnimatedBackground: React.FC<AnimatedBackgroundProps> = ({ opacity = 0.15 
   const [isReady, setIsReady] = useState(false);
   const [imagesLoaded, setImagesLoaded] = useState(0);
 
-  // Create an array of all wedding images
-  const weddingImages = Array.from({ length: 16 }, (_, i) => `/weddingimgs/img${i + 1}.jpg`);
+  // Create an array of all wedding images from Cloudinary
+  const weddingImages = getAllWeddingImages(CloudinaryPresets.background);
 
   // Create columns - each column will have 4 images stacked vertically
   const columns = [];

@@ -10,6 +10,7 @@ import { usePublicAlbumsWithRealtime } from '@/lib/swrFirebase';
 import { useMediaByAlbum } from '@/hooks/useFirebaseRealtime';
 import { getBestDisplayUrl, getFullSizeDisplayUrl } from '@/lib/googleDriveUtils';
 import toast, { Toaster } from 'react-hot-toast';
+import { getImageUrl, CloudinaryPresets } from '@/lib/cloudinary';
 
 import { useLazyLoadMultipleImages } from '@/hooks/useLazyLoadWithPerformance';
 import { PerformanceMonitor } from '@/components/PerformanceMonitor';
@@ -402,7 +403,7 @@ export default function HomePage() {
                     }}
                   >
                     <img
-                      src="/imgs/monogram.png"
+                      src={getImageUrl('imgs', 'monogram.png', CloudinaryPresets.highQuality)}
                       alt="MJ & Erica Monogram"
                       className="mx-auto w-40 md:w-56 h-auto object-contain drop-shadow-[0_2px_4px_rgba(0,0,0,0.4)]"
                     />
