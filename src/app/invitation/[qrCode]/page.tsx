@@ -1826,14 +1826,14 @@ export default function InvitationPage() {
               >
                 <div className="aspect-[3/2] rounded-lg overflow-hidden shadow-lg">
                   <img
-                    src="/weddingimgs/img1.jpg"
+                    src="/weddingimgs/img15.jpg"
                     alt="Beautiful wedding moment"
                     className="w-full h-full object-cover"
                   />
                 </div>
                 <div className="aspect-[3/2] rounded-lg overflow-hidden shadow-lg">
                   <img
-                    src="/weddingimgs/img3.jpg"
+                    src="/weddingimgs/img1.jpg"
                     alt="Romantic wedding portrait"
                     className="w-full h-full object-cover"
                   />
