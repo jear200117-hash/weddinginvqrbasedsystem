@@ -2,11 +2,12 @@
 
 import { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Heart, Calendar, MapPin, Users, ArrowRight, Send } from 'lucide-react';
+import { Heart, Calendar, MapPin, Users, ArrowRight } from 'lucide-react';
 import { invitationsAPI, rsvpAPI } from '@/lib/api';
 import { useParams } from 'next/navigation';
 import Link from 'next/link';
 import RotatingBackground from '@/components/RotatingBackground';
+import AnimatedBackground from '@/components/AnimatedBackground';
 import StoryCarousel from '@/components/StoryCarousel';
 import RSVPSection from '@/components/RSVPSection';
 import { BACKGROUND_IMAGE_CONFIG, ACTIVE_BACKGROUND_CONFIG } from '@/config/backgroundImages';
@@ -142,9 +143,8 @@ export default function InvitationPage() {
   useEffect(() => {
     if (firebaseInvitation.invitation) {
       setInvitation(firebaseInvitation.invitation);
-      // Start animation sequence
-      setTimeout(() => setAnimationStage('envelope'), 2000);
-      setTimeout(() => setAnimationStage('invitation'), 4000);
+      // Start directly with envelope stage - user must click to open invitation
+      setTimeout(() => setAnimationStage('envelope'), 500);
       setLoading(false);
     }
   }, [firebaseInvitation.invitation]);
@@ -279,33 +279,6 @@ export default function InvitationPage() {
         </motion.div>
       )}
       <AnimatePresence mode="wait">
-        {/* Paper Plane Stage */}
-        {animationStage === 'plane' && (
-          <motion.div
-            key="plane"
-            initial={{ opacity: 0, scale: 0.5 }}
-            animate={{ opacity: 1, scale: 1 }}
-            exit={{ opacity: 0, scale: 0.5 }}
-            className={`min-h-screen flex items-center justify-center ${(!invitation?.rsvp?.status || invitation.rsvp.status === 'pending') ? 'pt-10' : ''}`}
-          >
-            <motion.div
-              animate={{
-                y: [-20, -100, -200],
-                x: [0, 50, 100],
-                rotate: [0, 15, 30]
-              }}
-              transition={{
-                duration: 2,
-                ease: "easeInOut"
-              }}
-              className="text-center"
-            >
-              <Send className="text-rose-500 mx-auto mb-4" size={80} />
-              <p className="text-xl text-gray-600">Your invitation is on its way...</p>
-            </motion.div>
-          </motion.div>
-        )}
-
         {/* Envelope Stage */}
         {animationStage === 'envelope' && (
           <motion.div
@@ -315,19 +288,41 @@ export default function InvitationPage() {
             exit={{ opacity: 0, scale: 0.5 }}
             className={`min-h-screen flex items-center justify-center ${(!invitation?.rsvp?.status || invitation.rsvp.status === 'pending') ? 'pt-16' : ''}`}
           >
+            {/* Animated Background for Envelope Stage */}
+            <AnimatedBackground opacity={0.15} />
             <motion.div
               whileHover={{ scale: 1.1 }}
               className="text-center cursor-pointer"
               onClick={() => setAnimationStage('invitation')}
             >
-              <div className="bg-white p-8 rounded-2xl shadow-2xl mb-6 transform rotate-3 hover:rotate-0 transition-transform">
-                <div className="w-32 h-24 bg-gradient-to-br from-rose-400 to-pink-500 rounded-lg relative">
-                  <div className="absolute top-2 left-2 right-2 h-1 bg-white rounded-full"></div>
-                  <div className="absolute top-4 left-2 right-2 h-1 bg-white rounded-full"></div>
-                  <div className="absolute top-6 left-2 right-2 h-1 bg-white rounded-full"></div>
-                </div>
+              <div className="flex items-center justify-center">
+                {/* Combined Monogram with MJ and Erica */}
+                <motion.div
+                  className="w-80 sm:w-96 md:w-[28rem] lg:w-[32rem] xl:w-[36rem] transform rotate-3 hover:rotate-0 transition-transform"
+                  whileHover={{ rotate: 0, scale: 1.05 }}
+                  animate={{
+                    scale: [1, 1.02, 1],
+                    rotate: [0, 2, -2, 0]
+                  }}
+                  transition={{
+                    type: "spring",
+                    stiffness: 200,
+                    damping: 15,
+                    scale: { 
+                      duration: 4, 
+                      repeat: Infinity, 
+                      ease: "easeInOut" 
+                    }
+                  }}
+                >
+                  <img
+                    src="/imgs/monogramwithmjanderica.png"
+                    alt="MJ & Erica Wedding Monogram"
+                    className="w-full h-full object-cover"
+                  />
+                </motion.div>
               </div>
-              <p className="text-xl text-gray-600">Click to open your invitation</p>
+              <p className="text-lg sm:text-xl text-gray-600 mt-6 px-4">Click to open your invitation</p>
             </motion.div>
           </motion.div>
         )}
@@ -373,7 +368,7 @@ export default function InvitationPage() {
               </div>
 
               <motion.div
-                className="relative z-10 text-center px-6 max-w-4xl mx-auto text-white"
+                className="relative z-10 text-center px-4 sm:px-6 max-w-4xl mx-auto text-white"
                 initial={{ opacity: 0, y: 50 }}
                 animate={{ opacity: 1, y: 0 }}
                 transition={{ delay: 0.3, duration: 0.8, ease: "easeOut" }}
@@ -415,7 +410,7 @@ export default function InvitationPage() {
                   animate={{ opacity: 1, scale: 1 }}
                   transition={{ delay: 0.8, duration: 0.8 }}
                 >
-                  <h1 className="text-6xl md:text-6xl lg:text-7xl font-playfair font-bold text-white tracking-tight leading-tight drop-shadow-lg">
+                  <h1 className="text-4xl sm:text-5xl md:text-6xl lg:text-7xl font-playfair font-bold text-white tracking-tight leading-tight drop-shadow-lg">
                     MJ & Erica
                   </h1>
                 </motion.div>

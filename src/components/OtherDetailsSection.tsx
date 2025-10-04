@@ -114,7 +114,7 @@ export default function OtherDetailsSection() {
             </motion.div>
           </div>
 
-          {/* 3. GCash Payment */}
+          {/* 3. Payment QR Codes */}
           <motion.div
             className="text-center"
             initial={{ opacity: 0, y: 50 }}
@@ -122,38 +122,68 @@ export default function OtherDetailsSection() {
             transition={{ duration: 0.8, delay: 0.4 }}
             viewport={{ once: true }}
           >
-            <div className="bg-white rounded-3xl p-8 shadow-xl border border-warm-beige/20 max-w-5xl mx-auto">
+            <div className="bg-white rounded-3xl p-8 shadow-xl border border-warm-beige/20 max-w-6xl mx-auto">
               <div className="mb-6">
                 <svg className="w-16 h-16 mx-auto text-slate-blue" fill="currentColor" viewBox="0 0 24 24">
                   <path d="M3 5a2 2 0 012-2h14a2 2 0 012 2v14a2 2 0 01-2 2H5a2 2 0 01-2-2V5zm2 0v14h14V5H5zm2 2h2v2H7V7zm4 0h2v2h-2V7zm4 0h2v2h-2V7zM7 11h2v2H7v-2zm4 0h2v2h-2v-2zm4 0h2v2h-2v-2zM7 15h2v2H7v-2zm4 0h2v2h-2v-2zm4 0h2v2h-2v-2z" />
                 </svg>
               </div>
               <h3 className="text-3xl md:text-4xl font-playfair text-slate-blue mb-6">
-                QR Code
+                QR Codes
               </h3>
               <p className="text-lg text-slate-blue/80 leading-relaxed mb-8">
-                Instead of traditional gifts, please consider donating to our future adventures by scanning the QR code below. Your support means the world to us.
+                Instead of traditional gifts, please consider donating to our future adventures by scanning the QR codes below. Your support means the world to us.
               </p>
 
-              {/* Account Details */}
-              <div className="bg-gradient-to-r from-green-50 to-blue-50 rounded-2xl p-6 mb-8 max-w-md mx-auto border border-green-200">
-                <div className="text-center space-y-2">
-                  <div className="text-xl font-semibold text-green-800">MA*K JA***N D.</div>
-                  <div className="text-lg text-green-700">Mobile: 0915119••••</div>
-                  <div className="text-sm text-green-600">User ID: ••••••••X0M341</div>
-                </div>
-              </div>
+              {/* QR Codes Side by Side */}
+              <div className="grid md:grid-cols-2 gap-8 max-w-5xl mx-auto">
+                {/* GCash QR Code - MJ */}
+                <div className="flex flex-col items-center">
+                  {/* Account Details */}
+                  <div className="bg-gradient-to-r from-green-50 to-blue-50 rounded-2xl p-6 mb-6 w-full border border-green-200">
+                    <div className="text-center space-y-2">
+                      <div className="text-xl font-semibold text-green-800">MA*K JA***N D.</div>
+                      <div className="text-lg text-green-700">Mobile: 0915119••••</div>
+                      <div className="text-sm text-green-600">User ID: ••••••••X0M341</div>
+                    </div>
+                  </div>
 
-              {/* QR Code */}
-              <div className="bg-white rounded-2xl p-8 inline-block shadow-lg border-2 border-green-100">
-                <img
-                  src="/imgs/gcash-qr.png"
-                  alt="GCash QR Code"
-                  className="w-56 h-56 object-contain mx-auto"
-                />
-                <p className="text-sm text-slate-blue/60 mt-4 font-medium">
-                  Scan to send via InstaPay
-                </p>
+                  {/* QR Code */}
+                  <div className="bg-white rounded-2xl p-8 shadow-lg border-2 border-green-100">
+                    <img
+                      src="/imgs/gcash-qr.png"
+                      alt="GCash QR Code"
+                      className="w-56 h-56 object-contain mx-auto"
+                    />
+                    <p className="text-sm text-slate-blue/60 mt-4 font-medium">
+                      Scan to send via GCash
+                    </p>
+                  </div>
+                </div>
+
+                {/* Dollar Account QR Code - Erica */}
+                <div className="flex flex-col items-center">
+                  {/* Account Details */}
+                  <div className="bg-gradient-to-r from-blue-50 to-purple-50 rounded-2xl p-6 mb-6 w-full border border-blue-200">
+                    <div className="text-center space-y-2">
+                      <div className="text-xl font-semibold text-blue-800">Erica Mae De Castro Pineda</div>
+                      <div className="text-lg text-blue-700">Acleda Bank</div>
+                      <div className="text-sm text-blue-600">Dollar Account</div>
+                    </div>
+                  </div>
+
+                  {/* QR Code */}
+                  <div className="bg-white rounded-2xl p-8 shadow-lg border-2 border-blue-100">
+                    <img
+                      src="/imgs/dollar-account-qr.png"
+                      alt="Dollar Account QR Code"
+                      className="w-56 h-56 object-contain mx-auto"
+                    />
+                    <p className="text-sm text-slate-blue/60 mt-4 font-medium">
+                      Scan to send to Dollar Account
+                    </p>
+                  </div>
+                </div>
               </div>
             </div>
           </motion.div>

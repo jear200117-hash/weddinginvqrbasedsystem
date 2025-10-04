@@ -28,6 +28,12 @@ interface RSVPFormData {
   phone: string;
 }
 
+interface ValidationErrors {
+  email?: string;
+  phone?: string;
+  guestName?: string;
+}
+
 export default function RSVPSection({ guestName, qrCode, customMessage, currentRSVP, onRSVPSuccess }: RSVPSectionProps) {
   const [formData, setFormData] = useState<RSVPFormData>({
     status: '',
@@ -41,6 +47,7 @@ export default function RSVPSection({ guestName, qrCode, customMessage, currentR
   const [error, setError] = useState<string | null>(null);
   const [currentStep, setCurrentStep] = useState(1);
   const [showForm, setShowForm] = useState(false);
+  const [validationErrors, setValidationErrors] = useState<ValidationErrors>({});
 
   // Check if RSVP is already submitted
   const isRSVPSubmitted = currentRSVP?.status && currentRSVP.status !== 'pending';
@@ -75,14 +82,25 @@ export default function RSVPSection({ guestName, qrCode, customMessage, currentR
       }
 
       if (formData.status === 'attending') {
-        if (!formData.email.trim()) {
-          throw new Error('Please provide your email address');
-        }
-        if (!formData.phone.trim()) {
-          throw new Error('Please provide your phone number');
-        }
-        if (!formData.guestNames[0].trim()) {
-          throw new Error('Please provide your name');
+        // Validate all fields and collect errors
+        const errors: ValidationErrors = {};
+
+        const emailError = validateEmail(formData.email);
+        if (emailError) errors.email = emailError;
+
+        const phoneError = validatePhone(formData.phone);
+        if (phoneError) errors.phone = phoneError;
+
+        const guestNameError = validateGuestName(formData.guestNames[0]);
+        if (guestNameError) errors.guestName = guestNameError;
+
+        // Set validation errors
+        setValidationErrors(errors);
+
+        // If there are validation errors, throw the first one
+        if (Object.keys(errors).length > 0) {
+          const firstError = Object.values(errors)[0];
+          throw new Error(firstError);
         }
       }
 
@@ -116,6 +134,7 @@ export default function RSVPSection({ guestName, qrCode, customMessage, currentR
     });
     setCurrentStep(1);
     setError(null);
+    setValidationErrors({});
   };
 
   const handleStartRSVP = () => {
@@ -137,6 +156,60 @@ export default function RSVPSection({ guestName, qrCode, customMessage, currentR
       hour: '2-digit',
       minute: '2-digit'
     });
+  };
+
+  // Validation functions
+  const validateEmail = (email: string): string | undefined => {
+    if (!email.trim()) {
+      return 'Email address is required';
+    }
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    if (!emailRegex.test(email)) {
+      return 'Please enter a valid email address';
+    }
+    return undefined;
+  };
+
+  const validatePhone = (phone: string): string | undefined => {
+    if (!phone.trim()) {
+      return 'Phone number is required';
+    }
+    // Philippine phone number validation (supports multiple formats)
+    const phoneRegex = /^(\+63|0)?[9]\d{9}$|^(\+63|0)?[2-8]\d{7}$/;
+    const cleanPhone = phone.replace(/[\s\-\(\)]/g, '');
+    if (!phoneRegex.test(cleanPhone)) {
+      return 'Please enter a valid Philippine phone number (+63 912 345 6789)';
+    }
+    return undefined;
+  };
+
+  const validateGuestName = (name: string): string | undefined => {
+    if (!name.trim()) {
+      return 'Name is required';
+    }
+    if (name.trim().length < 2) {
+      return 'Name must be at least 2 characters long';
+    }
+    return undefined;
+  };
+
+  // Real-time validation handlers
+  const handleEmailChange = (email: string) => {
+    setFormData(prev => ({ ...prev, email }));
+    const error = validateEmail(email);
+    setValidationErrors(prev => ({ ...prev, email: error }));
+  };
+
+  const handlePhoneChange = (phone: string) => {
+    setFormData(prev => ({ ...prev, phone }));
+    const error = validatePhone(phone);
+    setValidationErrors(prev => ({ ...prev, phone: error }));
+  };
+
+  const handleGuestNameChangeRT = (name: string) => {
+    setFormData(prev => ({ ...prev, guestNames: [name] }));
+    const error = validateGuestName(name);
+    setValidationErrors(prev => ({ ...prev, guestName: error }));
   };
 
   return (
@@ -317,10 +390,18 @@ export default function RSVPSection({ guestName, qrCode, customMessage, currentR
                           <input
                             type="text"
                             value={formData.guestNames[0]}
-                            onChange={(e) => handleGuestNameChange(0, e.target.value)}
-                            className="w-full px-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-sage-green focus:border-transparent transition-all"
+                            onChange={(e) => handleGuestNameChangeRT(e.target.value)}
+                            className={`w-full px-4 py-3 border rounded-xl focus:ring-2 focus:ring-sage-green focus:border-transparent transition-all ${
+                              validationErrors.guestName ? 'border-red-300 focus:ring-red-500' : 'border-gray-300'
+                            }`}
                             placeholder="Enter your full name"
                           />
+                          {validationErrors.guestName && (
+                            <p className="text-sm text-red-600 flex items-center gap-1">
+                              <AlertCircle className="w-4 h-4" />
+                              {validationErrors.guestName}
+                            </p>
+                          )}
                         </div>
 
                         {/* Email */}
@@ -333,11 +414,19 @@ export default function RSVPSection({ guestName, qrCode, customMessage, currentR
                             <input
                               type="email"
                               value={formData.email}
-                              onChange={(e) => setFormData(prev => ({ ...prev, email: e.target.value }))}
-                              className="w-full pl-10 pr-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-sage-green focus:border-transparent transition-all"
+                              onChange={(e) => handleEmailChange(e.target.value)}
+                              className={`w-full pl-10 pr-4 py-3 border rounded-xl focus:ring-2 focus:border-transparent transition-all ${
+                                validationErrors.email ? 'border-red-300 focus:ring-red-500' : 'border-gray-300 focus:ring-sage-green'
+                              }`}
                               placeholder="your.email@example.com"
                             />
                           </div>
+                          {validationErrors.email && (
+                            <p className="text-sm text-red-600 flex items-center gap-1">
+                              <AlertCircle className="w-4 h-4" />
+                              {validationErrors.email}
+                            </p>
+                          )}
                         </div>
 
                         {/* Phone Number */}
@@ -350,12 +439,22 @@ export default function RSVPSection({ guestName, qrCode, customMessage, currentR
                             <input
                               type="tel"
                               value={formData.phone}
-                              onChange={(e) => setFormData(prev => ({ ...prev, phone: e.target.value }))}
-                              className="w-full pl-10 pr-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-sage-green focus:border-transparent transition-all"
+                              onChange={(e) => handlePhoneChange(e.target.value)}
+                              className={`w-full pl-10 pr-4 py-3 border rounded-xl focus:ring-2 focus:border-transparent transition-all ${
+                                validationErrors.phone ? 'border-red-300 focus:ring-red-500' : 'border-gray-300 focus:ring-sage-green'
+                              }`}
                               placeholder="+63 912 345 6789"
                             />
                           </div>
-                          <p className="text-xs text-gray-500">Format: +63 912 345 6789</p>
+                          <div className="flex justify-between items-center">
+                            <p className="text-xs text-gray-500">Format: +63 912 345 6789</p>
+                            {validationErrors.phone && (
+                              <p className="text-sm text-red-600 flex items-center gap-1">
+                                <AlertCircle className="w-4 h-4" />
+                                {validationErrors.phone}
+                              </p>
+                            )}
+                          </div>
                         </div>
                       </div>
 
@@ -371,7 +470,7 @@ export default function RSVPSection({ guestName, qrCode, customMessage, currentR
 
                         <motion.button
                           onClick={handleSubmit}
-                          disabled={isSubmitting || !formData.guestNames[0].trim() || !formData.email.trim() || !formData.phone.trim()}
+                          disabled={isSubmitting || Object.keys(validationErrors).length > 0 || !formData.guestNames[0].trim() || !formData.email.trim() || !formData.phone.trim()}
                           className="flex items-center gap-2 px-8 py-3 bg-gradient-to-r from-green-500 to-emerald-600 text-white rounded-xl hover:from-green-600 hover:to-emerald-700 transition-all disabled:opacity-50 disabled:cursor-not-allowed"
                           whileHover={{ scale: 1.02 }}
                           whileTap={{ scale: 0.98 }}
