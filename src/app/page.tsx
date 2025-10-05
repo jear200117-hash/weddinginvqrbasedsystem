@@ -1034,7 +1034,7 @@ export default function HomePage() {
                   { time: "3:00 PM", label: "Cake Cutting", icon: <Cake className="w-6 h-6 stroke-[1.5]" />, description: "Sweet Celebration" },
                   { time: "4:00 PM", label: "First Dance", icon: <Music className="w-6 h-6 stroke-[1.5]" />, description: "Our Special Moment" },
                   { time: "6:00 PM", label: "Send Off", icon: <Car className="w-6 h-6 stroke-[1.5]" />, description: "Farewell & Thanks" },
-                  { time: "6:30 PM", label: "After Party Off", icon: <PartyPopper className="w-6 h-6 stroke-[1.5]" />, description: "Night Party" },
+                  { time: "6:30 PM", label: "After Party", icon: <PartyPopper className="w-6 h-6 stroke-[1.5]" />, description: "Night Party" },
                 ].map((item, idx) => (
                   <motion.div
                     key={idx}
