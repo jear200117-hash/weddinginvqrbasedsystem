@@ -39,9 +39,9 @@ export const ENTOURAGE_IMAGES_CONFIG = {
 
   // Unique selection (no conflicts with other sections)
   uniqueSelection: [
-    'img7.jpg',  // Unique moment
-    'img10.jpg', // Unique moment
-    'img12.jpg'  // Unique moment
+    'img21.jpg',  // Unique moment
+    'img29.jpg', // Unique moment
+    'img18.jpg'  // Unique moment
   ]
 };
 
