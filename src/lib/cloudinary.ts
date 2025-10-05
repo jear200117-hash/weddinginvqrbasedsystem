@@ -73,7 +73,7 @@ export const getImageUrl = (
  * Get all wedding images for AnimatedBackground
  */
 export const getAllWeddingImages = (transformations?: string): string[] => {
-  return Array.from({ length: 16 }, (_, i) => 
+  return Array.from({ length: 30 }, (_, i) => 
     getCloudinaryUrl('weddingimgs', `img${i + 1}.jpg`, transformations)
   );
 };
