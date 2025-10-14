@@ -121,7 +121,7 @@ export default function FAQSection({ openFAQIndex, setOpenFAQIndex }: FAQSection
                 className={`w-full px-8 py-6 text-left flex items-center justify-between hover:bg-${faq.color}/5 transition-colors`}
                 onClick={() => setOpenFAQIndex(openFAQIndex === index ? null : index)}
               >
-                <h3 className="text-xl font-parisienne text-slate-blue">
+                <h3 className="text-xl text-slate-blue">
                   {faq.question}
                 </h3>
                 <motion.div

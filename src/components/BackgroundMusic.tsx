@@ -85,6 +85,20 @@ export default function BackgroundMusic() {
     audio.volume = isMuted ? 0 : volume;
   }, [volume, isMuted]);
 
+  // Listen for external prompt to open controls or play
+  useEffect(() => {
+    const handler = (e: Event) => {
+      const custom = e as CustomEvent<{ action?: 'play' | 'open' }>;
+      setShowControls(true);
+      if (custom.detail?.action === 'play') {
+        // This is called from a user interaction (button click) so playback should be allowed
+        togglePlay();
+      }
+    };
+    window.addEventListener('open-music-controls', handler as EventListener);
+    return () => window.removeEventListener('open-music-controls', handler as EventListener);
+  }, []);
+
   // Auto-hide controls when playing
   useEffect(() => {
     if (isPlaying && showControls && !isHovering) {
