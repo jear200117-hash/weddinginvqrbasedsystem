@@ -175,11 +175,15 @@ export default function RSVPSection({ guestName, qrCode, customMessage, currentR
     if (!phone.trim()) {
       return 'Phone number is required';
     }
-    // Philippine phone number validation (supports multiple formats)
-    const phoneRegex = /^(\+63|0)?[9]\d{9}$|^(\+63|0)?[2-8]\d{7}$/;
-    const cleanPhone = phone.replace(/[\s\-\(\)]/g, '');
-    if (!phoneRegex.test(cleanPhone)) {
-      return 'Please enter a valid Philippine phone number (+63 912 345 6789)';
+    // Philippine phone number validation (relaxed to support local formats)
+    // Accept:
+    // - Mobile: 0912345679 (10 digits starting with 09), 09123456789 (11 digits), 9123456789 (10 digits), 639123456789
+    // - Landline: 8 digits with optional leading 0 and area code 2-8
+    const digits = phone.replace(/\D/g, '');
+    const isMobile = /^(09\d{8}|09\d{9}|9\d{9}|639\d{9})$/.test(digits);
+    const isLandline = /^(0?[2-8]\d{7})$/.test(digits);
+    if (!isMobile && !isLandline) {
+      return 'Please enter a valid Philippine phone number (e.g., 0912345679 or 9123456789)';
     }
     return undefined;
   };
@@ -198,29 +202,41 @@ export default function RSVPSection({ guestName, qrCode, customMessage, currentR
   const handleEmailChange = (email: string) => {
     setFormData(prev => ({ ...prev, email }));
     const error = validateEmail(email);
-    setValidationErrors(prev => ({ ...prev, email: error }));
+    setValidationErrors(prev => {
+      const next = { ...prev } as ValidationErrors;
+      if (error) next.email = error; else delete next.email;
+      return next;
+    });
   };
 
   const handlePhoneChange = (phone: string) => {
     setFormData(prev => ({ ...prev, phone }));
     const error = validatePhone(phone);
-    setValidationErrors(prev => ({ ...prev, phone: error }));
+    setValidationErrors(prev => {
+      const next = { ...prev } as ValidationErrors;
+      if (error) next.phone = error; else delete next.phone;
+      return next;
+    });
   };
 
   const handleGuestNameChangeRT = (name: string) => {
     setFormData(prev => ({ ...prev, guestNames: [name] }));
     const error = validateGuestName(name);
-    setValidationErrors(prev => ({ ...prev, guestName: error }));
+    setValidationErrors(prev => {
+      const next = { ...prev } as ValidationErrors;
+      if (error) next.guestName = error; else delete next.guestName;
+      return next;
+    });
   };
 
   return (
     <section className="min-h-screen flex items-center justify-center bg-gradient-to-br from-white via-rose-50/30 to-pink-100/30 relative py-16 overflow-hidden">
       {/* Background Image */}
       <div 
-        className="absolute inset-0 bg-cover bg-center bg-no-repeat pointer-events-none"
+        className="absolute inset-0 bg-cover bg-center bg-no-repeat pointer-events-none hidden md:block"
         style={{
-          backgroundImage: `url(${getImageUrl('weddingimgs', 'img16.jpg', CloudinaryPresets.background)})`,
-          opacity: 0.08,
+          backgroundImage: `url(${getImageUrl('weddingimgs', 'img30.jpg', CloudinaryPresets.background)})`,
+          opacity: 0.2,
           transform: 'scale(1.1)'
         }}
       />
@@ -240,7 +256,7 @@ export default function RSVPSection({ guestName, qrCode, customMessage, currentR
               className="w-full h-full object-contain"
             />
           </div>
-          <h2 className="text-5xl md:text-6xl font-parisienne text-sage-green mb-4">
+          <h2 className="text-5xl md:text-6xl font-parisienne text-slate-blue mb-4">
             Rsvp
           </h2>
           <p className="text-2xl font-parisienne text-black mb-8">
@@ -444,11 +460,11 @@ export default function RSVPSection({ guestName, qrCode, customMessage, currentR
                               className={`w-full pl-10 pr-4 py-3 border rounded-xl focus:ring-2 focus:border-transparent transition-all ${
                                 validationErrors.phone ? 'border-red-300 focus:ring-red-500' : 'border-gray-300 focus:ring-sage-green'
                               }`}
-                              placeholder="+63 912 345 6789"
+                              placeholder="0912345679 or 9123456789"
                             />
                           </div>
                           <div className="flex justify-between items-center">
-                            <p className="text-xs text-gray-500">Format: +63 912 345 6789</p>
+                            <p className="text-xs text-gray-500">Accepted: 0912345679, 09123456789, 9123456789, or 639123456789</p>
                             {validationErrors.phone && (
                               <p className="text-sm text-red-600 flex items-center gap-1">
                                 <AlertCircle className="w-4 h-4" />

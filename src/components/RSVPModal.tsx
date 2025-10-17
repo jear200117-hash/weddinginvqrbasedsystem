@@ -268,10 +268,10 @@ export default function RSVPModal({ isOpen, onClose, guestName, qrCode, onSucces
                         value={formData.phone}
                         onChange={(e) => setFormData(prev => ({ ...prev, phone: e.target.value }))}
                         className="w-full pl-10 pr-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-purple-500 focus:border-transparent transition-all"
-                        placeholder="+63 912 345 6789"
+                        placeholder="0912345679 or 9123456789"
                       />
                     </div>
-                    <p className="text-xs text-gray-500">Format: +63 912 345 6789</p>
+                    <p className="text-xs text-gray-500">Accepted: 0912345679, 09123456789, 9123456789, or 639123456789</p>
                   </div>
                 </div>
 

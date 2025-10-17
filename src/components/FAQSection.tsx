@@ -51,10 +51,10 @@ export default function FAQSection({ openFAQIndex, setOpenFAQIndex }: FAQSection
   return (
     <section className="min-h-screen flex items-center justify-center bg-gradient-to-br from-slate-blue/5 via-white to-sage-green/5 relative py-16 overflow-hidden">
       <div 
-        className="absolute inset-0 bg-cover bg-center bg-no-repeat pointer-events-none"
+        className="absolute inset-0 bg-cover bg-center bg-no-repeat pointer-events-none hidden md:block"
         style={{
           backgroundImage: `url(${getImageUrl('weddingimgs', 'img10.jpg', CloudinaryPresets.background)})`,
-          opacity: 0.08,
+          opacity: 0.2,
           transform: 'scale(1.1)'
         }}
       />

@@ -2,12 +2,13 @@
 
 import { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
+import Image from 'next/image';
 import { getWeddingImages, getCustomWeddingImages, getImagesByNames, getVenueImages, ImageData } from '@/lib/imageUtils';
 
 // Preload images for smooth transitions
 const preloadImages = (images: ImageData[]) => {
   images.forEach(image => {
-    const img = new Image();
+    const img = new window.Image();
     img.src = image.path;
   });
 };
@@ -82,21 +83,27 @@ export default function RotatingBackground({
       <AnimatePresence mode="wait">
         <motion.div
           key={currentImageIndex}
-          className="absolute inset-0 bg-cover bg-center bg-no-repeat"
-          style={{
-            backgroundImage: `url(${images[currentImageIndex].path})`,
-            opacity: opacity
-          }}
+          className="absolute inset-0"
           initial={{ opacity: 0 }}
           animate={{ opacity: opacity }}
           exit={{ opacity: 0 }}
           transition={{ duration: 1.5, ease: "easeInOut" }}
-        />
+        >
+          <Image
+            src={images[currentImageIndex].path}
+            alt={images[currentImageIndex].name || 'Background image'}
+            fill
+            priority={currentImageIndex === 0}
+            sizes="100vw"
+            className="object-cover object-center"
+            quality={85}
+          />
+        </motion.div>
       </AnimatePresence>
       
       {/* Image Indicators */}
       {showIndicators && images.length > 1 && (
-        <div className="absolute bottom-4 left-1/2 transform -translate-x-1/2 flex space-x-2">
+        <div className="absolute bottom-4 left-1/2 transform -translate-x-1/2 flex space-x-2 z-10">
           {images.map((_, index) => (
             <motion.div
               key={index}

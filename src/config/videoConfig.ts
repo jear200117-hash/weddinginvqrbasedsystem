@@ -13,9 +13,6 @@ export const VIDEO_CONFIG = {
     // Embed URL for iframe
     embedUrl: "https://drive.google.com/file/d/1CCCfrxwuICfiR1eEnMbWN-5rzxuL6lH7/preview",
     
-    // Video title
-    title: "Our Prenup Video",
-    
     // Video description
     description: "Watch our journey together and see how our love story began"
   },

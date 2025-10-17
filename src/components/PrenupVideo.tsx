@@ -9,7 +9,6 @@ interface PrenupVideoProps {
     videoUrl: string;
     embedUrl?: string;
     directUrl?: string;
-    title: string;
     description: string;
   };
   className?: string;
@@ -53,10 +52,7 @@ export default function PrenupVideo({ videoConfig, className = "" }: PrenupVideo
   const embedUrl = videoConfig.embedUrl || getGoogleDriveEmbedUrl(videoConfig.videoUrl);
 
   return (
-    <div className={`bg-white/80 backdrop-blur-sm rounded-2xl p-6 md:p-8 shadow-2xl ${className}`}>
-      <h3 className="text-2xl md:text-3xl font-playfair text-slate-blue mb-6">
-        {videoConfig.title}
-      </h3>
+    <div className={` p-6 md:p-8 ${className}`}>
       
       {/* Video Container */}
       <div className="relative aspect-video rounded-xl overflow-hidden shadow-lg bg-gray-100">
@@ -88,7 +84,6 @@ export default function PrenupVideo({ videoConfig, className = "" }: PrenupVideo
           <iframe
             className="w-full h-full"
             src={embedUrl}
-            title={videoConfig.title}
             frameBorder="0"
             allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
             allowFullScreen

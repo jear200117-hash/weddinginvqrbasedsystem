@@ -24,6 +24,8 @@ import FAQSection from '@/components/FAQSection';
 import { Martini, Camera, Utensils, Mic, Cake, Music, Car, PartyPopper } from "lucide-react";
 import { useInvitationByQR, useRSVPByQR } from '@/hooks/useFirebaseRealtime';
 import { getImageUrl, CloudinaryPresets } from '@/lib/cloudinary';
+import { getV2ImageUrl, CloudinaryV2Presets, getV2ByPublicId } from '@/lib/cloudinaryV2';
+import { V2_HERO_IMAGE, V2_STORY_IMAGES, V2_TIMELINE_BG, V2_IMAGE_STRIP, V2_ENTOURAGE_BG, V2_VENUE_IMAGES, V2_DRESSCODE_IMAGES, V2_CUSTOM_IMAGES } from '@/config/v2Images';
 
 interface Invitation {
   id: string;
@@ -279,7 +281,7 @@ export default function InvitationPage() {
   }
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-rose-50 to-pink-100">
+    <div className="min-h-screen">
       <BackgroundMusic />
 
       {/* RSVP Reminder Banner */}
@@ -316,7 +318,7 @@ export default function InvitationPage() {
             className={`min-h-screen flex items-center justify-center ${(!invitation?.rsvp?.status || invitation.rsvp.status === 'pending') ? 'pt-16' : ''}`}
           >
             {/* Animated Background for Envelope Stage */}
-            <AnimatedBackground opacity={0.15} />
+            <AnimatedBackground opacity={0.2} />
             <motion.div
               whileHover={{ scale: 1.1 }}
               className="text-center cursor-pointer"
@@ -422,7 +424,7 @@ export default function InvitationPage() {
               {/* Rotating Background Images */}
               <RotatingBackground
                 interval={6000}
-                opacity={0.33}
+                opacity={0.2}
                 showIndicators={true}
                 customImages={ACTIVE_BACKGROUND_CONFIG ? BACKGROUND_IMAGE_CONFIG[ACTIVE_BACKGROUND_CONFIG] : undefined}
               />
@@ -431,7 +433,6 @@ export default function InvitationPage() {
               <div className="absolute inset-0 bg-black/30 md:bg-black/40"></div>
 
               {/* Elegant Overlay Gradients (slightly lighter on mobile) */}
-              <div className="absolute inset-0 bg-gradient-to-br from-warm-beige/20 md:from-warm-beige/30 via-dusty-rose/10 md:via-dusty-rose/20 to-sage-green/20 md:to-sage-green/30"></div>
 
               {/* Elegant Pattern Overlay */}
               <div className="absolute inset-0 opacity-5">
@@ -564,20 +565,12 @@ export default function InvitationPage() {
 
             {/* ===== SECTION 2: COUNTDOWN & VIDEO ===== */}
             <section className="min-h-screen flex items-center justify-center relative overflow-hidden py-16">
-              {/* Subtle Background Image (more visible on mobile) */}
-              <div
-                className="absolute inset-0 bg-cover bg-center bg-no-repeat pointer-events-none block md:hidden"
-                style={{
-                  backgroundImage: `url(${getImageUrl('weddingimgs', 'img1.jpg', CloudinaryPresets.background)})`,
-                  opacity: 0.22,
-                  transform: 'scale(1.1)'
-                }}
-              />
+              {/* Subtle Background Image (more visible on mobile) - Using V2 */}
               <div
                 className="absolute inset-0 bg-cover bg-center bg-no-repeat pointer-events-none hidden md:block"
                 style={{
-                  backgroundImage: `url(${getImageUrl('weddingimgs', 'img1.jpg', CloudinaryPresets.background)})`,
-                  opacity: 0.08,
+                  backgroundImage: `url(${V2_HERO_IMAGE()})`,
+                  opacity: 0.2,
                   transform: 'scale(1.1)'
                 }}
               />
@@ -600,7 +593,7 @@ export default function InvitationPage() {
                     />
                   </div>
                   <h2 className="text-6xl md:text-6xl font-parisienne text-slate-blue mb-4">
-                    We are getting married
+                    Our Prenup Video
                   </h2>
                   <p className="text-2xl font-parisienne text-black mb-8">
                     January 16, 2026
@@ -627,50 +620,6 @@ export default function InvitationPage() {
                   </motion.div>
                 </motion.div>
 
-                {/* Countdown Section */}
-                <motion.div
-                  className="mb-16"
-                  initial={{ opacity: 0, scale: 0.9 }}
-                  animate={{ opacity: 1, scale: 1 }}
-                  transition={{ delay: 0.6, duration: 0.8 }}
-                >
-                  <h3 className="text-3xl md:text-4xl font-parisienne text-sage-green mb-8">
-                    Countdown Begins
-                  </h3>
-
-                  {/* Countdown Timer */}
-                  <div className="grid grid-cols-4 gap-4 md:gap-8 max-w-2xl mx-auto mb-8">
-                    <motion.div
-                      className="bg-sage-green text-white rounded-lg p-4 md:p-6 shadow-lg"
-                      whileHover={{ scale: 1.05 }}
-                    >
-                      <div className="text-2xl md:text-4xl font-bold">{timeLeft.days.toString().padStart(2, '0')}</div>
-                      <div className="text-sm md:text-base font-light">Days</div>
-                    </motion.div>
-                    <motion.div
-                      className="bg-slate-blue text-white rounded-lg p-4 md:p-6 shadow-lg"
-                      whileHover={{ scale: 1.05 }}
-                    >
-                      <div className="text-2xl md:text-4xl font-bold">{timeLeft.hours.toString().padStart(2, '0')}</div>
-                      <div className="text-sm md:text-base font-light">Hrs</div>
-                    </motion.div>
-                    <motion.div
-                      className="bg-dusty-rose text-white rounded-lg p-4 md:p-6 shadow-lg"
-                      whileHover={{ scale: 1.05 }}
-                    >
-                      <div className="text-2xl md:text-4xl font-bold">{timeLeft.minutes.toString().padStart(2, '0')}</div>
-                      <div className="text-sm md:text-base font-light">Mins</div>
-                    </motion.div>
-                    <motion.div
-                      className="bg-warm-beige text-white rounded-lg p-4 md:p-6 shadow-lg"
-                      whileHover={{ scale: 1.05 }}
-                    >
-                      <div className="text-2xl md:text-4xl font-bold">{timeLeft.seconds.toString().padStart(2, '0')}</div>
-                      <div className="text-sm md:text-base font-light">Secs</div>
-                    </motion.div>
-                  </div>
-                </motion.div>
-
                 {/* Prenup Video Section */}
                 <motion.div
                   className="max-w-4xl mx-auto"
@@ -686,21 +635,27 @@ export default function InvitationPage() {
               </div>
             </section>
 
+            <div className="bg-white">
+              <motion.div
+                className="grid grid-cols-3 "
+                initial={{ opacity: 0, y: 30 }}
+                whileInView={{ opacity: 1, y: 0 }}
+                transition={{ duration: 0.6 }}
+                viewport={{ once: true }}
+              >
+                {V2_CUSTOM_IMAGES([167, 169, 168]).map((imageUrl, index) => (
+                  <img key={index} src={imageUrl} alt={`Image ${index}`} />
+                ))}
+              </motion.div>
+            </div>
+
             {/* ===== SECTION 3: OUR STORY WITH CAROUSEL ===== */}
             <section className="min-h-screen flex items-center justify-center bg-white relative py-16 overflow-hidden">
-              <div
-                className="absolute inset-0 bg-cover bg-center bg-no-repeat pointer-events-none block md:hidden"
-                style={{
-                  backgroundImage: `url(${getImageUrl('weddingimgs', 'img4.jpg', CloudinaryPresets.background)})`,
-                  opacity: 0.22,
-                  transform: 'scale(1.1)'
-                }}
-              />
               <div
                 className="absolute inset-0 bg-cover bg-center bg-no-repeat pointer-events-none hidden md:block"
                 style={{
                   backgroundImage: `url(${getImageUrl('weddingimgs', 'img4.jpg', CloudinaryPresets.background)})`,
-                  opacity: 0.08,
+                  opacity: 0.2,
                   transform: 'scale(1.1)'
                 }}
               />
@@ -758,20 +713,13 @@ export default function InvitationPage() {
             </section>
 
             {/* ===== SECTION 4: WEDDING TIMELINE ===== */}
-            <section className="min-h-screen flex items-center justify-center bg-gradient-to-br from-white via-sage-green/5 to-dusty-rose/10 relative py-20 overflow-hidden">
-              <div
-                className="absolute inset-0 bg-cover bg-center bg-no-repeat pointer-events-none block md:hidden"
-                style={{
-                  backgroundImage: `url(${getImageUrl('weddingimgs', 'img2.jpg', CloudinaryPresets.background)})`,
-                  opacity: 0.22,
-                  transform: 'scale(1.1)'
-                }}
-              />
+            <section className="min-h-screen flex items-center justify-center 0 relative py-20 overflow-hidden">
+              
               <div
                 className="absolute inset-0 bg-cover bg-center bg-no-repeat pointer-events-none hidden md:block"
                 style={{
-                  backgroundImage: `url(${getImageUrl('weddingimgs', 'img2.jpg', CloudinaryPresets.background)})`,
-                  opacity: 0.08,
+                  backgroundImage: `url(${V2_TIMELINE_BG()})`,
+                  opacity: 0.2,
                   transform: 'scale(1.1)'
                 }}
               />
@@ -897,55 +845,29 @@ export default function InvitationPage() {
             </section>
 
 
-            {/* 3 Images between Timeline and Entourage */}
-            <div className="py-8 bg-white">
+            {/* 3 Images between Timeline and Entourage - Using V2 Image Strip */}
+            <div className="bg-white">
               <motion.div
-                className="grid grid-cols-3 gap-2 mx-4"
+                className="grid grid-cols-3 "
                 initial={{ opacity: 0, y: 30 }}
                 whileInView={{ opacity: 1, y: 0 }}
                 transition={{ duration: 0.6 }}
                 viewport={{ once: true }}
               >
-                <div className="aspect-[3/2] rounded-lg overflow-hidden shadow-lg">
-                  <img
-                    src={ACTIVE_ENTOURAGE_CONFIG ? getImageUrl('weddingimgs', ENTOURAGE_IMAGES_CONFIG[ACTIVE_ENTOURAGE_CONFIG][0], CloudinaryPresets.auto) : getImageUrl('weddingimgs', 'img9.jpg', CloudinaryPresets.auto)}
-                    alt="Elegant wedding moment"
-                    className="w-full h-full object-cover"
-                  />
-                </div>
-                <div className="aspect-[3/2] rounded-lg overflow-hidden shadow-lg">
-                  <img
-                    src={ACTIVE_ENTOURAGE_CONFIG ? getImageUrl('weddingimgs', ENTOURAGE_IMAGES_CONFIG[ACTIVE_ENTOURAGE_CONFIG][1], CloudinaryPresets.auto) : getImageUrl('weddingimgs', 'img11.jpg', CloudinaryPresets.auto)}
-                    alt="Romantic wedding portrait"
-                    className="w-full h-full object-cover"
-                  />
-                </div>
-                <div className="aspect-[3/2] rounded-lg overflow-hidden shadow-lg">
-                  <img
-                    src={ACTIVE_ENTOURAGE_CONFIG ? getImageUrl('weddingimgs', ENTOURAGE_IMAGES_CONFIG[ACTIVE_ENTOURAGE_CONFIG][2], CloudinaryPresets.auto) : getImageUrl('weddingimgs', 'img13.jpg', CloudinaryPresets.auto)}
-                    alt="Beautiful wedding celebration"
-                    className="w-full h-full object-cover"
-                  />
-                </div>
+                {V2_CUSTOM_IMAGES([223, 20, 30]).map((imageUrl, index) => (
+                  <img key={index} src={imageUrl} alt={`Image ${index}`} />
+                ))}
               </motion.div>
             </div>
 
 
             {/* ===== SECTION 6: WEDDING ENTOURAGE ===== */}
-            <section className="min-h-screen flex items-center justify-center bg-gradient-to-br from-white via-warm-beige/5 to-dusty-rose/10 relative py-16 overflow-hidden">
-              <div
-                className="absolute inset-0 bg-cover bg-center bg-no-repeat pointer-events-none block md:hidden"
-                style={{
-                  backgroundImage: `url(${getImageUrl('weddingimgs', 'img3.jpg', CloudinaryPresets.background)})`,
-                  opacity: 0.22,
-                  transform: 'scale(1.1)'
-                }}
-              />
+            <section className="min-h-screen flex items-center justify-center 0 relative py-16 overflow-hidden">
               <div
                 className="absolute inset-0 bg-cover bg-center bg-no-repeat pointer-events-none hidden md:block"
                 style={{
-                  backgroundImage: `url(${getImageUrl('weddingimgs', 'img3.jpg', CloudinaryPresets.background)})`,
-                  opacity: 0.08,
+                  backgroundImage: `url(${V2_ENTOURAGE_BG()})`,
+                  opacity: 0.2,
                   transform: 'scale(1.1)'
                 }}
               />
@@ -1400,19 +1322,12 @@ export default function InvitationPage() {
 
             {/* ===== SECTION 7: WEDDING VENUES ===== */}
             <section className="min-h-screen flex items-center justify-center bg-gradient-to-br from-white via-warm-beige/5 to-dusty-rose/10 relative py-16 overflow-hidden">
-              <div
-                className="absolute inset-0 bg-cover bg-center bg-no-repeat pointer-events-none block md:hidden"
-                style={{
-                  backgroundImage: `url(${getImageUrl('weddingimgs', 'img11.jpg', CloudinaryPresets.background)})`,
-                  opacity: 0.22,
-                  transform: 'scale(1.1)'
-                }}
-              />
+              
               <div
                 className="absolute inset-0 bg-cover bg-center bg-no-repeat pointer-events-none hidden md:block"
                 style={{
                   backgroundImage: `url(${getImageUrl('weddingimgs', 'img11.jpg', CloudinaryPresets.background)})`,
-                  opacity: 0.08,
+                  opacity: 0.2,
                   transform: 'scale(1.1)'
                 }}
               />
@@ -1482,7 +1397,7 @@ export default function InvitationPage() {
                         </div>
                       </div>
 
-                      <div className="bg-white rounded-2xl p-6 shadow-xl border border-sage-green/20">
+                      <div className="border-sage-green/20">
                         <h4 className="text-2xl font-playfair text-slate-blue mb-4">
                           Our Lady of Lourdes Parish
                         </h4>
@@ -1505,7 +1420,7 @@ export default function InvitationPage() {
                       </div>
                     </div>
 
-                    {/* Church Image */}
+                    {/* Church Image - Using V2 */}
                     <div className="relative">
                       <div className="aspect-[4/3] rounded-2xl overflow-hidden shadow-2xl bg-gradient-to-br from-sage-green/20 to-dusty-rose/20">
                         <img
@@ -1527,7 +1442,7 @@ export default function InvitationPage() {
                     transition={{ duration: 0.8 }}
                     viewport={{ once: true }}
                   >
-                    {/* Reception Image */}
+                    {/* Reception Image - Using V2 */}
                     <div className="relative lg:order-1">
                       <div className="aspect-[4/3] rounded-2xl overflow-hidden shadow-2xl bg-gradient-to-br from-dusty-rose/20 to-warm-beige/20">
                         <img
@@ -1552,7 +1467,7 @@ export default function InvitationPage() {
                         </div>
                       </div>
 
-                      <div className="bg-white rounded-2xl p-6 shadow-xl border border-dusty-rose/20">
+                      <div className="border-dusty-rose/20">
                         <h4 className="text-2xl font-playfair text-slate-blue mb-4">
                           AQUILA Crystal Palace
                         </h4>
@@ -1598,21 +1513,29 @@ export default function InvitationPage() {
               </div>
             </section>
 
+            {/* 3 Images between Timeline and Entourage - Using V2 Image Strip */}
+            <div className="bg-white">
+              <motion.div
+                className="grid grid-cols-3 "
+                initial={{ opacity: 0, y: 30 }}
+                whileInView={{ opacity: 1, y: 0 }}
+                transition={{ duration: 0.6 }}
+                viewport={{ once: true }}
+              >
+                {V2_CUSTOM_IMAGES([205, 209, 206]).map((imageUrl, index) => (
+                  <img key={index} src={imageUrl} alt={`Image ${index}`} />
+                ))}
+              </motion.div>
+            </div>
+
             {/* ===== SECTION 8: DRESS CODE ===== */}
             <section className="min-h-screen flex items-center justify-center bg-gradient-to-br from-white via-sage-green/5 to-dusty-rose/10 relative py-16 overflow-hidden">
-              <div
-                className="absolute inset-0 bg-cover bg-center bg-no-repeat pointer-events-none block md:hidden"
-                style={{
-                  backgroundImage: `url(${getImageUrl('weddingimgs', 'img15.jpg', CloudinaryPresets.background)})`,
-                  opacity: 0.22,
-                  transform: 'scale(1.1)'
-                }}
-              />
+              
               <div
                 className="absolute inset-0 bg-cover bg-center bg-no-repeat pointer-events-none hidden md:block"
                 style={{
-                  backgroundImage: `url(${getImageUrl('weddingimgs', 'img15.jpg', CloudinaryPresets.background)})`,
-                  opacity: 0.08,
+                  backgroundImage: `url(${V2_DRESSCODE_IMAGES().palette})`,
+                  opacity: 0.2,
                   transform: 'scale(1.1)'
                 }}
               />
@@ -1783,7 +1706,7 @@ export default function InvitationPage() {
                       </h3>
 
                       <div className="grid md:grid-cols-3 gap-12 max-w-6xl mx-auto">
-                        {/* Ninong */}
+                        {/* Ninong - Using V2 */}
                         <div className="space-y-6">
                           <div className="w-32 h-32 rounded-lg mx-auto overflow-hidden">
                             <img
@@ -1800,7 +1723,7 @@ export default function InvitationPage() {
                           </p>
                         </div>
 
-                        {/* Ninang */}
+                        {/* Ninang - Using V2 */}
                         <div className="space-y-6">
                           <div className="w-32 h-32 rounded-lg mx-auto overflow-hidden">
                             <img
@@ -1817,7 +1740,7 @@ export default function InvitationPage() {
                           </p>
                         </div>
 
-                        {/* Guests */}
+                        {/* Guests - Keep original or use V2 palette */}
                         <div className="space-y-6">
                           <div className="w-50 h-32 rounded-lg mx-auto overflow-hidden">
                             <img
@@ -1938,41 +1861,43 @@ export default function InvitationPage() {
             {/* ===== SECTION 9: OTHER DETAILS ===== */}
             <OtherDetailsSection />
 
-            {/* ===== SECTION 10: FAQ ===== */}
-            <FAQSection openFAQIndex={openFAQIndex} setOpenFAQIndex={setOpenFAQIndex} />
-
-            {/* 3 Images below Dress Code */}
-            <div className="py-8 bg-white">
+            {/* 3 Images below Dress Code - Mix of V2 and V1 images */}
+            <div className="">
               <motion.div
-                className="grid grid-cols-3 gap-2 mx-4"
+                className="grid grid-cols-3"
                 initial={{ opacity: 0, y: 30 }}
                 whileInView={{ opacity: 1, y: 0 }}
                 transition={{ duration: 0.6 }}
                 viewport={{ once: true }}
               >
-                <div className="aspect-[3/2] rounded-lg overflow-hidden shadow-lg">
+                <div className="aspect-[3/2] overflow-hidden shadow-lg">
                   <img
-                    src={getImageUrl('weddingimgs', 'img15.jpg', CloudinaryPresets.auto)}
+                    src={V2_DRESSCODE_IMAGES().men}
                     alt="Beautiful wedding moment"
                     className="w-full h-full object-cover"
                   />
                 </div>
-                <div className="aspect-[3/2] rounded-lg overflow-hidden shadow-lg">
+                <div className="aspect-[3/2] overflow-hidden shadow-lg">
                   <img
                     src={getImageUrl('weddingimgs', 'img1.jpg', CloudinaryPresets.auto)}
                     alt="Romantic wedding portrait"
                     className="w-full h-full object-cover"
                   />
                 </div>
-                <div className="aspect-[3/2] rounded-lg overflow-hidden shadow-lg">
+                <div className="aspect-[3/2] overflow-hidden shadow-lg">
                   <img
-                    src={getImageUrl('weddingimgs', 'img5.jpg', CloudinaryPresets.auto)}
+                    src={V2_DRESSCODE_IMAGES().women}
                     alt="Elegant wedding celebration"
                     className="w-full h-full object-cover"
                   />
                 </div>
               </motion.div>
             </div>
+
+            {/* ===== SECTION 10: FAQ ===== */}
+            <FAQSection openFAQIndex={openFAQIndex} setOpenFAQIndex={setOpenFAQIndex} />
+
+            
 
             {/* ===== SECTION 11: RSVP ===== */}
             <div id="rsvp-section">
