@@ -38,7 +38,7 @@ export default function FAQSection({ openFAQIndex, setOpenFAQIndex }: FAQSection
     },
     {
       question: "How can we help the couple have the best time during their wedding?",
-      answer: "• Pray for us.\n• RSVP and don't be late.\n• Dress appropriately.\n• Share photos/videos and use our hashtag #JOANsweredprayerofERIC.\n• Stay until the end of the program.",
+      answer: "• Pray for us.\n• RSVP and don't be late.\n• Dress appropriately.\n• Share photos/videos and use our hashtag #iMJenuinelymeantforECA.\n• Stay until the end of the program.",
       color: "dusty-rose"
     },
     {
