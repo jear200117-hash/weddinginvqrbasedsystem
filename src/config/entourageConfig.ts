@@ -56,7 +56,7 @@ export const ENTOURAGE_CONFIG = {
         { name: "Marilyn Palas", number: 2 },
         { name: "Janelle Saldaña", number: 3 },
         { name: "Daisy Pagcaliwangan", number: 4 },
-        { name: "Christina De L Rea", number: 5 },
+        { name: "Christina De La Rea", number: 5 },
         { name: "Maricel Quinag", number: 6 },
         { name: "Imelda Monteza", number: 7 },
         { name: "Sonia Polliente", number: 8 },
