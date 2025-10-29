@@ -85,7 +85,7 @@ export const ENTOURAGE_CONFIG = {
       title: "Veil",
       members: [
         { name: "Aries De La Rea", role: "Male" },
-        { name: "Ruth Anne Vera", role: "Female" },
+        { name: "Ruth Ann Vera", role: "Female" },
         { name: "Morice James Buisan", role: "Male" },
         { name: "Rica Ella Cayanan", role: "Female" }
       ]
