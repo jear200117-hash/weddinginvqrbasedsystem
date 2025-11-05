@@ -56,7 +56,7 @@ export const ENTOURAGE_CONFIG = {
         { name: "Marilyn Palas", number: 2 },
         { name: "Janelle Saldaña", number: 3 },
         { name: "Daisy Pagcaliwangan", number: 4 },
-        { name: "Christina De L Rea", number: 5 },
+        { name: "Christina De La Rea", number: 5 },
         { name: "Maricel Quinag", number: 6 },
         { name: "Imelda Monteza", number: 7 },
         { name: "Sonia Polliente", number: 8 },
@@ -85,7 +85,7 @@ export const ENTOURAGE_CONFIG = {
       title: "Veil",
       members: [
         { name: "Aries De La Rea", role: "Male" },
-        { name: "Ruth Anne Vera", role: "Female" },
+        { name: "Ruth Ann Vera", role: "Female" },
         { name: "Morice James Buisan", role: "Male" },
         { name: "Rica Ella Cayanan", role: "Female" }
       ]

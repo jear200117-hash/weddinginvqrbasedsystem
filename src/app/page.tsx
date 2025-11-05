@@ -1,7 +1,7 @@
 'use client';
 
 import { motion, AnimatePresence } from 'framer-motion';
-import { Heart, Mail, Image, Users, ArrowRight, Calendar, MapPin, Clock, Camera, BookOpen, Gift, Music, Utensils, Home, User, Camera as CameraIcon, Users as UsersIcon, MapPin as MapPinIcon, Clock as ClockIcon, X, Eye, Play, Download, Martini, Mic, Cake, Car, CheckSquare, Square, Check, PartyPopper } from 'lucide-react';
+import { Heart, Mail, Image, Users, ArrowRight, Calendar, MapPin, Clock, Camera, BookOpen, Gift, Music, Utensils, Home, User, Camera as CameraIcon, Users as UsersIcon, MapPin as MapPinIcon, Clock as ClockIcon, X, Eye, Play, Download, Martini, Mic, Cake, Car, CheckSquare, Square, Check, PartyPopper, Megaphone, UtensilsCrossed } from 'lucide-react';
 import Link from 'next/link';
 import { useState, useEffect, useRef, Suspense } from 'react';
 import { useSearchParams } from 'next/navigation';
@@ -1026,15 +1026,16 @@ export default function HomePage() {
             <div className="flex items-center justify-center">
               <div className="space-y-2">
                 {[
-                  { time: "11:00 AM", label: "Ceremony", icon: <Heart className="w-6 h-6 stroke-[1.5]" />, description: "Our Lady of Lourdes Parish" },
-                  { time: "12:30 PM", label: "Cocktails", icon: <Martini className="w-6 h-6 stroke-[1.5]" />, description: "Welcome Reception" },
-                  { time: "1:00 PM", label: "Photos", icon: <Camera className="w-6 h-6 stroke-[1.5]" />, description: "Wedding Portraits" },
-                  { time: "2:00 PM", label: "Reception", icon: <Utensils className="w-6 h-6 stroke-[1.5]" />, description: "Palacio Cristal Del AQUILA" },
-                  { time: "2:30 PM", label: "Speeches", icon: <Mic className="w-6 h-6 stroke-[1.5]" />, description: "Toasts & Well Wishes" },
-                  { time: "3:00 PM", label: "Cake Cutting", icon: <Cake className="w-6 h-6 stroke-[1.5]" />, description: "Sweet Celebration" },
-                  { time: "4:00 PM", label: "First Dance", icon: <Music className="w-6 h-6 stroke-[1.5]" />, description: "Our Special Moment" },
-                  { time: "6:00 PM", label: "Send Off", icon: <Car className="w-6 h-6 stroke-[1.5]" />, description: "Farewell & Thanks" },
-                  { time: "6:30 PM", label: "After Party", icon: <PartyPopper className="w-6 h-6 stroke-[1.5]" />, description: "Night Party" },
+                  { time: "10:45 AM", label: "Arrivals", icon: <Car className="w-6 h-6 stroke-[1.5]" />, description: "Arrival" },
+                        { time: "11:00 AM", label: "Ceremony", icon: <Heart className="w-6 h-6 stroke-[1.5]" />, description: "Our Lady of Lourdes Parish" },
+                        { time: "12:30 PM", label: "Photos", icon: <Camera className="w-6 h-6 stroke-[1.5]" />, description: "Wedding Portraits" },
+                        { time: "2:00 PM", label: "Reception", icon: <Utensils className="w-6 h-6 stroke-[1.5]" />, description: "Palacio Cristal Del AQUILA" },
+                  { time: "2:30 PM", label: "Cocktails", icon: <Martini className="w-6 h-6 stroke-[1.5]" />, description: "Welcome Reception" },
+                        
+                        { time: "3:30 PM", label: "Wedding Program", icon: <Megaphone className="w-6 h-6 stroke-[1.5]" />, description: "Wedding Program" },
+                        { time: "5:00 PM", label: "Dinner", icon: <UtensilsCrossed className="w-6 h-6 stroke-[1.5]" />, description: "Dinner" },
+                        { time: "6:00 PM", label: "Speeches", icon: <Mic className="w-6 h-6 stroke-[1.5]" />, description: "Toasts & Well Wishes" },
+                        { time: "7:00 PM", label: "After Party", icon: <PartyPopper className="w-6 h-6 stroke-[1.5]" />, description: "Night Party" },
                 ].map((item, idx) => (
                   <motion.div
                     key={idx}
