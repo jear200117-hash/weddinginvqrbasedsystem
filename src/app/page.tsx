@@ -1029,7 +1029,7 @@ export default function HomePage() {
                   { time: "11:00 AM", label: "Ceremony", icon: <Heart className="w-6 h-6 stroke-[1.5]" />, description: "Our Lady of Lourdes Parish" },
                   { time: "12:30 PM", label: "Cocktails", icon: <Martini className="w-6 h-6 stroke-[1.5]" />, description: "Welcome Reception" },
                   { time: "1:00 PM", label: "Photos", icon: <Camera className="w-6 h-6 stroke-[1.5]" />, description: "Wedding Portraits" },
-                  { time: "2:00 PM", label: "Reception", icon: <Utensils className="w-6 h-6 stroke-[1.5]" />, description: "AQUILA Crystal Palace" },
+                  { time: "2:00 PM", label: "Reception", icon: <Utensils className="w-6 h-6 stroke-[1.5]" />, description: "Palacio Cristal Del AQUILA" },
                   { time: "2:30 PM", label: "Speeches", icon: <Mic className="w-6 h-6 stroke-[1.5]" />, description: "Toasts & Well Wishes" },
                   { time: "3:00 PM", label: "Cake Cutting", icon: <Cake className="w-6 h-6 stroke-[1.5]" />, description: "Sweet Celebration" },
                   { time: "4:00 PM", label: "First Dance", icon: <Music className="w-6 h-6 stroke-[1.5]" />, description: "Our Special Moment" },

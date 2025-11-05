@@ -781,7 +781,7 @@ export default function InvitationPage() {
                         { time: "11:00 AM", label: "Ceremony", icon: <Heart className="w-6 h-6 stroke-[1.5]" />, description: "Our Lady of Lourdes Parish" },
                         { time: "12:30 PM", label: "Cocktails", icon: <Martini className="w-6 h-6 stroke-[1.5]" />, description: "Welcome Reception" },
                         { time: "1:00 PM", label: "Photos", icon: <Camera className="w-6 h-6 stroke-[1.5]" />, description: "Wedding Portraits" },
-                        { time: "2:00 PM", label: "Reception", icon: <Utensils className="w-6 h-6 stroke-[1.5]" />, description: "AQUILA Crystal Palace" },
+                        { time: "2:00 PM", label: "Reception", icon: <Utensils className="w-6 h-6 stroke-[1.5]" />, description: "Palacio Cristal Del AQUILA" },
                         { time: "2:30 PM", label: "Speeches", icon: <Mic className="w-6 h-6 stroke-[1.5]" />, description: "Toasts & Well Wishes" },
                         { time: "3:00 PM", label: "Cake Cutting", icon: <Cake className="w-6 h-6 stroke-[1.5]" />, description: "Sweet Celebration" },
                         { time: "4:00 PM", label: "First Dance", icon: <Music className="w-6 h-6 stroke-[1.5]" />, description: "Our Special Moment" },
@@ -1446,8 +1446,8 @@ export default function InvitationPage() {
                     <div className="relative lg:order-1">
                       <div className="aspect-[4/3] rounded-2xl overflow-hidden shadow-2xl bg-gradient-to-br from-dusty-rose/20 to-warm-beige/20">
                         <img
-                          src={getImageUrl('imgs', 'reception.jpg', CloudinaryPresets.auto)}
-                          alt="AQUILA Crystal Palace Reception Venue"
+                          src={getImageUrl('imgs', 'palacio_nzpxq6.jpg', CloudinaryPresets.auto)}
+                          alt="Palacio Cristal Del AQUILA Reception Venue"
                           className="w-full h-full object-cover"
                         />
                         {/* Overlay for better text readability */}
@@ -1469,7 +1469,7 @@ export default function InvitationPage() {
 
                       <div className="border-dusty-rose/20">
                         <h4 className="text-2xl font-playfair text-slate-blue mb-4">
-                          AQUILA Crystal Palace
+                          Palacio Cristal Del AQUILA
                         </h4>
                         <div className="text-lg text-slate-blue/80 mb-6 leading-relaxed">
                           <div className="flex items-start space-x-3 mb-2">
@@ -1483,7 +1483,7 @@ export default function InvitationPage() {
 
                         <button
                           className="w-full px-6 py-3 bg-dusty-rose text-white rounded-full hover:bg-dusty-rose/90 transition-colors text-lg font-medium shadow-lg"
-                          onClick={() => window.open('https://maps.google.com/?q=AQUILA+Crystal+Palace+Tagaytay+Events+Place', '_blank')}
+                          onClick={() => window.open('https://maps.app.goo.gl/WcvZFvKxsiLoGeio9?g_st=ifm', '_blank')}
                         >
                           View on Google Maps
                         </button>
