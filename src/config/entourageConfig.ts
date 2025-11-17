@@ -55,7 +55,7 @@ export const ENTOURAGE_CONFIG = {
         { name: "Remedios Punongbayan", number: 1 },
         { name: "Marilyn Palas", number: 2 },
         { name: "Janelle Saldaña", number: 3 },
-        { name: "Eudosia Pagcaliwangan", number: 4 },
+        { name: "Eudosia Pagkaliwangan", number: 4 },
         { name: "Christina De La Rea", number: 5 },
         { name: "Maricel Quinag", number: 6 },
         { name: "Imelda Monteza", number: 7 },
@@ -94,7 +94,7 @@ export const ENTOURAGE_CONFIG = {
       title: "Cord",
       members: [
         { name: "Gene Mari Christopher De La Rea", role: "Male" },
-        { name: "Paoline Creag", role: "Female" },
+        { name: "Karen Nicole Maranan", role: "Female" },
         { name: "Aljhon Gabriel Catitir", role: "Male" },
         { name: "Shaira Ann Marquez", role: "Female" }
       ]
