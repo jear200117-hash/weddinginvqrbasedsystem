@@ -714,7 +714,7 @@ export default function HomePage() {
                           </div>
                           <div className="flex-1 h-px bg-gradient-to-l from-transparent to-[#cba397]"></div>
                         </div>
-                        
+
                         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 mb-8">
                           {albums.filter(album => album.isFeatured).map((album, index) => (
                             <motion.div
@@ -772,7 +772,7 @@ export default function HomePage() {
                           </div>
                           <div className="flex-1 h-px bg-gradient-to-l from-transparent to-gray-300"></div>
                         </div>
-                        
+
                         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
                           {albums.filter(album => !album.isFeatured).map((album, index) => (
                             <motion.div
@@ -851,8 +851,8 @@ export default function HomePage() {
                         <button
                           onClick={toggleSelectionMode}
                           className={`px-4 py-2 rounded-lg transition-colors flex items-center gap-2 ${isSelectionMode
-                              ? 'bg-blue-600 text-white hover:bg-blue-700'
-                              : 'bg-gray-200 text-gray-700 hover:bg-gray-300'
+                            ? 'bg-blue-600 text-white hover:bg-blue-700'
+                            : 'bg-gray-200 text-gray-700 hover:bg-gray-300'
                             }`}
                         >
                           {isSelectionMode ? <CheckSquare size={16} /> : <Square size={16} />}
@@ -977,8 +977,8 @@ export default function HomePage() {
                         {isSelectionMode && (
                           <div className="absolute top-2 left-2 z-10">
                             <div className={`w-6 h-6 rounded border-2 flex items-center justify-center ${selectedMediaIds.has(media.id)
-                                ? 'bg-blue-600 border-blue-600 text-white'
-                                : 'bg-white border-gray-300'
+                              ? 'bg-blue-600 border-blue-600 text-white'
+                              : 'bg-white border-gray-300'
                               }`}>
                               {selectedMediaIds.has(media.id) && <Check size={16} />}
                             </div>
@@ -1024,18 +1024,16 @@ export default function HomePage() {
             </div>
 
             <div className="flex items-center justify-center">
-              <div className="space-y-2">
+              <div className="space-y-2 max-w-3xl mx-auto">
                 {[
-                  { time: "10:45 AM", label: "Arrivals", icon: <Car className="w-6 h-6 stroke-[1.5]" />, description: "Arrival" },
-                        { time: "11:00 AM", label: "Ceremony", icon: <Heart className="w-6 h-6 stroke-[1.5]" />, description: "Our Lady of Lourdes Parish" },
-                        { time: "12:30 PM", label: "Photos", icon: <Camera className="w-6 h-6 stroke-[1.5]" />, description: "Wedding Portraits" },
-                        { time: "2:00 PM", label: "Reception", icon: <Utensils className="w-6 h-6 stroke-[1.5]" />, description: "Palacio Cristal Del AQUILA" },
-                  { time: "2:30 PM", label: "Cocktails", icon: <Martini className="w-6 h-6 stroke-[1.5]" />, description: "Welcome Reception" },
-                        
-                        { time: "3:30 PM", label: "Wedding Program", icon: <Megaphone className="w-6 h-6 stroke-[1.5]" />, description: "Wedding Program" },
-                        { time: "5:00 PM", label: "Dinner", icon: <UtensilsCrossed className="w-6 h-6 stroke-[1.5]" />, description: "Dinner" },
-                        { time: "6:00 PM", label: "Speeches", icon: <Mic className="w-6 h-6 stroke-[1.5]" />, description: "Toasts & Well Wishes" },
-                        { time: "7:00 PM", label: "After Party", icon: <PartyPopper className="w-6 h-6 stroke-[1.5]" />, description: "Night Party" },
+                  { time: "10:00 AM", label: "Arrivals", icon: <Car className="w-6 h-6 stroke-[1.5]" />, description: "Arrival of officiating and guests" },
+                  { time: "11:00 AM", label: "Wedding Ceremony", icon: <Heart className="w-6 h-6 stroke-[1.5]" />, description: "Wedding ceremony" },
+                  { time: "12:30 PM", label: "Travel to Reception", icon: <Car className="w-6 h-6 stroke-[1.5]" />, description: "Guests travel to reception venue" },
+                  { time: "01:00 PM", label: "Wedding Program", icon: <Megaphone className="w-6 h-6 stroke-[1.5]" />, description: "Pre-program of the host (games)" },
+                  { time: "02:30 PM", label: "Meal Time", icon: <Utensils className="w-6 h-6 stroke-[1.5]" />, description: "Silent queuing; photo op with the couple first" },
+                  { time: "03:30 PM", label: "Cake & Toast", icon: <Cake className="w-6 h-6 stroke-[1.5]" />, description: "Cake slicing and wine toasting (MOH & BM speech)" },
+                  { time: "03:45 PM", label: "Well Wishes", icon: <Mic className="w-6 h-6 stroke-[1.5]" />, description: "Messages from principal sponsors and parents" },
+                  { time: "04:00 PM", label: "Party", icon: <PartyPopper className="w-6 h-6 stroke-[1.5]" />, description: "Party! Party! Party!" },
                 ].map((item, idx) => (
                   <motion.div
                     key={idx}
@@ -1046,8 +1044,8 @@ export default function HomePage() {
                     viewport={{ once: true }}
                   >
                     {/* Time */}
-                    <div className="w-24 text-right">
-                      <div className="text-lg md:text-xl font-geist-sans text-sage-green font-semibold">
+                    <div className="w-40 text-center">
+                      <div className="text-lg md:text-xl font-geist-sans text-sage-green font-semibold whitespace-nowrap">
                         {item.time}
                       </div>
                     </div>

@@ -38,7 +38,7 @@ export const ENTOURAGE_CONFIG = {
         { name: "Lito Punongbayan", number: 1 },
         { name: "Lito Palas", number: 2 },
         { name: "Emanuel Saldaña", number: 3 },
-        { name: "Enrique Pagcaliwangan", number: 4 },
+        { name: "Enrique Pagkaliwangan", number: 4 },
         { name: "Felix De La Rea", number: 5 },
         { name: "Rolando Quinag", number: 6 },
         { name: "Ramon Monteza", number: 7 },

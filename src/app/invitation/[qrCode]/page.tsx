@@ -337,10 +337,10 @@ export default function InvitationPage() {
                     type: "spring",
                     stiffness: 200,
                     damping: 15,
-                    scale: { 
-                      duration: 4, 
-                      repeat: Infinity, 
-                      ease: "easeInOut" 
+                    scale: {
+                      duration: 4,
+                      repeat: Infinity,
+                      ease: "easeInOut"
                     }
                   }}
                 >
@@ -397,7 +397,7 @@ export default function InvitationPage() {
                     transition={{ duration: 1.8, repeat: Infinity, ease: 'easeInOut' }}
                     className="flex items-center gap-4 px-5 py-3 rounded-full shadow-2xl ring-1 ring-white/40 bg-gradient-to-r from-slate-blue to-sage-green text-white backdrop-blur-md"
                   >
-                    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" className="w-6 h-6 opacity-95"><path d="M9 19V6l10-2v13M9 13l10-2"/></svg>
+                    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" className="w-6 h-6 opacity-95"><path d="M9 19V6l10-2v13M9 13l10-2" /></svg>
                     <span className="text-sm md:text-base font-medium">Enhance your experience — play the background music.</span>
                     <button
                       onClick={() => {
@@ -714,7 +714,7 @@ export default function InvitationPage() {
 
             {/* ===== SECTION 4: WEDDING TIMELINE ===== */}
             <section className="min-h-screen flex items-center justify-center 0 relative py-20 overflow-hidden">
-              
+
               <div
                 className="absolute inset-0 bg-cover bg-center bg-no-repeat pointer-events-none hidden md:block"
                 style={{
@@ -776,18 +776,16 @@ export default function InvitationPage() {
                   transition={{ delay: 0.6, duration: 0.8 }}
                 >
                   <div className="flex items-center justify-center">
-                    <div className="space-y-2">
+                    <div className="space-y-2 max-w-3xl mx-auto">
                       {[
-                  { time: "10:45 AM", label: "Arrivals", icon: <Car className="w-6 h-6 stroke-[1.5]" />, description: "Arrival" },
-                        { time: "11:00 AM", label: "Ceremony", icon: <Heart className="w-6 h-6 stroke-[1.5]" />, description: "Our Lady of Lourdes Parish" },
-                        { time: "12:30 PM", label: "Photos", icon: <Camera className="w-6 h-6 stroke-[1.5]" />, description: "Wedding Portraits" },
-                        { time: "2:00 PM", label: "Reception", icon: <Utensils className="w-6 h-6 stroke-[1.5]" />, description: "Palacio Cristal Del AQUILA" },
-                  { time: "2:30 PM", label: "Cocktails", icon: <Martini className="w-6 h-6 stroke-[1.5]" />, description: "Welcome Reception" },
-                        
-                        { time: "3:30 PM", label: "Wedding Program", icon: <Megaphone className="w-6 h-6 stroke-[1.5]" />, description: "Wedding Program" },
-                        { time: "5:00 PM", label: "Dinner", icon: <UtensilsCrossed className="w-6 h-6 stroke-[1.5]" />, description: "Dinner" },
-                        { time: "6:00 PM", label: "Speeches", icon: <Mic className="w-6 h-6 stroke-[1.5]" />, description: "Toasts & Well Wishes" },
-                        { time: "7:00 PM", label: "After Party", icon: <PartyPopper className="w-6 h-6 stroke-[1.5]" />, description: "Night Party" },
+                        { time: "10:00 AM", label: "Arrivals", icon: <Car className="w-6 h-6 stroke-[1.5]" />, description: "Arrival of officiating and guests" },
+                        { time: "11:00 AM", label: "Wedding Ceremony", icon: <Heart className="w-6 h-6 stroke-[1.5]" />, description: "Wedding ceremony" },
+                        { time: "12:30 PM", label: "Travel to Reception", icon: <Car className="w-6 h-6 stroke-[1.5]" />, description: "Guests travel to reception venue" },
+                        { time: "01:00 PM", label: "Wedding Program", icon: <Megaphone className="w-6 h-6 stroke-[1.5]" />, description: "Pre-program of the host (games)" },
+                        { time: "02:30 PM", label: "Meal Time", icon: <Utensils className="w-6 h-6 stroke-[1.5]" />, description: "Silent queuing; photo op with the couple first" },
+                        { time: "03:30 PM", label: "Cake & Toast", icon: <Cake className="w-6 h-6 stroke-[1.5]" />, description: "Cake slicing and wine toasting (MOH & BM speech)" },
+                        { time: "03:45 PM", label: "Well Wishes", icon: <Mic className="w-6 h-6 stroke-[1.5]" />, description: "Messages from principal sponsors and parents" },
+                        { time: "04:00 PM", label: "Party", icon: <PartyPopper className="w-6 h-6 stroke-[1.5]" />, description: "Party! Party! Party!" },
                       ].map((item, idx) => (
                         <motion.div
                           key={idx}
@@ -798,8 +796,8 @@ export default function InvitationPage() {
                           viewport={{ once: true }}
                         >
                           {/* Time */}
-                          <div className="w-24 text-right">
-                            <div className="text-lg md:text-xl font-geist-sans text-sage-green font-semibold">
+                          <div className="w-40 text-center">
+                            <div className="text-lg md:text-xl font-geist-sans text-sage-green font-semibold whitespace-nowrap">
                               {item.time}
                             </div>
                           </div>
@@ -1188,10 +1186,10 @@ export default function InvitationPage() {
                       <h3 className="text-3xl md:text-5xl lg:text-6xl font-parisienne text-dusty-rose mb-6 md:mb-12">
                         {ENTOURAGE_CONFIG.flowerGirls.title}
                       </h3>
-                      
+
                       <div className="grid sm:grid-cols-2 gap-8 md:gap-16 max-w-4xl mx-auto">
                         {/* Escort */}
-                      <div className="space-y-4">
+                        <div className="space-y-4">
                           <h4 className="text-2xl md:text-3xl font-parisienne text-slate-blue mb-4 md:mb-8">
                             {ENTOURAGE_CONFIG.escort.title}
                           </h4>
@@ -1202,7 +1200,7 @@ export default function InvitationPage() {
                               </p>
                             ))}
                           </div>
-                      </div>
+                        </div>
 
                         {/* Flower Girls */}
                         <div className="space-y-4">
@@ -1218,7 +1216,7 @@ export default function InvitationPage() {
                           </div>
                         </div>
 
-                        
+
                       </div>
                     </motion.div>
                   )}
@@ -1323,7 +1321,7 @@ export default function InvitationPage() {
 
             {/* ===== SECTION 7: WEDDING VENUES ===== */}
             <section className="min-h-screen flex items-center justify-center bg-gradient-to-br from-white via-warm-beige/5 to-dusty-rose/10 relative py-16 overflow-hidden">
-              
+
               <div
                 className="absolute inset-0 bg-cover bg-center bg-no-repeat pointer-events-none hidden md:block"
                 style={{
@@ -1531,7 +1529,7 @@ export default function InvitationPage() {
 
             {/* ===== SECTION 8: DRESS CODE ===== */}
             <section className="min-h-screen flex items-center justify-center bg-gradient-to-br from-white via-sage-green/5 to-dusty-rose/10 relative py-16 overflow-hidden">
-              
+
               <div
                 className="absolute inset-0 bg-cover bg-center bg-no-repeat pointer-events-none hidden md:block"
                 style={{
@@ -1898,7 +1896,7 @@ export default function InvitationPage() {
             {/* ===== SECTION 10: FAQ ===== */}
             <FAQSection openFAQIndex={openFAQIndex} setOpenFAQIndex={setOpenFAQIndex} />
 
-            
+
 
             {/* ===== SECTION 11: RSVP ===== */}
             <div id="rsvp-section">
