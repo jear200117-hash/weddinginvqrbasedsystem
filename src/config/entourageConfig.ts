@@ -140,7 +140,7 @@ export const ENTOURAGE_CONFIG = {
     bible: {
       title: "Bible",
       members: [
-        { name: "Robner John G. Divido", role: "Bible Bearer" }
+        { name: "Robner John G. Dividor", role: "Bible Bearer" }
       ]
     }
   },
