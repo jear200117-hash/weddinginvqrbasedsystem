@@ -117,7 +117,7 @@ export const ENTOURAGE_CONFIG = {
       members: [
         { name: "Jandina De Roxas", number: 1 },
         { name: "Evarose Marco", number: 2 },
-        { name: "Alliyah Tañafranca", number: 3 }
+        { name: "Allyah Tañafranca", number: 3 }
       ]
     }
   },
