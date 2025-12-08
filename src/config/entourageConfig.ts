@@ -35,18 +35,18 @@ export const ENTOURAGE_CONFIG = {
     ninong: {
       title: "Ninong",
       members: [
-        { name: "Lito Punongbayan", number: 1 },
+        { name: "Julito Punongbayan", number: 1 },
         { name: "Lito Palas", number: 2 },
         { name: "Emanuel Saldaña", number: 3 },
         { name: "Enrique Pagkaliwangan", number: 4 },
         { name: "Felix De La Rea", number: 5 },
         { name: "Rolando Quinag", number: 6 },
-        { name: "Ramon Monteza", number: 7 },
+        { name: "Ramon Victor Monteza", number: 7 },
         { name: "Nicolas Polliente", number: 8 },
-        { name: "Kim De Villa", number: 9 },
+        { name: "Kim Byron De Villa", number: 9 },
         { name: "Tito Perigrino", number: 10 },
         { name: "Dominador Miguel", number: 11 },
-        { name: "Felix Aguas Jr", number: 12 }
+        { name: "Felix Aguas Jr", number: 12 },
       ]
     },
     ninang: {
@@ -56,12 +56,12 @@ export const ENTOURAGE_CONFIG = {
         { name: "Marilyn Palas", number: 2 },
         { name: "Janelle Saldaña", number: 3 },
         { name: "Eudosia Pagkaliwangan", number: 4 },
-        { name: "Christina De La Rea", number: 5 },
+        { name: "Christina Salim", number: 5 },
         { name: "Maricel Quinag", number: 6 },
         { name: "Imelda Monteza", number: 7 },
         { name: "Sonia Polliente", number: 8 },
         { name: "Irene De Villa", number: 9 },
-        { name: "Florencia Perigrino", number: 10 },
+        { name: "Florence Perigrino", number: 10 },
         { name: "Emily Miguel", number: 11 },
         { name: "Merlita Aguas", number: 12 }
       ]
